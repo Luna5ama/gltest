@@ -1,0 +1,196 @@
+#version 460 core
+
+#include "../GBuffers.glsl"
+#include "../GenericGBuffer.glsl"
+#include "../GlobalCamera.glsl"
+#include "ShadowParams.glsl"
+#include "ShadowSamplers.glsl"
+
+#define GROUP_SIZE 32
+
+layout(local_size_x = GROUP_SIZE, local_size_y = GROUP_SIZE, local_size_z = 1) in;
+
+layout(r32ui) uniform coherent volatile uimage2D uimg_imap2D;
+layout(rgba32ui) uniform readonly uimage2D uimg_gData1;
+
+uniform float uvImportanceMul;
+
+shared uint pPos[GROUP_SIZE][GROUP_SIZE];
+shared float pValue[GROUP_SIZE][GROUP_SIZE];
+
+void importance(ivec2 gCoord, out uint p, out float v) {
+//    if (any(greaterThanEqual(gCoord, textureSize(usam_gData1, 0)))) {
+    if (any(greaterThanEqual(gCoord, imageSize(uimg_gData1)))) {
+        p = 0xFFFFFFFFu;
+        v = 0u;
+        return;
+    }
+
+    float gDepth = texelFetch(usam_gDepth, gCoord, 0).x;
+    if (gDepth == 1.0) {
+        p = 0xFFFFFFFFu;
+        v = 0u;
+        return;
+    }
+
+    GBufferData gs_data;
+//    uvec4 packedData = texelFetch(usam_gData1, gCoord, 0);
+    uvec4 packedData = imageLoad(uimg_gData1, gCoord);
+    gbuffer_unpack1(packedData, gs_data);
+    vec3 worldCoord = gs_data.worldCoord;
+    vec3 worldNormal = gs_data.worldNormal;
+//    vec3 worldCoord = gbuffer_readCoordI(usam_gData1, gCoord);
+//    vec3 worldNormal = gbuffer_readNormalI(usam_gData1, gCoord);
+
+    vec3 viewDir = normalize(worldCoord);
+
+    worldCoord += uShadowMap.shadowWorldOffset.xyz;
+    vec4 shadowCS = uShadowMap.matrix * vec4(worldCoord, 1.0);
+    shadowCS /= shadowCS.w;
+
+    vec2 shadowTS = shadowCS.xy * 0.5 + 0.5;
+    shadowTS = rtwsm_warpTexCoord(usam_warpingMap, shadowTS);
+
+    float center = texture(usam_shadowDepth, shadowTS).x;
+    float maxDiff = 0.0;
+    maxDiff = max(maxDiff, abs(center - textureOffset(usam_shadowDepth, shadowTS, ivec2(-1, -1)).x));
+    maxDiff = max(maxDiff, abs(center - textureOffset(usam_shadowDepth, shadowTS, ivec2(-1, 0)).x));
+    maxDiff = max(maxDiff, abs(center - textureOffset(usam_shadowDepth, shadowTS, ivec2(-1, 1)).x));
+    maxDiff = max(maxDiff, abs(center - textureOffset(usam_shadowDepth, shadowTS, ivec2(0, -1)).x));
+    maxDiff = max(maxDiff, abs(center - textureOffset(usam_shadowDepth, shadowTS, ivec2(0, 1)).x));
+    maxDiff = max(maxDiff, abs(center - textureOffset(usam_shadowDepth, shadowTS, ivec2(1, -1)).x));
+    maxDiff = max(maxDiff, abs(center - textureOffset(usam_shadowDepth, shadowTS, ivec2(1, 0)).x));
+    maxDiff = max(maxDiff, abs(center - textureOffset(usam_shadowDepth, shadowTS, ivec2(1, 1)).x));
+    maxDiff *= ubo_cameraDefault.planeZ.y - ubo_cameraDefault.planeZ.x;
+
+    float importance = 1.0;
+    float pDist = max(length(worldCoord), 4.0) / 4.0;
+
+    // Distance function
+    importance *= 1.0 / pDist;
+
+    // Surface normal function
+    const float SN_BETA = 2.0;
+    importance *= 1.0 + SN_BETA * max(dot(worldNormal, -viewDir), 0.0);
+
+    const float LSN_BETA = 1.0;
+    importance *= 1.0 + LSN_BETA * sqrt(pDist) * pow(1.0 - abs(dot(worldNormal, uShadowMap.lightDir)), 8.0);
+
+    // Shadow Edge function
+    const float NON_EDGE = 0.01;
+    importance *= mix(NON_EDGE, 1.0, smoothstep(0.5, 2.0, maxDiff));
+
+    if (shadowCS.x < -1.0 || shadowCS.x > 1.0 || shadowCS.y < -1.0 || shadowCS.y > 1.0 || shadowCS.z < -1.0 || shadowCS.z > 1.0) {
+        p = 0xFFFFFFFFu;
+        v = 0u;
+        return;
+    }
+
+    shadowCS.xy = shadowCS.xy * 0.5 + 0.5;
+
+    uvec2 shadowPos = uvec2(shadowCS.xy * imageSize(uimg_imap2D) + 0.5);
+
+    p = shadowPos.y << 16 | shadowPos.x;
+    v = importance;
+
+    return;
+}
+
+void writeShared(uvec2 lcoord, uint p, float v) {
+    pPos[lcoord.x][lcoord.y] = p;
+    pValue[lcoord.x][lcoord.y] = v;
+}
+
+void writeOutputNoCheck(uint p, float v) {
+    imageAtomicAdd(uimg_imap2D, ivec2(p & 0xFFFFu, p >> 16), uint(v * uvImportanceMul));
+}
+
+void writeOutput(uint p, float v) {
+    if (p == 0xFFFFFFFFu) return;
+    imageAtomicAdd(uimg_imap2D, ivec2(p & 0xFFFFu, p >> 16), uint(v * uvImportanceMul));
+}
+
+bool merge(const uint offset, uint p1, inout float v1) {
+    uvec2 mergeGroupID = gl_LocalInvocationID.xy & ((1u << offset) - 1u);
+    if (any(notEqual(mergeGroupID, uvec2(0)))) {
+        return true;
+    }
+    ivec2 coord2 = ivec2(gl_LocalInvocationID.xy + ivec2(0, offset));
+    ivec2 coord3 = ivec2(gl_LocalInvocationID.xy + ivec2(offset, 0));
+    ivec2 coord4 = ivec2(gl_LocalInvocationID.xy + ivec2(offset, offset));
+    uint p2 = pPos[coord2.x][coord2.y];
+    uint p3 = pPos[coord3.x][coord3.y];
+    uint p4 = pPos[coord4.x][coord4.y];
+    float v2 = pValue[coord2.x][coord2.y];
+    float v3 = pValue[coord3.x][coord3.y];
+    float v4 = pValue[coord4.x][coord4.y];
+    if (p1 == p2 && p2 == p3 && p3 == p4) {
+        v1 += v2;
+        v1 += v3;
+        v1 += v4;
+        v1 *= 0.25;
+        writeShared(gl_LocalInvocationID.xy, p1, v1);
+    } else {
+        writeOutputNoCheck(p1, v1);
+        writeOutput(p2, v2);
+        writeOutput(p3, v3);
+        writeOutput(p4, v4);
+        return true;
+    }
+    return false;
+}
+
+bool initPass(inout uint p1, inout float v1) {
+    uint p2, p3, p4;
+    float v2, v3, v4;
+
+    ivec2 coord = ivec2(gl_GlobalInvocationID.xy * uvec2(2u));
+    importance(coord, p1, v1);
+    importance(coord + ivec2(0, 1), p2, v2);
+    importance(coord + ivec2(1, 0), p3, v3);
+    importance(coord + ivec2(1, 1), p4, v4);
+
+    // 64 x 64 -> 32 x 32
+    if (p1 != 0xFFFFFFFFu && p1 == p2 && p2 == p3 && p3 == p4) {
+        v1 += v2;
+        v1 += v3;
+        v1 += v4;
+        v1 *= 0.25;
+        writeShared(gl_LocalInvocationID.xy, p1, v1);
+    } else {
+        writeShared(gl_LocalInvocationID.xy, 0xFFFFFFFFu, 0u);
+        writeOutput(p1, v1);
+        writeOutput(p2, v2);
+        writeOutput(p3, v3);
+        writeOutput(p4, v4);
+        return true;
+    }
+
+    return false;
+}
+
+void main() {
+    uint p1;
+    float v1;
+    if (initPass(p1, v1)) return;
+
+    // 32 x 32 -> 16 x 16
+    barrier();
+    if (merge(1u, p1, v1)) return;
+
+    // 16 x 16 -> 8 x 8
+    barrier();
+    if (merge(2u, p1, v1)) return;
+
+    // 8 x 8 -> 4 x 4
+    barrier();
+    if (merge(4u, p1, v1)) return;
+
+    // 4 x 4 -> 2 x 2
+    barrier();
+    if (merge(8u, p1, v1)) return;
+
+    // 2 x 2 -> 1 x 1
+    barrier();
+    if (merge(16u, p1, v1)) return;
+}

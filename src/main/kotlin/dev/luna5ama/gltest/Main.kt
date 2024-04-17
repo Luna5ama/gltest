@@ -1,0 +1,56 @@
+package dev.luna5ama.gltest
+
+import dev.luna5ama.glwrapper.ShaderSource
+import org.lwjgl.glfw.Callbacks.glfwFreeCallbacks
+import org.lwjgl.glfw.GLFW.*
+import org.lwjgl.glfw.GLFWErrorCallback
+import org.lwjgl.opengl.GL
+
+fun main() {
+    System.setProperty("joml.forceUnsafe", "true")
+    System.setProperty("joml.fastmath", "true")
+    System.setProperty("joml.sinLookup", "true")
+    System.setProperty("joml.format", "false")
+    System.setProperty("joml.useMathFma", "true")
+
+    var gameInstance: GameInstance
+
+    do {
+        try {
+            glfwInit()
+            GLFWErrorCallback.createPrint(System.err).set()
+
+            glfwDefaultWindowHints()
+            glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API)
+            glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_NATIVE_CONTEXT_API)
+            glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4)
+            glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6)
+            glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE)
+            glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, 1)
+            glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, 1)
+            glfwWindowHint(GLFW_DOUBLEBUFFER, GLFW_TRUE)
+            glfwWindowHint(GLFW_SAMPLES, 0)
+
+            val window = glfwCreateWindow(1920, 1080, "", 0, 0)
+//            val window = glfwCreateWindow(1280, 720, "", 0, 0)
+           try {
+                gameInstance = GameInstance(window)
+               repeat(5) {
+                   System.gc()
+                   Thread.sleep(100L)
+               }
+                gameInstance.run()
+            } finally {
+               GL.destroy()
+               glfwFreeCallbacks(window)
+               glfwDestroyWindow(window)
+            }
+
+            if (!gameInstance.rerun) break
+        } finally {
+            glfwTerminate()
+            ShaderSource.clearAllCache()
+        }
+    } while (gameInstance.rerun)
+}
+

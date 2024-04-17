@@ -1,0 +1,14 @@
+#version 460 core
+
+layout(local_size_x = 32, local_size_y = 32, local_size_z = 1) in;
+
+layout(binding = 0, r32ui) uniform restrict uimage2D uimg_imap2D;
+
+uniform float uvImportanceMul;
+
+void main() {
+    ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
+    float v = float(imageLoad(uimg_imap2D, coord).x) * uvImportanceMul;
+    barrier();
+    imageStore(uimg_imap2D, coord, uvec4(floatBitsToUint(v), 0, 0, 0));
+}

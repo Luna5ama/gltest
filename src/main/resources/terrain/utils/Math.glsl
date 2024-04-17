@@ -1,0 +1,1 @@
+const float PI_CONST = 3.14159265358979323846;

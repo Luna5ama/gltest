@@ -1,0 +1,3 @@
+uniform sampler2DShadow usam_shadowDepthComp;
+uniform sampler2D usam_shadowDepth;
+uniform sampler1DArray usam_warpingMap;

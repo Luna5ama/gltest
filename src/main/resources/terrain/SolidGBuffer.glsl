@@ -1,0 +1,3 @@
+uniform usampler2D usam_gSolidData1;
+uniform usampler2D usam_gSolidData2;
+uniform sampler2D usam_gSolidDepth;

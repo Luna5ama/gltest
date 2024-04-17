@@ -1,0 +1,3 @@
+uniform usampler2D usam_gWaterData1;
+uniform usampler2D usam_gWaterData2;
+uniform sampler2D usam_gWaterDepth;
