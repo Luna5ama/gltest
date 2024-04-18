@@ -62,7 +62,7 @@ bool findIntersection(sampler2D depthTexture, vec3 refDir, out vec3 intersection
         rayCur = mix(rayMin + linearDir, (rayMin + rayMax) * 0.5, binarySearch);
 //        rayCur = (rayMin + rayMax) * 0.5;
 //        rayCur = rayMin + linearDir;
-        depth = texture(depthTexture, rayCur.xy).x;
+        depth = textureLod(depthTexture, rayCur.xy, 0.0).x;
 
         if (depth < rayCur.z) {
             binarySearch = 1.0;
@@ -147,7 +147,7 @@ void main() {
 
     gw_worldCoord = gw_data.worldCoord;
     gw_worldNormal = gw_data.worldNormal;
-    gw_depth = texture(usam_gWaterDepth, fTexCoord).x;
+    gw_depth = textureLod(usam_gWaterDepth, fTexCoord, 0.0).x;
 
     gw_viewCoord = (ubo_cameraDefault.modelView * vec4(gw_worldCoord, 1.0)).xyz;
     gw_viewNormal = fNormalMatrix * gw_worldNormal;

@@ -89,12 +89,12 @@ class GameInstance(val window: Long) {
             if (type == GL_DEBUG_TYPE_PUSH_GROUP) return@create
             if (type == GL_DEBUG_TYPE_POP_GROUP) return@create
             if (severity == GL_DEBUG_SEVERITY_NOTIFICATION) return@create
-//            if (severity == GL_DEBUG_SEVERITY_LOW) return@create
-//            if (severity == GL_DEBUG_SEVERITY_MEDIUM) return@create
+            if (severity == GL_DEBUG_SEVERITY_LOW) return@create
+            if (severity == GL_DEBUG_SEVERITY_MEDIUM) return@create
 
             println("[OpenGL/$sourceStr] type = $typeStr, severity = $severityStr, message = ${byteArray.decodeToString()}")
         }, 0)
-        glDisable(GL_DEBUG_OUTPUT_SYNCHRONOUS)
+        glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS)
         glEnable(GL_DITHER)
 
         pollErrors("Pre Setup")

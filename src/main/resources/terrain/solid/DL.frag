@@ -70,14 +70,14 @@ float searchBlocker(vec2 shadowCoord, vec2 texelSize) {
 float calcShadow(vec3 lightViewNormal) {
     vec3 coord = gs_viewCoord;
 
-    float SSS_RANGE = max(-dot(gs_data.worldNormal, uShadowMap.lightDir), 0.2) * mix(0.3, 3.0, gs_aoMul);
+    float SSS_RANGE = max(-dot(gs_data.worldNormal, uShadowMap.lightDir), 0.2) * mix(0.3, 2.0, gs_aoMul);
 
     float lightDirOffset = uShadowMap.boundSizeZ.y * mix(0.02, SSS_RANGE, tFactor);
 
     float minNormalOffset = 0.001;
-    float maxNormalOffset = clamp(length(gs_data.worldCoord) * 0.05, 1.0, 2.0);
-    maxNormalOffset *= 0.4 + 0.6 * (1.0 - abs(dot(normalize(-gs_data.worldCoord), gs_data.worldNormal)));
-    float normalOffsetFactor = max(-dot(gs_data.worldNormal, uShadowMap.lightDir), 0.0) * 0.8 + 0.2;
+    float maxNormalOffset = clamp(length(gs_data.worldCoord) * 0.05, 0.5, 2.0);
+    maxNormalOffset *= 0.1 + 0.9 * (1.0 - abs(dot(normalize(-gs_data.worldCoord), gs_data.worldNormal)));
+    float normalOffsetFactor = max(dot(gs_data.worldNormal, uShadowMap.lightDir), 0.0) * 0.95 + 0.05;
     coord += lightViewNormal * mix(minNormalOffset, maxNormalOffset, normalOffsetFactor);
 
     vec4 worldCoord = ubo_cameraDefault.invModelView * vec4(coord, 1.0);
@@ -92,19 +92,19 @@ float calcShadow(vec3 lightViewNormal) {
 
     float blockerDepth = searchBlocker(shadowCoord.xy, texelSize);
     float blockerDistance = rtwsm_linearDepth(shadowCoord.z) - rtwsm_linearDepth(blockerDepth);
-    float penumbraMult = 128.0 * blockerDistance;
+    float penumbraMult = 256.0 * blockerDistance;
 
-    #define SAMPLE_N 8
+    #define SAMPLE_N 128
 
     vec2 ssRange = mix(
-        texelSize * penumbraMult,
+        texelSize * 64.0 + texelSize * penumbraMult,
         texelSize * 2048.0 / max(length(gs_data.worldCoord), 1.0),
         tFactor
     );
 
     float shadow = 0.0;
-    uint idxSS = ubo_cameraDefault.gFrameIndex * (SAMPLE_N + 69) + worldCoordRand[0];
-    uint idxSSS = ubo_cameraDefault.gFrameIndex + worldCoordRand[1];
+    uint idxSS = (ubo_cameraDefault.gFrameIndex + worldCoordRand[0]) * SAMPLE_N;
+    uint idxSSS = (ubo_cameraDefault.gFrameIndex + worldCoordRand[1]) * SAMPLE_N;
 
     #if SAMPLE_N == 1
     vec2 offset = r2Seq2(idxSS) * ssRange - ssRange * 0.5;
@@ -239,11 +239,12 @@ void doStuff() {
     float emissive = 1.0 - pow(specMap.a, 1.0); // WTF
 
     tFactor = sssStrength / max(length(gs_data.worldCoord) / 64.0, 1.0);
+//    tFactor = 0.0;
 
     // TBN
     vec3 lightWorldNormal = gs_data.worldNormal;
-    lightWorldNormal = mix(lightWorldNormal, uShadowMap.lightDir, tFactor * mix(0.05, 0.4, gs_aoMul));
-    lightWorldNormal = lightWorldNormal + uShadowMap.lightDir * tFactor * mix(0.2, 0.6, gs_aoMul);
+    lightWorldNormal = mix(lightWorldNormal, uShadowMap.lightDir, tFactor * mix(0.02, 0.1, gs_aoMul));
+    lightWorldNormal = lightWorldNormal + uShadowMap.lightDir * tFactor * mix(0.05, 0.2, gs_aoMul);
     lightWorldNormal = normalize(lightWorldNormal);
     vec3 bitangent = cross(gs_data.worldNormal, gs_data.worldTangent);
     mat3 tbn1 = mat3(gs_data.worldTangent, bitangent, normalize(gs_data.worldNormal + lightWorldNormal * 0.5));
@@ -265,7 +266,7 @@ void doStuff() {
     float shadow = calcShadow(fNormalMatrix * lightWorldNormal);
 
     vec3 v = vec3(0.0);
-    v += tFactor * mix(2.0, 4.0, gs_aoMul) * ao * shadow * max(dot(mappedNormal2, uShadowMap.lightDir), 0.0) * gs_data.albedo.rgb * gs_lightMapColor;
+    v += tFactor * mix(2.0, 4.0, gs_aoMul) * ao * shadow * gs_data.albedo.rgb * gs_lightMapColor;
 
 //    vec3 specColor = mix(gs_data.albedo.rgb, SUN_LIGHT_COLOR, reflectance * 0.5) * (reflectance + 0.01);
     vec3 specColor = gs_data.albedo.rgb;
@@ -296,11 +297,11 @@ void doStuff() {
     ambientLight += AMBIENT_DIFFUSE_INTENSITY * gs_lightMapColor;
     float blockLight = gs_data.lightCoord.x * 2.0;
     blockLight += max(gs_data.lightCoord.x - gs_data.lightCoord.y, 0.0) * 4.0;
-    ambientLight *= 1.0 + blockLight;
+    ambientLight *= 2.0 + blockLight;
 
-    float ambientLdotN = 0.4;
-    ambientLdotN += max(dot(AMBIENT_DIFFUSE_1, gs_data.worldNormal), 0.0) * 0.3;
-    ambientLdotN += max(dot(AMBIENT_DIFFUSE_2, gs_data.worldNormal), 0.0) * 0.3;
+    float ambientLdotN = 0.3;
+    ambientLdotN += max(dot(AMBIENT_DIFFUSE_1, gs_data.worldNormal), 0.0) * 0.35;
+    ambientLdotN += max(dot(AMBIENT_DIFFUSE_2, gs_data.worldNormal), 0.0) * 0.35;
 
     v += ao * ambientLdotN * gs_data.albedo.rgb * ambientLight;
 
@@ -309,6 +310,7 @@ void doStuff() {
     outParams.r = reflectance;
     outParams.g = (shadow + 0.1) * sign(mappedNormal2.z);
     outParams.ba = mappedNormal2.xy;
+//    outColor.rgb = shadow.rrr;
 }
 
 void main() {

@@ -60,6 +60,8 @@ class HiZBufferGen(val scene: TerrainScene) : IGLObjContainer by IGLObjContainer
             scene.basic.blitShader.applyBinding {
                 sampler("usam_input", input)
                 subroutine(scene.basic.sampleRRRBinding)
+                subroutine(depthType.subroutineBindings)
+                subroutine(kernelType.subroutineBinding)
             }
             scene.basic.drawQuad()
         }
@@ -88,7 +90,7 @@ class HiZBufferGen(val scene: TerrainScene) : IGLObjContainer by IGLObjContainer
             depthShader.applyBinding {
                 sampler("usam_input", output, scene.samplers.nearestClampEdge)
                 subroutine(kernelType.subroutineBinding)
-                subroutine(depthType.subroutineBindings[0])
+                subroutine(depthType.subroutineBindings)
             }
 
             glViewport(0, 0, halfWidth, halfHeight)

@@ -46,7 +46,7 @@ class HBAO(private val scene: TerrainScene, private val solidLighting: SolidLigh
         if (sizeBit != lastUpdateSizeBit) {
             finalTex.apply {
                 destroy()
-                allocate(1, ImageFormat.R16_G16_B16_A16_F, input.width, input.height)
+                allocate(1, ImageFormat.R16_G16_B16_A16_F, input.width / 2, input.height / 2)
             }
             finalFbo.apply {
                 clearAttachments()
@@ -63,7 +63,7 @@ class HBAO(private val scene: TerrainScene, private val solidLighting: SolidLigh
     private val timer = TickTimer()
 
     private fun sample(input: GBuffer) {
-        glEnable(GL_DITHER)
+        glDisable(GL_DITHER)
         finalFbo.bind()
 //        finalFbo.attachNonLayered(input.depthStencilTex, GL_DEPTH_STENCIL_ATTACHMENT)
         finalFbo.clearColor(0, 0.0f, 0.0f, 0.0f, 0.0f)

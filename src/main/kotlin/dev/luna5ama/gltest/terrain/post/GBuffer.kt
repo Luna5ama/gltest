@@ -94,8 +94,8 @@ class GBuffer(private val scene: TerrainScene, val name: String) : IGLObjContain
                 setWrap(GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE)
             }
             depthStencilTex.apply {
-                allocate(1, ImageFormat.Depth32FStencil8, screenWidth, screenHeight)
-                setFilter(GL_NEAREST, GL_NEAREST)
+                allocate(8, ImageFormat.Depth32FStencil8, screenWidth, screenHeight)
+                setFilter(GL_LINEAR_MIPMAP_LINEAR, GL_NEAREST)
                 setWrap(GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE)
             }
             fbo.apply {

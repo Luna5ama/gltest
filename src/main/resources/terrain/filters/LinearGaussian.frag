@@ -16,7 +16,7 @@ vec4 sampleValue(vec2 coord) {
 
 subroutine void SampleDirection();
 
-subroutine uniform SampleDirection usubroutine_SampleDirection;
+layout(location = 0) subroutine uniform SampleDirection usubroutine_SampleDirection;
 
 subroutine(SampleDirection) void sampleH() {
     CODE_H;

@@ -3,7 +3,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
 
 plugins {
-    kotlin("jvm") version "2.0.0-RC1"
+    kotlin("jvm") version "1.9.23"
 
     id("dev.luna5ama.jar-optimizer")
     id("dev.luna5ama.ktgen").version("1.0.0") apply false
@@ -91,7 +91,7 @@ allprojects {
         kotlin {
             compilerOptions {
                 jvmTarget.set(JvmTarget.JVM_21)
-                languageVersion.set(KotlinVersion.KOTLIN_2_0)
+                languageVersion.set(KotlinVersion.KOTLIN_1_9)
             }
         }
     }

@@ -32,9 +32,9 @@ import kotlin.math.pow
 
 class TerrainScene(gameInstance: GameInstance) : AbstractScene(gameInstance) {
 //    val terrainMesh = register(TerrainMesh(this, File("dumpMountain")))
-    val terrainMesh = register(TerrainMesh(this, File("dumpMountainV")))
+//    val terrainMesh = register(TerrainMesh(this, File("dumpMountainV")))
 //    val terrainMesh = register(TerrainMesh(this, File("dumpBadlands")))
-//    val terrainMesh = register(TerrainMesh(this, File("dumpForest")))
+    val terrainMesh = register(TerrainMesh(this, File("dumpForest")))
 //    val terrainMesh = register(TerrainMesh(this, File("dumpTest")))
 //    val terrainMesh = register(TerrainMesh(this, File("dumpJungle")))
 //        val terrainMesh = register(TerrainMesh(this,File("dumpTaiga")))
@@ -184,10 +184,10 @@ class TerrainScene(gameInstance: GameInstance) : AbstractScene(gameInstance) {
         glDebugGroup("Solid lighting pass") {
             solidLighting.render(fboGroup)
         }
-        glDebugGroup("waterDeferredPass") {
+        glDebugGroup("Water geometry pass") {
             waterDeferredPass()
         }
-        glDebugGroup("waterLightingPass") {
+        glDebugGroup("Water lighting pass") {
             waterLightingPass()
         }
         glDebugGroup("Post pass") {
@@ -283,7 +283,6 @@ class TerrainScene(gameInstance: GameInstance) : AbstractScene(gameInstance) {
         drawView1.setupCullBox()
 
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
-        glDisable(GL_CULL_FACE)
         glDepthFunc(GL_LEQUAL)
         glDisable(GL_DEPTH_CLAMP)
         glDisable(GL_STENCIL_TEST)
@@ -467,9 +466,11 @@ class TerrainScene(gameInstance: GameInstance) : AbstractScene(gameInstance) {
 //        basic.blitShader.uniform1f("uLod", 0.0f)
 //        basic.drawQuad()
 
-        glDebugGroup("GammaCorrection") { gammaCorrection.render(fboGroup) }
-
         glDebugGroup("TXAA") { txaa.render(fboGroup) }
+
+//        rtwsm.renderDebug(fboGroup)
+
+        glDebugGroup("GammaCorrection") { gammaCorrection.render(fboGroup) }
 
 //        glDebugGroup("Atmosphere") { atmosphere.postPass(fboGroup) }
 //        glDebugGroup("VolumetricLight") {
@@ -478,7 +479,6 @@ class TerrainScene(gameInstance: GameInstance) : AbstractScene(gameInstance) {
 
 //        lensFlare.render(fboGroup)
 //        ssao.renderDebug(fboGroup)
-//        rtwsm.renderDebug(fboGroup)
 
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
         val ratio = 1

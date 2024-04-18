@@ -14,37 +14,45 @@ struct IndirectDrawCommand {
     uint baseInstance;
 };
 
-uniform uint uPrevVisibleOffset;
-uniform uint uCameraChunkIdx;
+uniform uint uval_prevVisibleOffset;
+uniform vec3 uval_originOffset;
 
 layout(binding = 0) uniform atomic_uint indirectCounter;
+
+layout(std430) restrict readonly buffer ChunkOffsetBuffer {
+    uint chunkOffsets[];
+};
 
 layout(std430) restrict buffer VisibleBufferRW {
     uint_t visibleBufferRW[];
 };
 
-layout(std430) readonly buffer VisibleBuffer {
+layout(std430) restrict readonly buffer VisibleBuffer {
     uint_t visibleBuffer[];
 };
 
-layout(std430) readonly buffer RawIndirectBuffer {
+layout(std430) restrict readonly buffer RawIndirectBuffer {
     IndirectDrawCommand rawIndirects[];
 };
 
-layout(std430) writeonly buffer OutIndirectBuffer {
+layout(std430) restrict writeonly buffer OutIndirectBuffer {
     IndirectDrawCommand outIndirects[];
 };
 
 subroutine void VisibleStateCompute();
 
-layout(location = 0) subroutine uniform VisibleStateCompute usubroutine_VisibleStateCompute;
+subroutine uniform VisibleStateCompute usubroutine_VisibleStateCompute;
 
 subroutine(VisibleStateCompute) void lastVisible() {
-    bool isCameraChunk = gl_GlobalInvocationID.x == uCameraChunkIdx;
-    uint prev = uint(visibleBufferRW[gl_GlobalInvocationID.x]) | uint(isCameraChunk);
+    IndirectDrawCommand cmd = rawIndirects[gl_GlobalInvocationID.x];
+    vec3 offset = vec3(uvec3(chunkOffsets[cmd.baseInstance]) >> uvec3(0u, 8u, 16u) & uvec3(255u));
+    vec3 coord = offset * 16.0f + uval_originOffset;
+
+    bool isCameraChunk = dot(coord, coord) < 1024.0;
+    bool prev = bool(visibleBufferRW[gl_GlobalInvocationID.x]) || isCameraChunk;
     visibleBufferRW[gl_GlobalInvocationID.x] = uint_t(0u);
-    visibleBufferRW[gl_GlobalInvocationID.x + uPrevVisibleOffset] = uint_t(prev);
-    if (!bool(prev)) {
+    visibleBufferRW[gl_GlobalInvocationID.x + uval_prevVisibleOffset] = uint_t(prev);
+    if (!prev) {
         return;
     }
 
@@ -53,7 +61,7 @@ subroutine(VisibleStateCompute) void lastVisible() {
 }
 
 subroutine(VisibleStateCompute) void newlyVisible() {
-    bool prev = bool(uint(visibleBuffer[gl_GlobalInvocationID.x + uPrevVisibleOffset]));
+    bool prev = bool(uint(visibleBuffer[gl_GlobalInvocationID.x + uval_prevVisibleOffset]));
     bool curr = bool(uint(visibleBuffer[gl_GlobalInvocationID.x]));
     if (prev || !curr) {
         return;
@@ -64,18 +72,21 @@ subroutine(VisibleStateCompute) void newlyVisible() {
 }
 
 subroutine(VisibleStateCompute) void currentVisible() {
-    bool isCameraChunk = gl_GlobalInvocationID.x == uCameraChunkIdx;
-    uint prev = uint(visibleBuffer[gl_GlobalInvocationID.x]) | uint(isCameraChunk);
-    if (!bool(prev)) {
+    IndirectDrawCommand cmd = rawIndirects[gl_GlobalInvocationID.x];
+    vec3 offset = 8.0f + unpackUnorm4x8(chunkOffsets[cmd.baseInstance]).xyz * 16.0f + uval_originOffset;
+
+    bool isCameraChunk = dot(offset, offset) < 1024.0;
+    bool prev = bool(visibleBuffer[gl_GlobalInvocationID.x]) || isCameraChunk;
+    if (!prev) {
         return;
     }
 
     uint outIndex = atomicCounterIncrement(indirectCounter);
-    outIndirects[outIndex] = rawIndirects[gl_GlobalInvocationID.x];
+    outIndirects[outIndex] = cmd;
 }
 
 void main() {
-    if (gl_GlobalInvocationID.x >= uPrevVisibleOffset) {
+    if (gl_GlobalInvocationID.x >= uval_prevVisibleOffset) {
         return;
     }
 

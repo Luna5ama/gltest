@@ -175,6 +175,8 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
     val lightDir = Vector3f(0.5f, 1.0f, 0.5f).normalize()
 
     suspend fun render() {
+        lightDir.set(0.5f, 0.6f, 0.5f).normalize() // badlands
+
 //        lightDir.set(1.0f, 1.5f, 0.3f).normalize() // badlands
 //        lightDir.set(0.7f, 0.8f, 0.5f).normalize() // badlands
 //            lightDir.set(-0.4f, 0.8f, -0.5f).normalize() // badlands
@@ -184,7 +186,7 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
 //        lightDir.set(0.1f, 1.2f, -0.6f).normalize() // mountains
 
 //        lightDir.set(0.6f, 1.0f, 0.4f).normalize() // romm
-        lightDir.set(-0.4f, 1.0f, 0.5f).normalize() // street
+//        lightDir.set(-0.4f, 1.0f, 0.5f).normalize() // street
 
 //        lightDir.set(0.6f, 1.2f, -0.8f).normalize() // Sponza
 //        lightDir.set(0.1f, 1.2f, -0.6f).normalize() // Sponza
@@ -272,7 +274,7 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
     }
 
     private fun setParams() {
-        forwardShader.uniform1f("uBaseImportance", 0.05f)
+        forwardShader.uniform1f("uBaseImportance", 0.5f)
         blitWarpingMapShader.uniform1f("uPrevCoeff", 0.01f)
     }
 
@@ -332,7 +334,6 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
             buffer(uboBinding)
         }
 
-        glDisable(GL_STENCIL_TEST)
         glDisable(GL_CULL_FACE)
         glDisable(GL_DEPTH_CLAMP)
 
@@ -356,7 +357,7 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
     }
 
     private fun imapBlur() {
-        repeat(4) {
+        repeat(2) {
             scene.gaussianBlur.process(
                 GaussianBlur.Type.LINEAR,
                 8, 4, it * 2.0f + 1.0f,
@@ -399,7 +400,6 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
         drawView0.setupIndirect(TerrainMesh.VisibleState.LAST_VISIBLE)
         drawView1.setupIndirect(TerrainMesh.VisibleState.LAST_VISIBLE)
 
-
         // Indirect draw last visible
         glEnable(GL_DEPTH_TEST)
         glDepthFunc(GL_LEQUAL)
@@ -415,15 +415,12 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
         bindCutout()
         drawView1.draw()
 
-
         // Bounding box cull test
         drawView0.setupCullBox()
         drawView1.setupCullBox()
 
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
-        glDepthFunc(GL_LEQUAL)
         glDisable(GL_DEPTH_CLAMP)
-        glDisable(GL_STENCIL_TEST)
         glEnable(GL_CULL_FACE)
         glDepthMask(false)
         glColorMask(false, false, false, false)
@@ -437,6 +434,7 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
             buffer(uboBinding)
         }
 
+        glDisable(GL_CULL_FACE)
         glColorMask(true, true, true, true)
         glDepthMask(true)
 
@@ -449,7 +447,7 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
         // Indirect draw new visible
         glMemoryBarrier(GL_COMMAND_BARRIER_BIT)
         glEnable(GL_DEPTH_CLAMP)
-        glDepthFunc(GL_LESS)
+        glDepthFunc(GL_LEQUAL)
 
         bindSolid()
         drawView0.draw()
@@ -488,6 +486,7 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
         )
         mapGenCutout.applyBinding {
             sampler(scene.textures.blockAlbedo)
+            sampler(scene.textures.blockSpecular)
             sampler("usam_warpingMap", warpingMap)
 
             buffer(scene.camera.noJitterUboBinding)
@@ -496,7 +495,7 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
     }
 
     private val shadowDepthSampler = scene.samplerManager.get {
-        filter(FilterMode.Nearest, FilterMode.Nearest)
+        filter(FilterMode.NearestMipmapNearest, FilterMode.Nearest)
         wrap(WrapMode.ClampToBorder, WrapMode.ClampToBorder)
         borderColor(1.0f, 1.0f, 1.0f, 1.0f)
     }
@@ -509,6 +508,7 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
         glDisable(GL_STENCIL_TEST)
         scene.basic.blitDepthShader.bind()
         scene.basic.blitDepthShader.uniform1f("uPower", 4.0f)
+        scene.basic.blitDepthShader.uniform1f("uLod", 0.0f)
         scene.basic.blitDepthShader.applyBinding {
             sampler("usam_input", shadowDepthTexture, shadowDepthSampler)
             buffer(scene.camera.noJitterUboBinding)

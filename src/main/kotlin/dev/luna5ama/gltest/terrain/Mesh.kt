@@ -211,8 +211,9 @@ class TerrainMesh(private val scene: TerrainScene, dir: File) : IGLObjContainer 
                 arr.realloc(arr.len, false)
             }
 
-            if (rawIndirectClient.len != 0L)
+            if (rawIndirectClient.len != 0L) {
                 rawIndirectBuffer.allocate(rawIndirectClient.len, rawIndirectClient.ptr, 0)
+            }
         }
 
         private suspend fun readToBuffer(file: File, output: BufferObject) {
@@ -250,10 +251,6 @@ class TerrainMesh(private val scene: TerrainScene, dir: File) : IGLObjContainer 
             }
 
             copyBuffer.destroy()
-        }
-
-        private fun drawIndirectCount(drawView: DrawView) {
-            glMultiDrawElementsIndirectCount(GL_TRIANGLES, GL_UNSIGNED_INT, 16L, 0L, drawView.drawCount, 0)
         }
 
         fun getDrawViewOrCreate(viewName: String): DrawViewNormal {
@@ -409,11 +406,16 @@ class TerrainMesh(private val scene: TerrainScene, dir: File) : IGLObjContainer 
 
                 val shader = indirectSetupCompShader
                 shader.bind()
-                shader.uniform1ui("uPrevVisibleOffset", chunkInfoSize)
-                shader.uniform1ui("uCameraChunkIdx", cameraChunkIdx)
+                shader.uniform1ui("uval_prevVisibleOffset", chunkInfoSize)
+                shader.uniform3f("uval_originOffset",
+                    (scene.originX - scene.camera.pos.x - 0.5).toFloat(),
+                    (scene.originY - scene.camera.pos.y).toFloat(),
+                    (scene.originZ - scene.camera.pos.z - 0.5).toFloat()
+                )
                 shader.applyBinding {
                     buffer(visibleBufferBinding)
                     buffer("indirectCounter", indirect, BufferTarget.AtomicCounter)
+                    buffer("ChunkOffsetBuffer", chunkOffsetBuffer, BufferTarget.ShaderStorage)
                     buffer("RawIndirectBuffer", layer.rawIndirectBuffer, BufferTarget.ShaderStorage)
                     buffer(
                         "OutIndirectBuffer",
@@ -435,7 +437,7 @@ class TerrainMesh(private val scene: TerrainScene, dir: File) : IGLObjContainer 
                 indirect.bind(GL_DRAW_INDIRECT_BUFFER)
                 indirect.bind(GL_PARAMETER_BUFFER)
                 layer.vao.bind()
-                glMultiDrawElementsIndirectCount(GL_TRIANGLES, GL_UNSIGNED_INT, 16L, 0L, drawCount, 0)
+                glMultiDrawElementsIndirectCount(GL_TRIANGLES, GL_UNSIGNED_INT, 16L, 0L, layer.chunkInfos.size, 0)
             }
         }
     }
