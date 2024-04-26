@@ -37,22 +37,5 @@ void main() {
     const float LSN_BETA = 0.1;
     importance *= 1.0 + LSN_BETA * sqrt(pDist) * pow(1.0 - abs(dot(vNormal, uShadowMap.lightDir)), 8.0);
 
-    // Shadow Edge function
-//    vec2 shadowTS = gl_Position.xy * 0.5 + 0.5;
-//    shadowTS = rtwsm_warpTexCoord(usam_warpingMap, shadowTS);
-//    float center = texture(usam_shadowDepth, shadowTS).x;
-//    float maxDiff = 0.0;
-//    maxDiff = max(maxDiff, abs(center - textureOffset(usam_shadowDepth, shadowTS, ivec2(-1, -1)).x));
-//    maxDiff = max(maxDiff, abs(center - textureOffset(usam_shadowDepth, shadowTS, ivec2(-1, 0)).x));
-//    maxDiff = max(maxDiff, abs(center - textureOffset(usam_shadowDepth, shadowTS, ivec2(-1, 1)).x));
-//    maxDiff = max(maxDiff, abs(center - textureOffset(usam_shadowDepth, shadowTS, ivec2(0, -1)).x));
-//    maxDiff = max(maxDiff, abs(center - textureOffset(usam_shadowDepth, shadowTS, ivec2(0, 1)).x));
-//    maxDiff = max(maxDiff, abs(center - textureOffset(usam_shadowDepth, shadowTS, ivec2(1, -1)).x));
-//    maxDiff = max(maxDiff, abs(center - textureOffset(usam_shadowDepth, shadowTS, ivec2(1, 0)).x));
-//    maxDiff = max(maxDiff, abs(center - textureOffset(usam_shadowDepth, shadowTS, ivec2(1, 1)).x));
-//    maxDiff *= planeZ.y - planeZ.x;
-//    const float NON_EDGE = 0.5;
-//    importance *= mix(NON_EDGE, 1.0, smoothstep(1.0, 4.0, maxDiff));
-
     fImportance = importance;
 }

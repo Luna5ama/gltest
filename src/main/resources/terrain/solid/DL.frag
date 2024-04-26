@@ -75,7 +75,7 @@ float calcShadow(vec3 lightViewNormal) {
     float lightDirOffset = uShadowMap.boundSizeZ.y * mix(0.02, SSS_RANGE, tFactor);
 
     float minNormalOffset = 0.001;
-    float maxNormalOffset = clamp(length(gs_data.worldCoord) * 0.05, 0.5, 2.0);
+    float maxNormalOffset = clamp(length(gs_data.worldCoord) * 0.05, 0.5, 8.0);
     maxNormalOffset *= 0.1 + 0.9 * (1.0 - abs(dot(normalize(-gs_data.worldCoord), gs_data.worldNormal)));
     float normalOffsetFactor = max(dot(gs_data.worldNormal, uShadowMap.lightDir), 0.0) * 0.95 + 0.05;
     coord += lightViewNormal * mix(minNormalOffset, maxNormalOffset, normalOffsetFactor);
@@ -92,7 +92,7 @@ float calcShadow(vec3 lightViewNormal) {
 
     float blockerDepth = searchBlocker(shadowCoord.xy, texelSize);
     float blockerDistance = rtwsm_linearDepth(shadowCoord.z) - rtwsm_linearDepth(blockerDepth);
-    float penumbraMult = 256.0 * blockerDistance;
+    float penumbraMult = 128.0 * blockerDistance;
 
     #define SAMPLE_N 128
 

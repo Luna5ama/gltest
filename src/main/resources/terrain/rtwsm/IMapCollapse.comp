@@ -3,7 +3,7 @@
 
 layout(local_size_x = GROUP_SIZE_X, local_size_y = 1, local_size_z = 1) in;
 
-layout(r16f) uniform restrict writeonly image1DArray uimg_imap1D;
+layout(r32f) uniform restrict writeonly image1DArray uimg_imap1D;
 uniform sampler2D usam_imap2D;
 
 shared float collapseBuffer[GROUP_SIZE_X];
@@ -42,9 +42,6 @@ void main() {
     }
 
     if (gl_LocalInvocationID.x == 0) {
-        //        vec4 max4 = collapseBuffer[0];
-        //        vec2 max2 = max(max4.xy, max4.zw);
-        //        float max1 = max(max2.x, max2.y);
         imageStore(uimg_imap1D, ivec2(gl_WorkGroupID.x, gl_WorkGroupID.y), vec4(collapseBuffer[0], 0.0, 0.0, 0.0));
     }
 }

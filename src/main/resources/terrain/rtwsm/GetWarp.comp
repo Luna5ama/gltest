@@ -5,8 +5,8 @@
 
 layout(local_size_x = OUTPUT_SIZE, local_size_y = 1, local_size_z = 1) in;
 
-layout(binding = 0, r16f) uniform restrict readonly image1DArray uimg_imap1D;
-layout(binding = 1, rg16_snorm) uniform restrict writeonly image1DArray uimg_warpingMap;
+layout(r32f) uniform restrict readonly image1DArray uimg_imap1D;
+layout(rg16_snorm) uniform restrict writeonly image1DArray uimg_warpingMap;
 
 shared vec4 sSumBuffer[OUTPUT_SIZE];
 

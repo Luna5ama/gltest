@@ -52,7 +52,7 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
     private val collapseShader = register(
         ShaderProgram(
             ShaderSource.Comp("/terrain/rtwsm/IMapCollapse.comp") {
-                val groupSize = min(imapSize / 2, 1024)
+                val groupSize = min(imapSize / 2, 512)
                 val sampleCount = (imapSize / 2) / groupSize
                 define("GROUP_SIZE_X", groupSize)
                 define("SAMPLE_COUNT", sampleCount)
@@ -98,15 +98,6 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
         label("RTWSM.MapGenCutout")
     }
 
-    private val blitWarpingMapShader = register(
-        ShaderProgram(
-            ShaderSource.Vert("/terrain/rtwsm/BlitWarpingMap.vert.glsl"),
-            ShaderSource.Frag("/terrain/rtwsm/BlitWarpingMap.frag.glsl")
-        )
-    ).apply {
-        label("RTWSM.BlitWarpingMap")
-    }
-
     private val imap2D = register(TextureObject.Texture2D()).apply {
         allocate(1, ImageFormat.R32_F, imapSize, imapSize)
         linearClampEdge()
@@ -123,7 +114,7 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
     }
 
     private val imap1D = register(TextureObject.Texture1DArray()).apply {
-        allocate(1, ImageFormat.R16_F, imapSize, 2)
+        allocate(1, ImageFormat.R32_F, imapSize, 2)
         setFilter(GL_LINEAR, GL_LINEAR)
         setWrap(GL_CLAMP_TO_BORDER, GL_CLAMP_TO_BORDER)
         setBorderColor(0.0f, 0.0f, 0.0f, 0.0f)
@@ -211,7 +202,7 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
         }
 
         glDebugGroup("Backward analysis") { backwardComputePass() }
-//        glDebugGroup("Forward analysis") { forwardPass() }
+        glDebugGroup("Forward analysis") { forwardPass() }
         glDebugGroup("IMAP blur") { imapBlur() }
         glDebugGroup("IMAP collapse") { imapCollapse() }
         glDebugGroup("Gen warp") { genWrap() }
@@ -275,15 +266,18 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
     }
 
     private fun setParams() {
-        forwardShader.uniform1f("uBaseImportance", 0.5f)
-        blitWarpingMapShader.uniform1f("uPrevCoeff", 0.01f)
+        val vPerGroupF = 0xFFFFFFFFL.toFloat()
+        val forwardBaseImportance = 0.5f
+        val backwardBaseImportance = 16.0f
+        backwardCompShader.uniform1f("uvImportanceMul", vPerGroupF)
+        backwardCopyShader.uniform1f("uvImportanceMul", backwardBaseImportance / vPerGroupF)
+        forwardShader.uniform1f("uBaseImportance", forwardBaseImportance)
     }
 
     private val timer = GPUTimer()
     private val printTimer = TickTimer()
 
     private fun backwardComputePass() {
-        val vPerGroupF = 0xFFFFFFFFL.toFloat()
         glDebugGroup("Compute") {
             val workGroupX = (scene.camera.screenWidth + 15) / 16
             val workGroupY = (scene.camera.screenHeight + 15) / 16
@@ -291,7 +285,6 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
             imap2D.clearImage()
 
             backwardCompShader.bind()
-            backwardCompShader.uniform1f("uvImportanceMul", vPerGroupF)
             backwardCompShader.applyBinding {
                 sampler(shadowMapSamplerBindings)
                 sampler(scene.solidGBuffer.genericTexBindings)
@@ -313,7 +306,6 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
 
         glDebugGroup("Copy") {
             backwardCopyShader.bind()
-            backwardCopyShader.uniform1f("uvImportanceMul", 0.5f / vPerGroupF)
             backwardCopyShader.applyBinding {
                 image(imap2DUIImageBinding)
             }
@@ -369,7 +361,7 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
         repeat(2) {
             scene.gaussianBlur.process(
                 GaussianBlur.Type.LINEAR,
-                8, 4, it * 2.0f + 1.0f,
+                8, 4, it * 1.0f + 1.0f,
                 imap2D,
                 imap2D
             )

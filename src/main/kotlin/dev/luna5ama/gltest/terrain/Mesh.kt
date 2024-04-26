@@ -427,7 +427,7 @@ class TerrainMesh(private val scene: TerrainScene, dir: File) : IGLObjContainer 
                     subroutine(visibleState.subroutineBinding)
                 }
 
-                glDispatchCompute((chunkInfoSize + 31) / 32, 1, 1)
+                glDispatchCompute((chunkInfoSize + 127) / 128, 1, 1)
             }
         }
 
