@@ -31,17 +31,18 @@ void main() {
     }
     #endif
 
+    float maxValue1 = subgroupMax(value);
     if (gl_SubgroupInvocationID == 0u) {
-        collapseBuffer[gl_SubgroupID] = subgroupMax(value);
+        collapseBuffer[gl_SubgroupID] = maxValue1;
     }
 
     barrier();
     if (gl_SubgroupID != 0u) return;
 
     float v = gl_SubgroupInvocationID < gl_NumSubgroups ? collapseBuffer[gl_SubgroupInvocationID] : 0.0;
-    float finalValue = subgroupMax(v);
+    float maxValue2 = subgroupMax(v);
 
     if (gl_SubgroupInvocationID == 0) {
-        imageStore(uimg_imap1D, ivec2(gl_WorkGroupID.x, gl_WorkGroupID.y), vec4(finalValue, 0.0, 0.0, 0.0));
+        imageStore(uimg_imap1D, ivec2(gl_WorkGroupID.x, gl_WorkGroupID.y), vec4(maxValue2, 0.0, 0.0, 0.0));
     }
 }
