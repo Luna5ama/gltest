@@ -1,11 +1,10 @@
 package dev.luna5ama.gltest.terrain.post
 
 import dev.fastmc.common.TickTimer
-import dev.fastmc.common.ceilToInt
 import dev.luna5ama.gltest.terrain.IGLObjContainer
 import dev.luna5ama.gltest.terrain.TerrainScene
-import dev.luna5ama.glwrapper.api.*
 import dev.luna5ama.glwrapper.*
+import dev.luna5ama.glwrapper.api.*
 import dev.luna5ama.glwrapper.enums.*
 import dev.luna5ama.glwrapper.objects.*
 import dev.luna5ama.kmogus.MemoryStack
@@ -68,7 +67,7 @@ class AutoExposure(private val scene: TerrainScene) : IGLObjContainer by IGLObjC
             "uParams",
             pRangePower, 1.0f / pLumRange, timeCoeff, pixelTotal
         )
-        glDispatchCompute((input.width / 16.0f).ceilToInt(), (input.height / 16.0f).ceilToInt(), 1)
+        glDispatchCompute((input.width + 15) / 16, (input.height + 15) / 16, 1)
 
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT or GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
 

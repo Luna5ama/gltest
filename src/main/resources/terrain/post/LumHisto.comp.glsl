@@ -6,7 +6,7 @@
 #define THREADS_Y 16
 #define GROUP_SIZE THREADS_X * THREADS_Y
 
-layout(local_size_x = THREADS_X, local_size_y = THREADS_Y, local_size_z = 1) in;
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 
 #define EPSILON 0.005
 
@@ -22,7 +22,7 @@ layout(std430, binding = 1) buffer ssbo_histogramBuffer {
 };
 
 // Shared histogram buffer used for storing intermediate sums for each work group
-shared uint histogramShared[GROUP_SIZE * 4];
+shared uint histogramShared[GROUP_SIZE];
 
 
 // For a given color and luminance range, return the histogram bin index
