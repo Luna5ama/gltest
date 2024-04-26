@@ -294,7 +294,12 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
                 buffer(scene.camera.uboBinding)
                 buffer(uboBinding)
             }
+            timer.begin()
             glDispatchCompute(workGroupX, workGroupY, 1)
+            timer.end()
+            if (printTimer.tickAndReset(3000)) {
+                println("Backward compute time: %.4f ms".format(timer.averageMS()))
+            }
             glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
         }
 
@@ -366,16 +371,11 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
     private val printTimer = TickTimer()
 
     private fun imapCollapse() {
-        timer.begin()
         collapseShader.bind()
         collapseShader.applyBinding(warpingPassImagesBinding1)
         glDispatchCompute(imapSize, 2, 1)
 
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
-        timer.end()
-        if (printTimer.tickAndReset(3000)) {
-            println("IMap collapse time: %.4f ms".format(timer.averageMS()))
-        }
     }
 
     private fun genWrap() {
