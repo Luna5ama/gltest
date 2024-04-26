@@ -1,5 +1,14 @@
 #version 460 core
 
+#ifdef GPU_VENDOR_NVIDIA
+#extension GL_NV_shader_subgroup_partitioned : enable
+#extension GL_KHR_shader_subgroup_ballot : enable
+#else
+#extension GL_KHR_shader_subgroup_vote : enable
+#extension GL_KHR_shader_subgroup_clustered : enable
+#extension GL_KHR_shader_subgroup_arithmetic : enable
+#endif
+
 #include "../GBuffers.glsl"
 #include "../GenericGBuffer.glsl"
 #include "../GlobalCamera.glsl"
@@ -14,9 +23,6 @@ layout(r32ui) uniform coherent volatile uimage2D uimg_imap2D;
 layout(rgba32ui) uniform readonly uimage2D uimg_gData1;
 
 uniform float uvImportanceMul;
-
-shared uint pPos[GROUP_SIZE][GROUP_SIZE];
-shared float pValue[GROUP_SIZE][GROUP_SIZE];
 
 void importance(ivec2 gCoord, out uint p, out float v) {
 //    if (any(greaterThanEqual(gCoord, textureSize(usam_gData1, 0)))) {
@@ -96,101 +102,39 @@ void importance(ivec2 gCoord, out uint p, out float v) {
     return;
 }
 
-void writeShared(uvec2 lcoord, uint p, float v) {
-    pPos[lcoord.x][lcoord.y] = p;
-    pValue[lcoord.x][lcoord.y] = v;
-}
-
-void writeOutputNoCheck(uint p, float v) {
-    imageAtomicMax(uimg_imap2D, ivec2(p & 0xFFFFu, p >> 16), uint(v * uvImportanceMul));
-}
-
 void writeOutput(uint p, float v) {
     if (p == 0xFFFFFFFFu) return;
     imageAtomicMax(uimg_imap2D, ivec2(p & 0xFFFFu, p >> 16), uint(v * uvImportanceMul));
 }
 
-bool merge(const uint offset, uint p1, inout float v1) {
-    uvec2 mergeGroupID = gl_LocalInvocationID.xy & ((1u << offset) - 1u);
-    if (any(notEqual(mergeGroupID, uvec2(0)))) {
-        return true;
-    }
-    ivec2 coord2 = ivec2(gl_LocalInvocationID.xy + ivec2(0, offset));
-    ivec2 coord3 = ivec2(gl_LocalInvocationID.xy + ivec2(offset, 0));
-    ivec2 coord4 = ivec2(gl_LocalInvocationID.xy + ivec2(offset, offset));
-    uint p2 = pPos[coord2.x][coord2.y];
-    uint p3 = pPos[coord3.x][coord3.y];
-    uint p4 = pPos[coord4.x][coord4.y];
-    float v2 = pValue[coord2.x][coord2.y];
-    float v3 = pValue[coord3.x][coord3.y];
-    float v4 = pValue[coord4.x][coord4.y];
-    if (p1 == p2 && p2 == p3 && p3 == p4) {
-        v1 += v2;
-        v1 += v3;
-        v1 += v4;
-        v1 *= 0.25;
-        writeShared(gl_LocalInvocationID.xy, p1, v1);
-    } else {
-        writeOutputNoCheck(p1, v1);
-        writeOutput(p2, v2);
-        writeOutput(p3, v3);
-        writeOutput(p4, v4);
-        return true;
-    }
-    return false;
-}
-
-bool initPass(inout uint p1, inout float v1) {
-    uint p2, p3, p4;
-    float v2, v3, v4;
-
-    ivec2 coord = ivec2(gl_GlobalInvocationID.xy * uvec2(2u));
-    importance(coord, p1, v1);
-    importance(coord + ivec2(0, 1), p2, v2);
-    importance(coord + ivec2(1, 0), p3, v3);
-    importance(coord + ivec2(1, 1), p4, v4);
-
-    // 64 x 64 -> 32 x 32
-    if (p1 != 0xFFFFFFFFu && p1 == p2 && p2 == p3 && p3 == p4) {
-        v1 += v2;
-        v1 += v3;
-        v1 += v4;
-        v1 *= 0.25;
-        writeShared(gl_LocalInvocationID.xy, p1, v1);
-    } else {
-        writeShared(gl_LocalInvocationID.xy, 0xFFFFFFFFu, 0u);
-        writeOutput(p1, v1);
-        writeOutput(p2, v2);
-        writeOutput(p3, v3);
-        writeOutput(p4, v4);
-        return true;
-    }
-
-    return false;
-}
-
 void main() {
-    uint p1;
-    float v1;
-    if (initPass(p1, v1)) return;
+    uint p;
+    float v;
+    importance(ivec2(gl_GlobalInvocationID.xy), p, v);
 
-    // 32 x 32 -> 16 x 16
-    barrier();
-    if (merge(1u, p1, v1)) return;
+    #ifdef GPU_VENDOR_NVIDIA
+    uvec4 pballot = subgroupPartitionNV(p);
+    if (subgroupBallotFindLSB(pballot) == gl_SubgroupInvocationID) {
+        writeOutput(p, subgroupPartitionedMaxNV(v, pballot));
+    }
+    #else
+    if (p == 0xFFFFFFFFu) {
+        p = subgroupMin(p);
+    }
+    if (subgroupAllEqual(p)) {
+        if (gl_SubgroupInvocationID == 0) {
+            writeOutput(p, subgroupMax(v));
+        }
+        return;
+    }
 
-    // 16 x 16 -> 8 x 8
-    barrier();
-    if (merge(2u, p1, v1)) return;
+    #define CLUSTERED_DEDUP(n) if (subgroupClusteredXor(p, n) != 0) { writeOutput(p, v); return; } if ((gl_SubgroupInvocationID & (n - 1u)) != 0u) return; v = subgroupClusteredMax(v, n);
 
-    // 8 x 8 -> 4 x 4
-    barrier();
-    if (merge(4u, p1, v1)) return;
+    CLUSTERED_DEDUP(2u)
+    CLUSTERED_DEDUP(4u)
+    CLUSTERED_DEDUP(8u)
+    CLUSTERED_DEDUP(16u)
+    writeOutput(p, v);
 
-    // 4 x 4 -> 2 x 2
-    barrier();
-    if (merge(8u, p1, v1)) return;
-
-//    // 2 x 2 -> 1 x 1
-//    barrier();
-//    if (merge(16u, p1, v1)) return;
+    #endif
 }

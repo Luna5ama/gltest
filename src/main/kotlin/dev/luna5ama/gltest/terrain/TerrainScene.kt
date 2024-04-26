@@ -468,7 +468,7 @@ class TerrainScene(gameInstance: GameInstance) : AbstractScene(gameInstance) {
 
         glDebugGroup("TXAA") { txaa.render(fboGroup) }
 
-//        rtwsm.renderDebug(fboGroup)
+        rtwsm.renderDebug(fboGroup)
 
         glDebugGroup("GammaCorrection") { gammaCorrection.render(fboGroup) }
 

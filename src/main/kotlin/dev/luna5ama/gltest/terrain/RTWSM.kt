@@ -4,7 +4,9 @@ import dev.fastmc.common.MathUtil
 import dev.fastmc.common.TickTimer
 import dev.luna5ama.gltest.*
 import dev.luna5ama.gltest.Frustum
-import dev.luna5ama.glwrapper.*
+import dev.luna5ama.glwrapper.ShaderBindingSpecs
+import dev.luna5ama.glwrapper.ShaderProgram
+import dev.luna5ama.glwrapper.ShaderSource
 import dev.luna5ama.glwrapper.api.*
 import dev.luna5ama.glwrapper.enums.*
 import dev.luna5ama.glwrapper.objects.*
@@ -13,7 +15,8 @@ import dev.luna5ama.kmogus.asMutable
 import dev.luna5ama.kmogus.copyToMutableArr
 import dev.luna5ama.kmogus.usePtr
 import org.joml.*
-import kotlin.math.*
+import kotlin.math.max
+import kotlin.math.min
 
 /**
  * Based on "Rectilinear Texture Warping for Fast Adaptive Shadow Mapping" by Paul Rosen from Unversity of Utah
@@ -127,7 +130,7 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
         label("RTWSM.Importance1DArray")
     }
 
-    private val warpingMap= register(TextureObject.Texture1DArray()).apply {
+    private val warpingMap = register(TextureObject.Texture1DArray()).apply {
         allocate(1, ImageFormat.R16_G16_SN, imapSize, 2)
         label("RTWSM.WarpingMap")
         parameteri(GL_TEXTURE_MIN_FILTER, GL_LINEAR)
@@ -280,43 +283,44 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
     private val printTimer = TickTimer()
 
     private fun backwardComputePass() {
-        val workGroupX = (scene.camera.screenWidth + 31) / 32
-        val workGroupY = (scene.camera.screenHeight + 31) / 32
-//        val totalWorkGroups = workGroupX * workGroupY
-//        val vPerGroup = 0xFFFFFFFFL / (totalWorkGroups + 1).toLong()
-//        val vPerGroupF = vPerGroup.toFloat()
         val vPerGroupF = 0xFFFFFFFFL.toFloat()
+        glDebugGroup("Compute") {
+            val workGroupX = (scene.camera.screenWidth + 15) / 16
+            val workGroupY = (scene.camera.screenHeight + 15) / 16
 
-        imap2D.clearImage()
+            imap2D.clearImage()
 
-        backwardCompShader.bind()
-        backwardCompShader.uniform1f("uvImportanceMul", vPerGroupF)
-        backwardCompShader.applyBinding {
-            sampler(shadowMapSamplerBindings)
-            sampler(scene.solidGBuffer.genericTexBindings)
+            backwardCompShader.bind()
+            backwardCompShader.uniform1f("uvImportanceMul", vPerGroupF)
+            backwardCompShader.applyBinding {
+                sampler(shadowMapSamplerBindings)
+                sampler(scene.solidGBuffer.genericTexBindings)
 
-            image(imap2DUIImageBinding)
-            image("uimg_gData1", scene.solidGBuffer.tex1)
+                image(imap2DUIImageBinding)
+                image("uimg_gData1", scene.solidGBuffer.tex1)
 
-            buffer(scene.camera.uboBinding)
-            buffer(uboBinding)
+                buffer(scene.camera.uboBinding)
+                buffer(uboBinding)
+            }
+            timer.begin()
+            glDispatchCompute(workGroupX, workGroupY, 1)
+            timer.end()
+            if (printTimer.tickAndReset(3000)) {
+                println("Backward compute time: %.4f ms".format(timer.averageMS()))
+            }
+            glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
         }
-        timer.begin()
-        glDispatchCompute(workGroupX, workGroupY, 1)
-        timer.end()
-        if (printTimer.tickAndReset(3000)) {
-            println("Backward compute time: %.4f ms".format(timer.averageMS()))
-        }
-        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
 
-        backwardCopyShader.bind()
-        backwardCopyShader.uniform1f("uvImportanceMul", 0.5f / vPerGroupF)
-        backwardCopyShader.applyBinding {
-            image(imap2DUIImageBinding)
+        glDebugGroup("Copy") {
+            backwardCopyShader.bind()
+            backwardCopyShader.uniform1f("uvImportanceMul", 0.5f / vPerGroupF)
+            backwardCopyShader.applyBinding {
+                image(imap2DUIImageBinding)
+            }
+            val copyWorkGroupXY = (imapSize + 15) / 16
+            glDispatchCompute(copyWorkGroupXY, copyWorkGroupXY, 1)
+            glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT or GL_FRAMEBUFFER_BARRIER_BIT)
         }
-        val copyWorkGroupXY = (imapSize + 15) / 16
-        glDispatchCompute(copyWorkGroupXY, copyWorkGroupXY, 1)
-        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT or GL_FRAMEBUFFER_BARRIER_BIT)
     }
 
     private fun forwardPass() {
@@ -464,7 +468,13 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
         drawView1.setupIndirect(TerrainMesh.VisibleState.CURRENT_VISIBLE)
         glMemoryBarrier(GL_COMMAND_BARRIER_BIT)
 
-        scene.hizGen.processDepth(shadowDepthTexture, shadowDepthTexture, HiZBufferGen.KernelType.MIN, HiZBufferGen.DepthType.LINEAR, projection.planeZ)
+        scene.hizGen.processDepth(
+            shadowDepthTexture,
+            shadowDepthTexture,
+            HiZBufferGen.KernelType.MIN,
+            HiZBufferGen.DepthType.LINEAR,
+            projection.planeZ
+        )
     }
 
     private fun bindSolid() {
