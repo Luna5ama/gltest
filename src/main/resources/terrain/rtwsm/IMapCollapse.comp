@@ -1,16 +1,17 @@
 #version 460 core
 #pragma optionNV (unroll all)
 
-layout(local_size_x = GROUP_SIZE_X, local_size_y = 1, local_size_z = 1) in;
+#extension GL_KHR_shader_subgroup_arithmetic : enable
+
+layout(local_size_x = GROUP_SIZE_X, local_size_y = GROUP_SIZE_Y, local_size_z = 1) in;
 
 layout(r32f) uniform restrict writeonly image1DArray uimg_imap1D;
 uniform sampler2D usam_imap2D;
 
-shared float collapseBuffer[GROUP_SIZE_X];
-shared float finalBuffer;
+shared float collapseBuffer[GROUP_SIZE_Y];
 
 void main() {
-    uint xtIdx = gl_LocalInvocationID.x * (2 * SAMPLE_COUNT);
+    uint xtIdx = gl_LocalInvocationIndex * (2 * SAMPLE_COUNT);
     uint ytIdx = gl_WorkGroupID.x;
 
     int f = int(gl_WorkGroupID.y);
@@ -19,29 +20,28 @@ void main() {
     vec2 coordDelta = vec2(1.0, 0.0) * f + vec2(0.0, 1.0) * (f ^ 1);
     vec2 coord = (vec2(coordI) + 0.5 + coordDelta * 0.5) * TEXEL_SIZE;
 
+    float value;
     #if SAMPLE_COUNT == 1
-    collapseBuffer[gl_LocalInvocationID.x] = texture(usam_imap2D, coord).r;
+    value = texture(usam_imap2D, coord).r;
     #else
-    float value = 0.0;
+    value = 0.0;
     vec2 texelDelta = coordDelta * TEXEL_SIZE;
     for (int i = 0; i < SAMPLE_COUNT; i++) {
         value = max(value, texture(usam_imap2D, coord + texelDelta * float(i)).r);
     }
     #endif
 
-    barrier();
-
-    for (uint cutoff = (GROUP_SIZE_X >> 1); cutoff > 0; cutoff >>= 1) {
-        if (gl_LocalInvocationID.x < cutoff) {
-            collapseBuffer[gl_LocalInvocationID.x] = max(
-                collapseBuffer[gl_LocalInvocationID.x],
-                collapseBuffer[gl_LocalInvocationID.x + cutoff]
-            );
-        }
-        barrier();
+    if (gl_SubgroupInvocationID == 0u) {
+        collapseBuffer[gl_SubgroupID] = subgroupMax(value);
     }
 
-    if (gl_LocalInvocationID.x == 0) {
-        imageStore(uimg_imap1D, ivec2(gl_WorkGroupID.x, gl_WorkGroupID.y), vec4(collapseBuffer[0], 0.0, 0.0, 0.0));
+    barrier();
+    if (gl_SubgroupID != 0u) return;
+
+    float v = gl_SubgroupInvocationID < gl_NumSubgroups ? collapseBuffer[gl_SubgroupInvocationID] : 0.0;
+    float finalValue = subgroupMax(v);
+
+    if (gl_SubgroupInvocationID == 0) {
+        imageStore(uimg_imap1D, ivec2(gl_WorkGroupID.x, gl_WorkGroupID.y), vec4(finalValue, 0.0, 0.0, 0.0));
     }
 }

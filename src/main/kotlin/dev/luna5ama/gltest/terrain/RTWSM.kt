@@ -54,7 +54,9 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
             ShaderSource.Comp("/terrain/rtwsm/IMapCollapse.comp") {
                 val groupSize = min(imapSize / 2, 512)
                 val sampleCount = (imapSize / 2) / groupSize
-                define("GROUP_SIZE_X", groupSize)
+                val warpSize = glGetInteger(GL_SUBGROUP_SIZE_KHR)
+                define("GROUP_SIZE_X", warpSize)
+                define("GROUP_SIZE_Y", groupSize / warpSize)
                 define("SAMPLE_COUNT", sampleCount)
                 define("TEXEL_SIZE", 1.0 / imapSize)
             }
