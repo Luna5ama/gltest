@@ -2,10 +2,8 @@ package dev.luna5ama.gltest.terrain
 
 import dev.fastmc.common.MathUtil
 import dev.fastmc.common.TickTimer
+import dev.luna5ama.gltest.*
 import dev.luna5ama.gltest.Frustum
-import dev.luna5ama.gltest.HiZBufferGen
-import dev.luna5ama.gltest.glDebugGroup
-import dev.luna5ama.gltest.linearClampEdge
 import dev.luna5ama.glwrapper.*
 import dev.luna5ama.glwrapper.api.*
 import dev.luna5ama.glwrapper.enums.*
@@ -210,7 +208,7 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
         }
 
         glDebugGroup("Backward analysis") { backwardComputePass() }
-        glDebugGroup("Forward analysis") { forwardPass() }
+//        glDebugGroup("Forward analysis") { forwardPass() }
         glDebugGroup("IMAP blur") { imapBlur() }
         glDebugGroup("IMAP collapse") { imapCollapse() }
         glDebugGroup("Gen warp") { genWrap() }
@@ -278,14 +276,16 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
         blitWarpingMapShader.uniform1f("uPrevCoeff", 0.01f)
     }
 
+    private val timer = GPUTimer()
+    private val printTimer = TickTimer()
+
     private fun backwardComputePass() {
-        val workGroupX = (scene.camera.screenWidth + 63) / 64
-        val workGroupY = (scene.camera.screenHeight + 63) / 64
-        val totalWorkGroups = workGroupX * workGroupY
-        val vPerGroup = 0xFFFFFFFFL / (totalWorkGroups + 1).toLong()
-        val vPerGroupF = vPerGroup.toFloat()
-        assert(vPerGroupF.toDouble() <= vPerGroup)
-        assert(vPerGroupF.toDouble() * totalWorkGroups.toDouble() <= 0xFFFFFFFFL)
+        val workGroupX = (scene.camera.screenWidth + 31) / 32
+        val workGroupY = (scene.camera.screenHeight + 31) / 32
+//        val totalWorkGroups = workGroupX * workGroupY
+//        val vPerGroup = 0xFFFFFFFFL / (totalWorkGroups + 1).toLong()
+//        val vPerGroupF = vPerGroup.toFloat()
+        val vPerGroupF = 0xFFFFFFFFL.toFloat()
 
         imap2D.clearImage()
 
@@ -301,15 +301,20 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
             buffer(scene.camera.uboBinding)
             buffer(uboBinding)
         }
+        timer.begin()
         glDispatchCompute(workGroupX, workGroupY, 1)
+        timer.end()
+        if (printTimer.tickAndReset(3000)) {
+            println("Backward compute time: %.4f ms".format(timer.averageMS()))
+        }
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
 
         backwardCopyShader.bind()
-        backwardCopyShader.uniform1f("uvImportanceMul", 0.05f / vPerGroupF)
+        backwardCopyShader.uniform1f("uvImportanceMul", 0.5f / vPerGroupF)
         backwardCopyShader.applyBinding {
             image(imap2DUIImageBinding)
         }
-        val copyWorkGroupXY = (imapSize + 31) / 32
+        val copyWorkGroupXY = (imapSize + 15) / 16
         glDispatchCompute(copyWorkGroupXY, copyWorkGroupXY, 1)
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT or GL_FRAMEBUFFER_BARRIER_BIT)
     }

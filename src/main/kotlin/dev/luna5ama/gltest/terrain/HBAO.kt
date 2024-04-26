@@ -101,9 +101,9 @@ class HBAO(private val scene: TerrainScene, private val solidLighting: SolidLigh
         scene.basic.drawQuad()
         gpuTimer.end()
 
-        if (timer.tickAndReset(3000)) {
-            println("HBAO: %.2f ms".format(gpuTimer.averageMS()))
-        }
+//        if (timer.tickAndReset(3000)) {
+//            println("HBAO: %.2f ms".format(gpuTimer.averageMS()))
+//        }
 
         glViewport(0, 0, scene.camera.screenWidth, scene.camera.screenHeight)
     }
