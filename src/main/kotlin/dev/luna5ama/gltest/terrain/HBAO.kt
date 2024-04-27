@@ -59,7 +59,7 @@ class HBAO(private val scene: TerrainScene, private val solidLighting: SolidLigh
         }
     }
 
-    private val gpuTimer = GPUTimer()
+    private val gpuTimer = GPUTimer(100)
     private val timer = TickTimer()
 
     private fun sample(input: GBuffer) {

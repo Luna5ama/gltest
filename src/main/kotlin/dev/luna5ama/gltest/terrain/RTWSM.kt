@@ -367,7 +367,7 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
         }
     }
 
-    private val timer = GPUTimer()
+    private val timer = GPUTimer(100)
     private val printTimer = TickTimer()
 
     private fun imapCollapse() {

@@ -8,7 +8,7 @@ import dev.luna5ama.glwrapper.objects.IGLObject
 import it.unimi.dsi.fastutil.ints.IntArrayFIFOQueue
 import it.unimi.dsi.fastutil.longs.LongArrayList
 
-class GPUTimer : IGLObjContainer {
+class GPUTimer(private val runtimeLength: Int) : IGLObjContainer {
     private val queryQueue = IntArrayFIFOQueue()
     private val times = LongArrayList()
 
@@ -31,7 +31,7 @@ class GPUTimer : IGLObjContainer {
             }
         }
 
-        while (times.size > 100) {
+        while (times.size > runtimeLength) {
             times.removeLong(0)
         }
     }
