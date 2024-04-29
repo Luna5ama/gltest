@@ -1,0 +1,592 @@
+package dev.luna5ama.gltest.pc
+
+import dev.fastmc.common.MathUtil
+import dev.fastmc.common.ParallelUtils
+import dev.fastmc.common.ceilToInt
+import dev.fastmc.common.floorToInt
+import dev.fastmc.common.sort.IntIntrosort
+import dev.luna5ama.gltest.structs.*
+import dev.luna5ama.gltest.terrain.IGLObjContainer
+import dev.luna5ama.gltest.terrain.register
+import dev.luna5ama.glwrapper.ShaderBindingSpecs
+import dev.luna5ama.glwrapper.api.*
+import dev.luna5ama.glwrapper.enums.BufferTarget
+import dev.luna5ama.glwrapper.objects.BufferObject
+import dev.luna5ama.kmogus.Arr
+import dev.luna5ama.kmogus.Ptr
+import dev.luna5ama.kmogus.asByteBuffer
+import dev.luna5ama.kmogus.ensureCapacity
+import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
+import org.apache.commons.lang3.mutable.MutableBoolean
+import org.joml.*
+import java.io.File
+import java.io.FileNotFoundException
+import java.nio.channels.FileChannel
+import java.nio.file.StandardOpenOption
+import java.util.concurrent.atomic.AtomicLong
+import kotlin.coroutines.CoroutineContext
+import kotlin.math.abs
+import kotlin.math.log2
+import kotlin.math.min
+
+class PointCloudData(private val scene: PointCloudScene, dir: File) : IGLObjContainer by IGLObjContainer.Impl() {
+    private val batchMetadataBuffer = register(BufferObject.Immutable())
+    private val pointPosBuffer = register(BufferObject.Immutable())
+    private val pointAttribBuffer = register(BufferObject.Immutable())
+    val chunkinfos = mutableListOf<ChunkInfo>()
+
+    val bufferBindings = listOf(
+        ShaderBindingSpecs.Buffer("BatchMetadataBuffer", batchMetadataBuffer, BufferTarget.ShaderStorage),
+        ShaderBindingSpecs.Buffer("PointPosBuffer", pointPosBuffer, BufferTarget.ShaderStorage),
+        ShaderBindingSpecs.Buffer("PointAttribBuffer", pointAttribBuffer, BufferTarget.ShaderStorage)
+    )
+
+    val chunkOffsets = Array(TOTAL_CHUNKS) { Vector3i() }.apply {
+        var i = 0
+        for (z in 0 until SIZE_XZ) {
+            for (x in 0 until SIZE_XZ) {
+                for (y in 0 until SIZE_Y) {
+                    this[i++].set(x, y, z)
+                }
+            }
+        }
+    }
+
+    var chunkIndices: IntArray
+
+    var pointCount = 0L
+        private set
+    var batchCount = 0
+        private set
+
+    init {
+        runBlocking {
+//            try {
+//                readCData(dir)
+//            } catch (e: FileNotFoundException) {
+                readData(dir)
+//                saveCData(dir)
+//            }
+            chunkIndices = IntArray(chunkinfos.size) { it }
+        }
+    }
+
+    private suspend fun readData(dir: File) {
+        coroutineScope {
+            val layers = 2
+            val pointCount = (0 until layers).sumOf { File(dir, "terrain_vbo_$it.bin").length() } / 4L / 20L
+            pointPosBuffer.allocate(pointCount * 24L, 0)
+            pointAttribBuffer.allocate(pointCount * 4L * 12L, 0)
+            batchMetadataBuffer.create()
+            val bufferDstCounter = AtomicLong(0)
+            val channel = Channel<List<ChunkInfo>>(Channel.UNLIMITED)
+            val context = this.coroutineContext
+            coroutineScope {
+                repeat(layers) {
+                    launch {
+                        val vboFile = File(dir, "terrain_vbo_$it.bin")
+                        val infoFile = File(dir, "terrain_info_$it.csv")
+                        val chunkInfoList = readUpload(context, vboFile, infoFile, bufferDstCounter)
+                        channel.send(chunkInfoList)
+                    }
+                }
+            }
+            channel.close()
+            for (chunkInfoList in channel) {
+                chunkinfos += chunkInfoList
+            }
+            chunkinfos.forEachIndexed { index, chunkInfo ->
+                chunkInfo.listIndex = index
+            }
+            this@PointCloudData.pointCount = bufferDstCounter.get()
+        }
+    }
+
+//    private suspend fun saveCData(dir: File) {
+//        coroutineScope {
+//            File(dir, "pc_info.csv").bufferedWriter().use {
+//                it.appendLine("listIndex,chunkIndex,chunkX,chunkY,chunkZ,quadCount,startIndex")
+//                chunkinfos.forEach { chunkInfo ->
+//                    it.appendLine("${chunkInfo.listIndex},${chunkInfo.chunkIndex},${chunkInfo.pos.x},${chunkInfo.pos.y},${chunkInfo.pos.z},${chunkInfo.quadCount},${chunkInfo.startIndex}")
+//                }
+//            }
+//
+//            val copyBuffer = BufferObject.Immutable()
+//            try {
+//                copyBuffer.allocate(16 * 1024 * 1024, GL_MAP_READ_BIT)
+//
+//                fun readAndWriteTo(input: Int, output: FileChannel, offset: Long, length: Long) {
+//                    var offSrc = offset
+//                    var lenSrc = length
+//
+//                    while (lenSrc > 0) {
+//                        val read = min(lenSrc, copyBuffer.size)
+//                        glCopyNamedBufferSubData(input, copyBuffer.id, offSrc, 0L, read)
+//                        val mapped = glMapNamedBufferRange(copyBuffer.id, 0, copyBuffer.size, GL_MAP_READ_BIT)
+//                        check(mapped.ptr != Ptr.NULL)
+//                        output.write(mapped.ptr.asByteBuffer(read.toInt()))
+//                        glUnmapNamedBuffer(copyBuffer.id)
+//
+//                        offSrc += read
+//                        lenSrc -= read
+//                    }
+//                }
+//
+//                val pointPosFile = File(dir, "pc_point_pos.bin")
+//                val pointAttribFile = File(dir, "pc_point_attrib.bin")
+//
+//                FileChannel.open(
+//                    pointPosFile.toPath(),
+//                    StandardOpenOption.WRITE, StandardOpenOption.CREATE
+//                ).use { channel ->
+//                    readAndWriteTo(pointPosBuffer.id, channel, 0L, pointPosBuffer.size)
+//                }
+//
+//                FileChannel.open(
+//                    pointAttribFile.toPath(),
+//                    StandardOpenOption.WRITE, StandardOpenOption.CREATE
+//                ).use { channel ->
+//                    readAndWriteTo(pointAttribBuffer.id, channel, 0L, pointAttribBuffer.size)
+//                }
+//            } finally {
+//                copyBuffer.destroy()
+//            }
+//        }
+//    }
+
+//    private suspend fun readCData(dir: File) {
+//        coroutineScope {
+//            val infoFile = File(dir, "pc_info.csv")
+//            val chunkInfoList = infoFile.useLines {
+//                it.drop(1).map {
+//                    val parts = it.split(",")
+//                    ChunkInfo(
+//                        parts[1].toInt(),
+//                        Vector3i(parts[2].toInt(), parts[3].toInt(), parts[4].toInt()),
+//                        parts[5].toInt(),
+//                        parts[6].toLong()
+//                    ).apply {
+//                        listIndex = parts[0].toInt()
+//                    }
+//                }.toList()
+//            }
+//            chunkinfos.addAll(chunkInfoList)
+//            pointCount = chunkinfos.sumOf { it.quadCount.toLong() }
+//
+//            val copyBuffer = BufferObject.Immutable()
+//            copyBuffer.allocate(32 * 1024 * 1024, GL_MAP_WRITE_BIT)
+//
+//            val pointPosFile = File(dir, "pc_point_pos.bin")
+//            val pointAttribFile = File(dir, "pc_point_attrib.bin")
+//
+//            fun readAndWriteTo(input: FileChannel, output: BufferObject, offset: Long, length: Long) {
+//                var offSrc = offset
+//                var lenSrc = length
+//
+//                var offsetDst = offset
+//                var lenDst = length
+//
+//                while (lenSrc > 0 && lenDst > 0) {
+//                    val read = min(lenSrc, copyBuffer.size)
+//                    val mapped = copyBuffer.map(GL_MAP_WRITE_BIT or GL_MAP_INVALIDATE_BUFFER_BIT)
+//                    input.read(mapped.ptr.asByteBuffer(read.toInt()), offSrc)
+//                    copyBuffer.unmap()
+//                    copyBuffer.copyTo(output, 0L, offsetDst, read)
+//                    offSrc += read
+//                    lenSrc -= read
+//
+//                    offsetDst += read
+//                    lenDst -= read
+//                }
+//            }
+//
+//            batchMetadataBuffer.create()
+//
+//            FileChannel.open(
+//                pointPosFile.toPath(),
+//                StandardOpenOption.READ
+//            ).use { channel ->
+//                pointPosBuffer.allocate(pointCount * 24L, 0)
+//                readAndWriteTo(channel, pointPosBuffer, 0L, pointPosBuffer.size)
+//            }
+//
+//            FileChannel.open(
+//                pointAttribFile.toPath(),
+//                StandardOpenOption.READ
+//            ).use { channel ->
+//                pointAttribBuffer.allocate(pointCount * 4L * 12L, 0)
+//                readAndWriteTo(channel, pointAttribBuffer, 0L, pointAttribBuffer.size)
+//            }
+//        }
+//    }
+
+    suspend fun updateBatchMeta() {
+        val originOffsetX = (scene.originX - scene.camera.pos.x).floorToInt()
+        val originOffsetY = (scene.originY - scene.camera.pos.y).floorToInt()
+        val originOffsetZ = (scene.originZ - scene.camera.pos.z).floorToInt()
+        val sampleCounts = IntArray(chunkinfos.size)
+        val frustumCulling = Array(chunkinfos.size) {
+            MutableBoolean(true)
+        }
+        coroutineScope {
+            launch(Dispatchers.Default) {
+                val distanceSqs = IntArray(chunkIndices.size) {
+                    val chunkInfo = chunkinfos[it]
+                    val offset = chunkOffsets[chunkInfo.chunkIndex]
+                    val dx = offset.x * 16 + originOffsetX
+                    val dy = offset.y * 16 + originOffsetY
+                    val dz = offset.z * 16 + originOffsetZ
+                    (dx * dx + dy * dy + dz * dz)
+                }
+
+                IntIntrosort.sort(chunkIndices, distanceSqs)
+            }
+            launch(Dispatchers.Default) {
+                ParallelUtils.splitListIndex(
+                    chunkinfos.size,
+                    blockForEach = { start, end ->
+                        launch {
+                            val areaCalc = QuadAreaCalc()
+                            for (i in start until end) {
+                                val chunkInfo = chunkinfos[i]
+                                val area = areaCalc.calc(chunkInfo)
+                                sampleCounts[chunkInfo.listIndex] =
+                                    MathUtil.ceilToPOT(log2(area).ceilToInt()).coerceIn(1, 16)
+                            }
+                        }
+                    }
+                )
+            }
+            launch(Dispatchers.Default) {
+                val frustumCull = FrustumIntersection(scene.camera.combined, false)
+                ParallelUtils.splitListIndex(
+                    chunkIndices.size,
+                    blockForEach = { start, end ->
+                        launch {
+                            for (i in start until end) {
+                                val chunkInfo = chunkinfos[chunkIndices[i]]
+                                frustumCulling[chunkInfo.listIndex].setValue(
+                                    frustumCull.testAab(
+                                        (chunkInfo.minX - scene.camera.pos.x).toFloat(),
+                                        (chunkInfo.minY - scene.camera.pos.y).toFloat(),
+                                        (chunkInfo.minZ - scene.camera.pos.z).toFloat(),
+                                        (chunkInfo.maxX - scene.camera.pos.x).toFloat(),
+                                        (chunkInfo.maxY - scene.camera.pos.y).toFloat(),
+                                        (chunkInfo.maxZ - scene.camera.pos.z).toFloat()
+                                    )
+                                )
+                            }
+                        }
+                    }
+                )
+            }
+        }
+
+        val arr = Arr.malloc(chunkinfos.size * sizeof(BatchMetadata))
+        var metaIdx = 0
+        for (i in chunkIndices) {
+            val chunkInfo = chunkinfos[i]
+            if (!frustumCulling[chunkInfo.listIndex].value) continue
+            val offset = chunkOffsets[chunkInfo.chunkIndex]
+            var quadIdx = 0
+            val sampleCount = sampleCounts[chunkInfo.listIndex]
+//            val sampleCount = 1
+            while (quadIdx < chunkInfo.quadCount) {
+                arr.ensureCapacity((metaIdx + 1L) * sizeof(BatchMetadata), false)
+                val struct = BatchMetadata(arr.ptr + metaIdx * sizeof(BatchMetadata))
+                val batchCount = min(chunkInfo.quadCount - quadIdx, BATCH_SIZE / sampleCount)
+                struct.first = (chunkInfo.startIndex + quadIdx).toInt()
+                struct.count = batchCount
+                struct.offsetX = offset.x.toByte()
+                struct.offsetY = offset.y.toByte()
+                struct.offsetZ = offset.z.toByte()
+                struct.pointSampleCount = sampleCount
+                quadIdx += batchCount
+                metaIdx++
+            }
+        }
+        val metaLen = metaIdx * sizeof(BatchMetadata)
+        if (batchMetadataBuffer.size < metaLen) {
+            batchMetadataBuffer.destroy()
+            batchMetadataBuffer.allocate(metaLen, arr.ptr, GL_DYNAMIC_STORAGE_BIT)
+        } else {
+            batchMetadataBuffer.invalidate()
+            batchMetadataBuffer.upload(0L, metaLen, arr.ptr)
+        }
+        batchCount = metaIdx
+        arr.free()
+    }
+
+    private inner class QuadAreaCalc {
+        private val rotateMatrix = Matrix4f()
+        private val vec3f1 = Vector3f()
+        private val vec3f2 = Vector3f()
+        private val vec3f3 = Vector3f()
+
+        private val point1 = Vector4f()
+        private val point2 = Vector4f()
+        private val point3 = Vector4f()
+        private val point4 = Vector4f()
+
+        private fun setPoint() {
+            point1.set(-0.5f, -0.5f, 0.0f, 1.0f)
+            point2.set(0.5f, -0.5f, 0.0f, 1.0f)
+            point3.set(0.5f, 0.5f, 0.0f, 1.0f)
+            point4.set(-0.5f, 0.5f, 0.0f, 1.0f)
+        }
+
+        fun calc(chunkInfo: ChunkInfo): Float {
+            vec3f1.set(
+                0.0f.coerceIn(
+                    (chunkInfo.minX - scene.camera.pos.x).toFloat(),
+                    (chunkInfo.maxX - scene.camera.pos.x).toFloat()
+                ),
+                0.0f.coerceIn(
+                    (chunkInfo.minY - scene.camera.pos.y).toFloat(),
+                    (chunkInfo.maxY - scene.camera.pos.y).toFloat()
+                ),
+                0.0f.coerceIn(
+                    (chunkInfo.minZ - scene.camera.pos.z).toFloat(),
+                    (chunkInfo.maxZ - scene.camera.pos.z).toFloat()
+                )
+            )
+            vec3f1.mul(-1.0f)
+            vec3f2.set(1.0f, 1.0f, 1.0f)
+            rotateMatrix.identity()
+            rotateMatrix.rotationTowards(vec3f1, vec3f2)
+            vec3f1.mul(-1.0f)
+
+            setPoint()
+            rotateMatrix.transform(point1)
+            rotateMatrix.transform(point2)
+            rotateMatrix.transform(point3)
+            rotateMatrix.transform(point4)
+            point1.add(vec3f1.x(), vec3f1.y(), vec3f1.z(), 0.0f)
+            point2.add(vec3f1.x(), vec3f1.y(), vec3f1.z(), 0.0f)
+            point3.add(vec3f1.x(), vec3f1.y(), vec3f1.z(), 0.0f)
+            point4.add(vec3f1.x(), vec3f1.y(), vec3f1.z(), 0.0f)
+
+            scene.camera.noJitterCombined.transformProject(point1)
+            scene.camera.noJitterCombined.transformProject(point2)
+            scene.camera.noJitterCombined.transformProject(point3)
+            scene.camera.noJitterCombined.transformProject(point4)
+
+            point1.mul(0.5f, 0.5f, 0.5f, 1.0f).add(0.5f, 0.5f, 0.5f, 0.0f)
+            point2.mul(0.5f, 0.5f, 0.5f, 1.0f).add(0.5f, 0.5f, 0.5f, 0.0f)
+            point3.mul(0.5f, 0.5f, 0.5f, 1.0f).add(0.5f, 0.5f, 0.5f, 0.0f)
+            point4.mul(0.5f, 0.5f, 0.5f, 1.0f).add(0.5f, 0.5f, 0.5f, 0.0f)
+
+            point1.mul(scene.camera.screenWidth.toFloat(), scene.camera.screenHeight.toFloat(), 1.0f, 1.0f)
+            point2.mul(scene.camera.screenWidth.toFloat(), scene.camera.screenHeight.toFloat(), 1.0f, 1.0f)
+            point3.mul(scene.camera.screenWidth.toFloat(), scene.camera.screenHeight.toFloat(), 1.0f, 1.0f)
+            point4.mul(scene.camera.screenWidth.toFloat(), scene.camera.screenHeight.toFloat(), 1.0f, 1.0f)
+
+            val area = 0.5f * (
+                    point1.x() * point2.y() +
+                            point2.x() * point3.y() +
+                            point3.x() * point4.y() +
+                            point4.x() * point1.y() -
+                            point2.x() * point1.y() -
+                            point3.x() * point2.y() -
+                            point4.x() * point3.y() -
+                            point1.x() * point4.y()
+                    )
+
+            return abs(area)
+        }
+    }
+
+    private suspend fun readUpload(
+        mainCtx: CoroutineContext,
+        vboFile: File,
+        infoFile: File,
+        globalQuadCount: AtomicLong
+    ): List<ChunkInfo> {
+        val channel = Channel<List<ChunkInfo>>(Channel.UNLIMITED)
+        val infoLines = infoFile.useLines {
+            it.drop(1).map {
+                val parts = it.split(",")
+                ChunkInfoCSVEntry(
+                    parts[2].toInt(),
+                    parts[3].toInt(),
+                    parts[4].toInt(),
+                    parts[5].toLong(),
+                    parts[6].toLong(),
+                    parts[7].toLong(),
+                    parts[8].toLong()
+                )
+            }.toList()
+        }
+        return coroutineScope {
+            launch(Dispatchers.Default) {
+                coroutineScope {
+                    ParallelUtils.splitListIndex(
+                        infoLines.size,
+                        128,
+                        blockForEach = { start, end ->
+                            val tempBuffer = Arr.malloc(128 * 1024 * 4L * 20L)
+                            val uploadBuffer = withContext(mainCtx) {
+                                BufferObject.Immutable().apply {
+                                    allocate(128 * 1024 * 16L, GL_MAP_WRITE_BIT)
+                                }
+                            }
+                            launch(Dispatchers.IO) {
+                                try {
+                                    val chunkInfoListLocal = mutableListOf<ChunkInfo>()
+                                    for (infoIdx in start until end) {
+                                        val info = infoLines[infoIdx]
+                                        if (info.chunkY - MIN_CHUNK_Y < 6) continue
+                                        var readOffset = info.vertexOffset
+                                        val readEnd = info.vertexOffset + info.vertexLength
+                                        FileChannel.open(vboFile.toPath(), StandardOpenOption.READ).use { channel ->
+                                            while (readOffset < readEnd) {
+                                                val read = withContext(Dispatchers.IO) {
+                                                    val buf = tempBuffer.ptr.asByteBuffer(
+                                                        min(uploadBuffer.size / 72 * 80, info.vertexLength).toInt()
+                                                    )
+                                                    val read = channel.read(buf, readOffset)
+                                                    if (read == -1) {
+                                                        throw IllegalStateException("Unexpected EOF")
+                                                    }
+                                                    read
+                                                }
+
+                                                if (read == 0) break
+
+                                                readOffset += read
+
+                                                val mapped = withContext(mainCtx) {
+                                                    uploadBuffer.map(GL_MAP_WRITE_BIT or GL_MAP_INVALIDATE_BUFFER_BIT)
+                                                }
+                                                val quadCount = read / 4 / 20
+                                                var tempPtr = tempBuffer.ptr
+                                                var writeStructPtr1 = PointPos(mapped.ptr)
+
+                                                for (i in 0 until quadCount) {
+                                                    val v1 = TerrainVertex(tempPtr)
+                                                    tempPtr += 20L
+                                                    val v2 = TerrainVertex(tempPtr)
+                                                    tempPtr += 20L
+                                                    val v3 = TerrainVertex(tempPtr)
+                                                    tempPtr += 20L
+                                                    val v4 = TerrainVertex(tempPtr)
+                                                    tempPtr += 20L
+                                                    writeStructPtr1.posX1 = v1.posX
+                                                    writeStructPtr1.posX2 = v2.posX
+                                                    writeStructPtr1.posX3 = v3.posX
+                                                    writeStructPtr1.posX4 = v4.posX
+
+                                                    writeStructPtr1.posY1 = v1.posY
+                                                    writeStructPtr1.posY2 = v2.posY
+                                                    writeStructPtr1.posY3 = v3.posY
+                                                    writeStructPtr1.posY4 = v4.posY
+
+                                                    writeStructPtr1.posZ1 = v1.posZ
+                                                    writeStructPtr1.posZ2 = v2.posZ
+                                                    writeStructPtr1.posZ3 = v3.posZ
+                                                    writeStructPtr1.posZ4 = v4.posZ
+
+                                                    writeStructPtr1++
+                                                }
+
+                                                var writeStructPtr2 = PointAttrib(writeStructPtr1.ptr)
+                                                tempPtr = tempBuffer.ptr
+
+                                                for (i in 0 until quadCount * 4) {
+                                                    val v = TerrainVertex(tempPtr)
+                                                    tempPtr += 20L
+
+                                                    writeStructPtr2.uvU = v.uvU
+                                                    writeStructPtr2.uvV = v.uvV
+                                                    writeStructPtr2.lightMapX = v.lightMapX
+                                                    writeStructPtr2.lightMapY = v.lightMapY
+                                                    writeStructPtr2.colorR = v.colorR
+                                                    writeStructPtr2.colorG = v.colorG
+                                                    writeStructPtr2.colorB = v.colorB
+
+                                                    writeStructPtr2++
+                                                }
+                                                 val quadIndex = globalQuadCount.getAndAdd(quadCount.toLong())
+                                                val chunkIndex =
+                                                    (info.chunkY - MIN_CHUNK_Y) + ((info.chunkX + ORIGIN) + (info.chunkZ + ORIGIN) * SIZE_XZ) * SIZE_Y
+
+                                                chunkInfoListLocal += ChunkInfo(
+                                                    chunkIndex,
+                                                    Vector3i(info.chunkX, info.chunkY, info.chunkZ),
+                                                    quadCount,
+                                                    quadIndex
+                                                )
+
+                                                withContext(mainCtx) {
+                                                    uploadBuffer.unmap()
+                                                    uploadBuffer.copyTo(
+                                                        pointPosBuffer,
+                                                        0L,
+                                                        quadIndex * 24L,
+                                                        quadCount * 24L
+                                                    )
+                                                    uploadBuffer.copyTo(
+                                                        pointAttribBuffer,
+                                                        quadCount * 24L,
+                                                        quadIndex * 48L,
+                                                        quadCount * 48L
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                    channel.send(chunkInfoListLocal)
+                                } finally {
+                                    tempBuffer.free()
+                                    withContext(mainCtx) {
+                                        uploadBuffer.destroy()
+                                    }
+                                }
+                            }
+                        }
+                    )
+                }
+                channel.close()
+            }
+
+            val listFunc = mutableListOf<ChunkInfo>()
+            launch(Dispatchers.Default) {
+                for (chunkInfoList in channel) {
+                    listFunc += chunkInfoList
+                }
+            }
+            listFunc
+        }
+    }
+
+    class ChunkInfoCSVEntry(
+        val chunkX: Int,
+        val chunkY: Int,
+        val chunkZ: Int,
+        val vertexOffset: Long,
+        val vertexLength: Long,
+        val indexOffset: Long,
+        val indexLength: Long
+    )
+
+    class ChunkInfo(val chunkIndex: Int, val pos: Vector3i, val quadCount: Int, val startIndex: Long) {
+        var listIndex = 0
+        val minX = pos.x shl 4
+        val minY = pos.y shl 4
+        val minZ = pos.z shl 4
+        val maxX = minX + 16
+        val maxY = minY + 16
+        val maxZ = minZ + 16
+    }
+
+    companion object {
+        const val MIN_CHUNK_Y = -4
+        const val SIZE_Y = 24
+        const val SIZE_XZ = 512
+        const val ORIGIN = 128
+        const val TOTAL_CHUNKS = SIZE_XZ * SIZE_XZ * SIZE_Y
+
+        const val BATCH_SIZE = 128
+    }
+}

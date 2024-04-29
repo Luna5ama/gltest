@@ -1,5 +1,6 @@
 package dev.luna5ama.gltest.terrain
 
+import dev.luna5ama.gltest.FboGroup
 import dev.luna5ama.glwrapper.api.*
 import dev.luna5ama.glwrapper.objects.FramebufferObject
 import dev.luna5ama.glwrapper.ShaderProgram
@@ -42,7 +43,7 @@ class WaterRef(private val scene: TerrainScene) : IGLObjContainer by IGLObjConta
         }
     }
 
-    fun render(input: GBuffer, fboGroup: TerrainScene.FboGroup) {
+    fun render(input: GBuffer, fboGroup: FboGroup) {
         update()
 
         fbo.apply {

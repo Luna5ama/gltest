@@ -1,5 +1,6 @@
 package dev.luna5ama.gltest.terrain
 
+import dev.luna5ama.gltest.FboGroup
 import dev.luna5ama.gltest.uniform3f
 import dev.luna5ama.glwrapper.ShaderProgram
 import dev.luna5ama.glwrapper.ShaderSource
@@ -16,13 +17,13 @@ class Atmosphere(private val scene: TerrainScene) : IGLObjContainer by IGLObjCon
         label("AtmoSphere.Aerial")
     }
 
-    fun postPass(fboGroup: TerrainScene.FboGroup) {
+    fun postPass(fboGroup: FboGroup) {
         postPassParams()
 
         glBlitNamedFramebuffer(
             fboGroup.input.fbo.id,
             fboGroup.output.fbo.id,
-            0, 0, fboGroup.input.width, fboGroup.input.height,
+            0, 0, fboGroup.input.fbo.width, fboGroup.input.fbo.height,
             0, 0, fboGroup.output.fbo.width, fboGroup.output.fbo.height,
             GL_COLOR_BUFFER_BIT,
             GL_LINEAR

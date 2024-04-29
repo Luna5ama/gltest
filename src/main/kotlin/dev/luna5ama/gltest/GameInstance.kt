@@ -2,6 +2,7 @@ package dev.luna5ama.gltest
 
 import dev.fastmc.common.TickTimer
 import dev.fastmc.common.wrapDirectByteBuffer
+import dev.luna5ama.gltest.pc.PointCloudScene
 import dev.luna5ama.gltest.structs.Vec2i32
 import dev.luna5ama.gltest.structs.sizeof
 import dev.luna5ama.gltest.terrain.TerrainScene
@@ -17,8 +18,8 @@ import kotlin.coroutines.CoroutineContext
 
 class GameInstance(val window: Long) {
     companion object {
-        private const val SWAP_INTERVAL = 2
-//        private const val SWAP_INTERVAL = 0
+//        private const val SWAP_INTERVAL = 2
+        private const val SWAP_INTERVAL = 0
         private const val PRINT_FPS = false
     }
 
@@ -99,7 +100,8 @@ class GameInstance(val window: Long) {
 
         pollErrors("Pre Setup")
 //    val scene = TestScene(this)
-        val scene = TerrainScene(this)
+//        val scene = TerrainScene(this)
+        val scene = PointCloudScene(this)
 //        val scene = ImpostorTestScene(this)
 
         val mouse = Mouse()

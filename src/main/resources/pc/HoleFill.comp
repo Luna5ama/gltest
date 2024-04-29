@@ -1,0 +1,102 @@
+#version 460 core
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+layout(r32ui) uniform restrict readonly uimage2D uimg_depthInput;
+layout(r32ui) uniform restrict writeonly uimage2D uimg_depthOutput;
+
+layout(r32ui) uniform restrict readonly uimage2D uimg_quadIndex;
+layout(r32ui) uniform restrict readonly uimage2D uimg_barycentricCoord;
+layout(rg32ui) uniform restrict writeonly uimage2D uimg_vbufferCombined;
+
+ivec2 outputSize = imageSize(uimg_depthOutput);
+
+uint getIndex(ivec2 coord) {
+    return coord.y * outputSize.x + coord.x;
+}
+
+uint readDepth(ivec2 coord) {
+    return imageLoad(uimg_depthInput, coord).x;
+}
+
+void main() {
+    ivec2 centerCoord = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(centerCoord, outputSize))) {
+        return;
+    }
+
+    ivec2 minDepthCoord = centerCoord;
+    uint minDepth = readDepth(minDepthCoord);
+//    if (minDepth == 0x7F800000u) {
+//        imageStore(uimg_depthOutput, centerCoord, uvec4(0x7F800000u));
+//        return;
+//    }
+
+//    if (minDepth == 0x7F800000u) {
+//        ivec2 nearCoord;
+//        uint nearDepth;
+//        nearCoord = centerCoord + ivec2(-1, -1);
+//        nearDepth = readDepth(nearCoord);
+//        if (nearDepth < minDepth) {
+//            minDepth = nearDepth;
+//            minDepthCoord = nearCoord;
+//        }
+//
+//        nearCoord = centerCoord + ivec2(0, -1);
+//        nearDepth = readDepth(nearCoord);
+//        if (nearDepth < minDepth) {
+//            minDepth = nearDepth;
+//            minDepthCoord = nearCoord;
+//        }
+//
+//        nearCoord = centerCoord + ivec2(0, -1);
+//        nearDepth = readDepth(nearCoord);
+//        if (nearDepth < minDepth) {
+//            minDepth = nearDepth;
+//            minDepthCoord = nearCoord;
+//        }
+//
+//        nearCoord = centerCoord + ivec2(1, -1);
+//        nearDepth = readDepth(nearCoord);
+//        if (nearDepth < minDepth) {
+//            minDepth = nearDepth;
+//            minDepthCoord = nearCoord;
+//        }
+//
+//        nearCoord = centerCoord + ivec2(-1, 0);
+//        nearDepth = readDepth(nearCoord);
+//        if (nearDepth < minDepth) {
+//            minDepth = nearDepth;
+//            minDepthCoord = nearCoord;
+//        }
+//
+//        nearCoord = centerCoord + ivec2(1, 0);
+//        nearDepth = readDepth(nearCoord);
+//        if (nearDepth < minDepth) {
+//            minDepth = nearDepth;
+//            minDepthCoord = nearCoord;
+//        }
+//
+//        nearCoord = centerCoord + ivec2(-1, 1);
+//        nearDepth = readDepth(nearCoord);
+//        if (nearDepth < minDepth) {
+//            minDepth = nearDepth;
+//            minDepthCoord = nearCoord;
+//        }
+//
+//        nearCoord = centerCoord + ivec2(0, 1);
+//        nearDepth = readDepth(nearCoord);
+//        if (nearDepth < minDepth) {
+//            minDepth = nearDepth;
+//            minDepthCoord = nearCoord;
+//        }
+//    }
+
+    uint quadIndex = imageLoad(uimg_quadIndex, centerCoord).x;
+    uint barycentricCoord = imageLoad(uimg_barycentricCoord, centerCoord).x;
+//    uint quadIndex = imageLoad(uimg_quadIndex, minDepthCoord).x;
+//    uint barycentricCoord = imageLoad(uimg_barycentricCoord, minDepthCoord).x;
+
+    imageStore(uimg_vbufferCombined, centerCoord, uvec4(quadIndex, barycentricCoord, 0u, 0u));
+    imageStore(uimg_depthOutput, centerCoord, uvec4(minDepth));
+}

@@ -1,5 +1,6 @@
 package dev.luna5ama.gltest.terrain
 
+import dev.luna5ama.gltest.AbstractScene
 import dev.luna5ama.gltest.linearClampEdge
 import dev.luna5ama.glwrapper.api.*
 import dev.luna5ama.glwrapper.enums.*
@@ -19,7 +20,7 @@ import java.nio.channels.FileChannel
 import java.nio.file.StandardOpenOption
 import java.util.*
 
-class Textures(val scene: TerrainScene) : IGLObjContainer by IGLObjContainer.Impl() {
+class Textures(val scene: AbstractScene) : IGLObjContainer by IGLObjContainer.Impl() {
     private val lightMapTex = register(TextureObject.Texture2D())
     private val blockTex = register(TextureObject.Texture2D())
     private val blockNormalTex = register(TextureObject.Texture2D())
@@ -59,7 +60,7 @@ class Textures(val scene: TerrainScene) : IGLObjContainer by IGLObjContainer.Imp
             repeat(5) {
                 val image = readImage(File(dir, "blocks_$it.png"))
                 if (it == 0) {
-                    blockTex.allocate(5, ImageFormat.R8_G8_B8_A8_SRGB, image.width, image.height)
+                    blockTex.allocate(5, ImageFormat.R8_G8_B8_A8_UN, image.width, image.height)
 
                     blockTex.setMipLevels(0, 4)
                     blockTex.setMipLod(0.0f, 4.0f)

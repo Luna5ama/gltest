@@ -1,5 +1,6 @@
 package dev.luna5ama.gltest.terrain.post
 
+import dev.luna5ama.gltest.FboGroup
 import dev.luna5ama.gltest.HaltonSequence
 import dev.luna5ama.gltest.linearClampEdge
 import dev.luna5ama.gltest.terrain.IGLObjContainer
@@ -116,7 +117,7 @@ class TAA(private val scene: TerrainScene, samples: Int, private val radius: Flo
     private val rx = org.joml.Random()
     private val ry = org.joml.Random()
 
-    fun render(fboGroup: TerrainScene.FboGroup) {
+    fun render(fboGroup: FboGroup) {
         if (lastFrameFbo.width != scene.camera.screenWidth || lastFrameFbo.height != scene.camera.screenHeight) {
             lastFrameFbo.destroy()
             prevFrameTex.allocate(1, ImageFormat.R16_G16_B16_A16_F, scene.camera.screenWidth, scene.camera.screenHeight)

@@ -1,5 +1,6 @@
 package dev.luna5ama.gltest.terrain.post
 
+import dev.luna5ama.gltest.FboGroup
 import dev.luna5ama.gltest.terrain.IGLObjContainer
 import dev.luna5ama.gltest.terrain.TerrainScene
 import dev.luna5ama.gltest.terrain.register
@@ -15,7 +16,7 @@ class Sobel(private val scene: TerrainScene) : IGLObjContainer by IGLObjContaine
         )
     )
 
-    fun render(fboGroup: TerrainScene.FboGroup) {
+    fun render(fboGroup: FboGroup) {
         shader.bind()
         shader.applyBinding {
             buffer(scene.camera.uboBinding)

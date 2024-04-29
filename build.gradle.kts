@@ -41,7 +41,7 @@ dependencies {
     runtimeOnly("org.lwjgl", "lwjgl-stb", classifier = "natives-windows")
 
     implementation(kotlin("reflect"))
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
 
     implementation("org.joml", "joml", "1.10.5")
 

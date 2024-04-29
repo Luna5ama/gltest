@@ -1,5 +1,6 @@
 package dev.luna5ama.gltest.terrain.post
 
+import dev.luna5ama.gltest.FboGroup
 import dev.luna5ama.gltest.linearClampEdge
 import dev.luna5ama.gltest.terrain.IGLObjContainer
 import dev.luna5ama.gltest.terrain.register
@@ -44,7 +45,7 @@ class Bloom(private val scene: TerrainScene) : IGLObjContainer by IGLObjContaine
     private val blurPass = 3
     private val swapFbos = SwapFbos()
 
-    fun render(fboGroup: TerrainScene.FboGroup) {
+    fun render(fboGroup: FboGroup) {
         swapFbos.update()
 
         glDisable(GL_BLEND)
@@ -56,7 +57,7 @@ class Bloom(private val scene: TerrainScene) : IGLObjContainer by IGLObjContaine
         renderFinalPass(fboGroup)
     }
 
-    private fun renderInitPass(fboGroup: TerrainScene.FboGroup) {
+    private fun renderInitPass(fboGroup: FboGroup) {
         glEnable(GL_DEPTH_TEST)
         glDepthFunc(GL_NOTEQUAL)
         glDepthMask(false)
@@ -107,7 +108,7 @@ class Bloom(private val scene: TerrainScene) : IGLObjContainer by IGLObjContaine
         scene.basic.drawQuad()
     }
 
-    private fun renderFinalPass(fboGroup: TerrainScene.FboGroup) {
+    private fun renderFinalPass(fboGroup: FboGroup) {
         fboGroup.swap()
 
         glViewport(0, 0, scene.camera.screenWidth, scene.camera.screenHeight)

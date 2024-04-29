@@ -509,7 +509,7 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
         borderColor(1.0f, 1.0f, 1.0f, 1.0f)
     }
 
-    fun renderDebug(fboGroup: TerrainScene.FboGroup) {
+    fun renderDebug(fboGroup: FboGroup) {
         shadowDepthSampler.bindSamplerUnit(0)
         fboGroup.input.fbo.bind()
         glDisable(GL_DEPTH_TEST)

@@ -33,6 +33,7 @@ fun main() {
 
             val window = glfwCreateWindow(1920, 1080, "", 0, 0)
 //            val window = glfwCreateWindow(1280, 720, "", 0, 0)
+//            val window = glfwCreateWindow(800, 600, "", 0, 0)
            try {
                 gameInstance = GameInstance(window)
                repeat(5) {

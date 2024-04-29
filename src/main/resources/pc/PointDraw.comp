@@ -1,0 +1,216 @@
+#version 460 core
+#extension GL_NV_shader_subgroup_partitioned : enable
+#extension GL_KHR_shader_subgroup_ballot : enable
+#extension GL_KHR_shader_subgroup_arithmetic : enable
+
+#include "vbuffer/VBuffers.glsl"
+#include "GlobalCamera.glsl"
+
+layout(local_size_x = BATCH_SIZE, local_size_y = 1, local_size_z = 1) in;
+
+uniform vec3 uval_originOffset;
+uniform vec2 uval_viewportSize;
+uniform uvec2 uval_viewportSizeUI;
+
+layout(r32ui) uniform uimage2D uimg_quadIndex;
+layout(r32ui) uniform uimage2D uimg_barycentricCoord;
+layout(r32ui) uniform uimage2D uimg_depthRenderTex;
+
+struct BatchMetadata {
+    uint first;
+    uint count;
+    uint encoded_offsets;
+    uint pointSampleCount;
+};
+
+//layout(std430) buffer DepthBuffer {
+//    uint ssbo_depthBuffer[];
+//};
+
+//layout(std430) buffer ColorBuffer {
+//    uint ssbo_colorBuffer[];
+//};
+
+layout(std430) restrict readonly buffer BatchMetadataBuffer {
+    BatchMetadata ssbo_batchMetadataBuffer[];
+};
+
+layout(std430) restrict readonly buffer PointPosBuffer {
+    uint ssbo_pointPosBuffer[];
+};
+
+const vec3 coordConvert = vec3(2.51773861295491E-4);
+
+float rand(float v) {
+    return fract(sin(v * 91.3458) * 47453.5453);
+}
+
+float rand(vec2 v) {
+    return fract(sin(dot(v, vec2(12.9898, 78.233))) * 43578.5453);
+}
+
+vec2 r2Seq2(uint idx) {
+    const float g = 1.32471795724474602596;
+    const vec2 a = vec2(1.0 / g, 1.0 / (g * g));
+    return fract(0.5 + a * idx);
+}
+
+vec4 readPos(uint idx) {
+    uint data1 = ssbo_pointPosBuffer[idx];
+    uint data2 = ssbo_pointPosBuffer[idx + 1];
+    return vec4(uvec4(data1 & 0xFFFFu, data1 >> 16u, data2 & 0xFFFFu, data2 >> 16u));
+}
+
+struct PointAttrib {
+    vec2 texCoord;
+    vec2 lightMapCoord;
+    vec3 color;
+};
+
+//PointAttrib readAttrib(uint idx) {
+//    uint data1 = ssbo_pointAttribBuffer[idx];
+//    uint data2 = ssbo_pointAttribBuffer[idx + 1];
+//    uint data3 = ssbo_pointAttribBuffer[idx + 2];
+//    PointAttrib attrib;
+//    attrib.texCoord = unpackUnorm2x16(data1);
+//    attrib.lightMapCoord = unpackUnorm4x8(data2).xy;
+//    attrib.color = unpackUnorm4x8(data3).xyz;
+//    return attrib;
+//}
+
+void main() {
+    BatchMetadata batchMetadata = ssbo_batchMetadataBuffer[gl_WorkGroupID.x];
+//    uint quadIdx = gl_LocalInvocationID.x * 16u + ((ubo_cameraDefault.gFrameIndex + gl_LocalInvocationID.x) & 15u);
+    uint quadIdx = gl_LocalInvocationID.x / batchMetadata.pointSampleCount;
+    if (quadIdx >= batchMetadata.count) return;
+    uint globalQuadIdx = batchMetadata.first + quadIdx;
+
+    vec3 chunkOffset = vec3(uvec3(batchMetadata.encoded_offsets) >> uvec3(0u, 8u, 16u) & uvec3(255u));
+    chunkOffset = chunkOffset * 16.0 + uval_originOffset;
+
+
+    uint r2idx = uint(rand(float(gl_LocalInvocationID.x)) * 512.0) + (ubo_cameraDefault.gFrameIndex);
+    vec2 r2 = r2Seq2(r2idx);
+
+    vec4 bCoord;
+    r2.y = sqrt(r2.y);
+    switch ((ubo_cameraDefault.gFrameIndex + gl_LocalInvocationID.x) & 3u) {
+        case 0:
+            bCoord = vec4(
+                r2.x * 1.0,
+                1.0 - r2.y,
+                1.0 - r2.x * 1.0,
+                0.0
+            );
+            bCoord.xz *= r2.y;
+            break;
+        case 1:
+            bCoord = vec4(
+                r2.x * 1.0,
+                0.0,
+                1.0 - r2.x * 1.0,
+                1.0 - r2.y
+            );
+            bCoord.xz *= r2.y;
+            break;
+        case 2:
+            bCoord = vec4(
+                0.0,
+                r2.x * 1.0,
+                1.0 - r2.y,
+                1.0 - r2.x * 1.0
+            );
+            bCoord.yw *= r2.y;
+            break;
+        case 3:
+            bCoord = vec4(
+                1.0 - r2.y,
+                r2.x * 1.0,
+                0.0,
+                1.0 - r2.x * 1.0
+            );
+            bCoord.yw *= r2.y;
+            break;
+    }
+    bCoord /= dot(bCoord, vec4(1.0));
+//    bCoord = vec4(0.25);
+
+    uint pointPosIdx = globalQuadIdx * 6u;
+
+    vec4 posX = readPos(pointPosIdx);
+    vec4 posY = readPos(pointPosIdx + 2u);
+    vec4 posZ = readPos(pointPosIdx + 4u);
+
+    posX *= bCoord;
+    posY *= bCoord;
+    posZ *= bCoord;
+
+    vec2 posX2 = posX.xy + posX.zw;
+    vec2 posY2 = posY.xy + posY.zw;
+    vec2 posZ2 = posZ.xy + posZ.zw;
+
+    vec3 pointPos = vec3(posX2.x + posX2.y, posY2.x + posY2.y, posZ2.x + posZ2.y);
+    //    vec3 pointPos = vec3(
+    //        mix(posX.xy, posX.zw, r2.x)
+    //    );
+
+    vec4 coordCS = ubo_cameraDefault.combined * vec4(pointPos * coordConvert + chunkOffset, 1.0);
+    vec3 coordNDC = coordCS.xyz / coordCS.w;
+
+    if (coordCS.w <= 0.0 || any(greaterThanEqual(abs(coordNDC), vec3(1.0)))) return;
+
+    vec3 coordTS = coordNDC * 0.5 + 0.5;
+    ivec2 outputCoord = ivec2(floor(coordTS.xy * uval_viewportSize));
+
+    uint depth = floatBitsToUint(coordCS.w);
+    uint writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
+
+//    uint oldValue = ssbo_depthBuffer[writeIdx];
+    uint oldValue = imageLoad(uimg_depthRenderTex, outputCoord).x;
+    if (depth > oldValue) return;
+
+    uvec4 pballot = subgroupPartitionNV(writeIdx);
+    uint sgMinDepth = subgroupPartitionedMinNV(depth, pballot);
+//    uint minDepth = atomicMin(ssbo_depthBuffer[writeIdx], sgMinDepth);
+    uint minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, sgMinDepth);
+
+    if (subgroupBallotFindLSB(pballot) == gl_SubgroupInvocationID) {
+        if (minDepth >= sgMinDepth) {
+//            vec2 texCoord = vec2(0.0);
+//            texCoord += unpackUnorm2x16(ssbo_pointAttribBuffer[pointAttriIdx]) * ratio.x;
+//            texCoord += unpackUnorm2x16(ssbo_pointAttribBuffer[pointAttriIdx + 3u]) * ratio.y;
+//            texCoord += unpackUnorm2x16(ssbo_pointAttribBuffer[pointAttriIdx + 6u]) * ratio.z;
+//            texCoord += unpackUnorm2x16(ssbo_pointAttribBuffer[pointAttriIdx + 9u]) * ratio.w;
+//
+//            vec4 colorFinal = textureLod(usam_blockAlbedoAtlas, texCoord, 5.0);
+//
+//            vec3 color = vec3(0.0);
+//            color += unpackUnorm4x8(ssbo_pointAttribBuffer[pointAttriIdx + 2u]).rgb * ratio.x;
+//            color += unpackUnorm4x8(ssbo_pointAttribBuffer[pointAttriIdx + 5u]).rgb * ratio.y;
+//            color += unpackUnorm4x8(ssbo_pointAttribBuffer[pointAttriIdx + 8u]).rgb * ratio.z;
+//            color += unpackUnorm4x8(ssbo_pointAttribBuffer[pointAttriIdx + 11u]).rgb * ratio.w;
+//            colorFinal.rgb *= color;
+//
+//            vec2 lightMapCoord = vec2(0.0);
+//            lightMapCoord += unpackUnorm4x8(ssbo_pointAttribBuffer[pointAttriIdx + 1u]).xy * ratio.x;
+//            lightMapCoord += unpackUnorm4x8(ssbo_pointAttribBuffer[pointAttriIdx + 4u]).xy * ratio.y;
+//            lightMapCoord += unpackUnorm4x8(ssbo_pointAttribBuffer[pointAttriIdx + 7u]).xy * ratio.z;
+//            lightMapCoord += unpackUnorm4x8(ssbo_pointAttribBuffer[pointAttriIdx + 10u]).xy * ratio.w;
+//
+//            vec4 lightMap = textureLod(usam_lightMap, lightMapCoord, 0.0);
+//            colorFinal.rgb *= lightMap.rgb;
+//            //            colorFinal.rgb = pow(colorFinal.rgb, vec3(1.0 / 2.2));
+//            colorFinal.a = 1.0;
+//
+//            uint colorEncoded = packUnorm4x8(colorFinal);
+//            uint colorEncoded = 0xFFFFFFFFu;
+
+//            imageAtomicExchange(uimg_colorTex, outputCoord, colorEncoded);
+
+//            imageAtomicExchange(uimg_quadIndex, outputCoord, globalQuadIdx);
+//            imageAtomicExchange(uimg_barycentricCoord, outputCoord, vbuffer_encodeBCoord(bCoord));
+            imageStore(uimg_quadIndex, outputCoord, uvec4(globalQuadIdx));
+            imageStore(uimg_barycentricCoord, outputCoord, uvec4(vbuffer_encodeBCoord(bCoord)));
+        }
+    }
+}

@@ -1,5 +1,6 @@
 package dev.luna5ama.gltest.terrain
 
+import dev.luna5ama.gltest.FboGroup
 import dev.luna5ama.gltest.glDebugGroup
 import dev.luna5ama.gltest.linearClampEdge
 import dev.luna5ama.glwrapper.ShaderBindingSpecs
@@ -43,7 +44,7 @@ class SolidLighting(private val scene: TerrainScene) : IGLObjContainer by IGLObj
         )
     )
 
-    fun render(fboGroup: TerrainScene.FboGroup) {
+    fun render(fboGroup: FboGroup) {
         glEnable(GL_CULL_FACE)
         glCullFace(GL_BACK)
 
@@ -60,7 +61,7 @@ class SolidLighting(private val scene: TerrainScene) : IGLObjContainer by IGLObj
                 scene.solidGBuffer.fbo.id,
                 fboGroup.output.fbo.id,
                 0, 0, scene.solidGBuffer.width, scene.solidGBuffer.height,
-                0, 0, fboGroup.output.width, fboGroup.output.height,
+                0, 0, fboGroup.output.fbo.width, fboGroup.output.fbo.height,
                 GL_STENCIL_BUFFER_BIT or GL_DEPTH_BUFFER_BIT, GL_NEAREST
             )
             glEnable(GL_DITHER)
@@ -126,7 +127,7 @@ class SolidLighting(private val scene: TerrainScene) : IGLObjContainer by IGLObj
         glDisable(GL_STENCIL_TEST)
     }
 
-    private fun update(fboGroup: TerrainScene.FboGroup) {
+    private fun update(fboGroup: FboGroup) {
         val tex = scene.solidGBuffer.tex1
         val sizeBit = tex.sizeBit
         if (sizeBit != lastUpdateSizeBit) {

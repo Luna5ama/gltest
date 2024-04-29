@@ -1,5 +1,6 @@
 package dev.luna5ama.gltest.terrain.post
 
+import dev.luna5ama.gltest.FboGroup
 import dev.luna5ama.gltest.terrain.IGLObjContainer
 import dev.luna5ama.gltest.terrain.register
 import dev.luna5ama.glwrapper.api.*
@@ -14,7 +15,7 @@ class ToneMapping(private val scene: TerrainScene) : IGLObjContainer by IGLObjCo
         ShaderSource.Frag("/terrain/post/ToneMapping.frag.glsl")
     )
 )
-    fun render(fboGroup: TerrainScene.FboGroup) {
+    fun render(fboGroup: FboGroup) {
         toneMapping.bind()
         fboGroup.input.colorTex.bindTextureUnit(0)
         fboGroup.output.fbo.bind()

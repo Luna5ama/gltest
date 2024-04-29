@@ -1,5 +1,6 @@
 package dev.luna5ama.gltest.terrain.post
 
+import dev.luna5ama.gltest.FboGroup
 import dev.luna5ama.gltest.terrain.IGLObjContainer
 import dev.luna5ama.gltest.terrain.register
 import dev.luna5ama.gltest.terrain.TerrainScene
@@ -12,7 +13,7 @@ class TXAA(scene: TerrainScene, samples: Int, radius: Float) : IGLObjContainer b
     val baseJitter get() = taa.baseJitter
     val currentJitter get() = taa.currentJitter
 
-    fun render(fboGroup: TerrainScene.FboGroup) {
+    fun render(fboGroup: FboGroup) {
         fxaa.render(fboGroup)
         taa.render(fboGroup)
 //        sharpening.render(fboGroup)

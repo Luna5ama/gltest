@@ -1,5 +1,6 @@
 package dev.luna5ama.gltest.terrain
 
+import dev.luna5ama.glwrapper.ShaderProgram
 import dev.luna5ama.glwrapper.enums.GLObjectType
 import dev.luna5ama.glwrapper.objects.IGLObject
 import dev.luna5ama.kmogus.MemoryStack
@@ -53,7 +54,7 @@ interface IGLObjContainer {
             collectObjs(objs)
             objs.forEach { _, v ->
                 v.forEach {
-                    it.resetID()
+                    if (it !is ShaderProgram) it.resetID()
                 }
             }
             MemoryStack {

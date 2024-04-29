@@ -485,9 +485,8 @@ class TerrainMesh(private val scene: TerrainScene, dir: File) : IGLObjContainer 
         const val VERTEX_SIZE = 20
         const val MIN_CHUNK_Y = -4
         const val SIZE_Y = 24
-        const val SIZE_XZ = 127
+        const val SIZE_XZ = 255
         const val TOTAL_CHUNKS = SIZE_XZ * SIZE_XZ * SIZE_Y
-        const val REGION_CHUNKS = 16 * 16 * SIZE_Y
 
         @JvmField
         val VERTEX_ATTRIBUTE_MAIN = buildAttribute(VERTEX_SIZE) {

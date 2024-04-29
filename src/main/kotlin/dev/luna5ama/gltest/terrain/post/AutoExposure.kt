@@ -1,6 +1,7 @@
 package dev.luna5ama.gltest.terrain.post
 
 import dev.fastmc.common.TickTimer
+import dev.luna5ama.gltest.FboGroup
 import dev.luna5ama.gltest.terrain.IGLObjContainer
 import dev.luna5ama.gltest.terrain.TerrainScene
 import dev.luna5ama.glwrapper.*
@@ -44,14 +45,14 @@ class AutoExposure(private val scene: TerrainScene) : IGLObjContainer by IGLObjC
 
     val avgLumSamplerBinding = ShaderBindingSpecs.Sampler("usam_avgLum", avgLumTex)
 
-    fun render(fboGroup: TerrainScene.FboGroup) {
+    fun render(fboGroup: FboGroup) {
         val input = fboGroup.input
         val output = fboGroup.output
 
         val pRangePower = 4.0f
         val pLumRange = 4.0f
         val timeCoeff = 0.05f
-        val pixelTotal = (input.width * input.height).toFloat()
+        val pixelTotal = (input.fbo.width * input.fbo.height).toFloat()
 
         val targetLuma = 0.08f
         val minInc = 0.2f
@@ -67,7 +68,7 @@ class AutoExposure(private val scene: TerrainScene) : IGLObjContainer by IGLObjC
             "uParams",
             pRangePower, 1.0f / pLumRange, timeCoeff, pixelTotal
         )
-        glDispatchCompute((input.width + 15) / 16, (input.height + 15) / 16, 1)
+        glDispatchCompute((input.fbo.width + 15) / 16, (input.fbo.height + 15) / 16, 1)
 
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT or GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
 

@@ -1,0 +1,42 @@
+#version 460 core
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+const float CONVERT = 1.5258789066052713679627681542101e-5;
+
+uniform float uval_mixFactor;
+
+layout(rgba16f) uniform image2D uimg_prevTexture;
+layout(rgba16f) uniform restrict readonly image2D uimg_input;
+layout(rgba16f) uniform restrict writeonly image2D uimg_output;
+
+void main() {
+    ivec2 texel = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 outputSize = imageSize(uimg_output);
+    if (any(greaterThanEqual(texel, outputSize))) {
+        return;
+    }
+
+    vec4 currColor = imageLoad(uimg_input, texel);
+//    currColor.rgb *= 16.0;
+
+    vec3 nearCurr0 = imageLoad(uimg_input, clamp(texel + ivec2(1, 0), ivec2(0), outputSize)).rgb;
+    vec3 nearCurr1 = imageLoad(uimg_input, clamp(texel + ivec2(0, 1), ivec2(0), outputSize)).rgb;
+    vec3 nearCurr2 = imageLoad(uimg_input, clamp(texel + ivec2(-1, 0), ivec2(0), outputSize)).rgb;
+    vec3 nearCurr3 = imageLoad(uimg_input, clamp(texel + ivec2(0, -1), ivec2(0), outputSize)).rgb;
+    vec3 nearMin = min(min(nearCurr0, nearCurr1), min(nearCurr2, nearCurr3));
+    vec3 nearMax = max(max(nearCurr0, nearCurr1), max(nearCurr2, nearCurr3));
+
+    vec4 prevColor = imageLoad(uimg_prevTexture, texel);
+//    prevColor.rgb = mix(prevColor.rgb, clamp(prevColor.rgb, nearMin, nearMax), 0.5);
+
+    vec4 color = currColor;
+
+//    color.rgb = mix(prevColor.rgb, mix(currColor.rgb, prevColor.rgb, 0.5), min(currColor.a, 0.5));
+//    color.rgb = max(prevColor.rgb, currColor.rgb);
+    color.rgb = mix(currColor.rgb, prevColor.rgb, uval_mixFactor);
+    imageStore(uimg_prevTexture, texel, color);
+    color.rgb = pow(color.rgb, vec3(1.0 / 1.4));
+
+    imageStore(uimg_output, texel, color);
+}

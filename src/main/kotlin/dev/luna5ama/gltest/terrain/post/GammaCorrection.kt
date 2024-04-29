@@ -1,5 +1,6 @@
 package dev.luna5ama.gltest.terrain.post
 
+import dev.luna5ama.gltest.FboGroup
 import dev.luna5ama.gltest.terrain.IGLObjContainer
 import dev.luna5ama.gltest.terrain.register
 import dev.luna5ama.glwrapper.api.*
@@ -12,7 +13,7 @@ class GammaCorrection(private val scene: TerrainScene) : IGLObjContainer by IGLO
         ShaderSource.Frag("/terrain/post/GammaCorrection.frag.glsl")
     )
 )
-    fun render(fboGroup: TerrainScene.FboGroup) {
+    fun render(fboGroup: FboGroup) {
         shader.bind()
         shader.uniform1f("uInvGamma", 1.0f / 2.2f)
         shader.applyBinding {

@@ -3,6 +3,7 @@ package dev.luna5ama.gltest.terrain
 import dev.fastmc.common.MathUtil
 import dev.fastmc.common.TickTimer
 import dev.fastmc.common.toRadians
+import dev.luna5ama.gltest.FboGroup
 import dev.luna5ama.glwrapper.api.*
 import dev.luna5ama.glwrapper.*
 import dev.luna5ama.glwrapper.enums.*
@@ -145,7 +146,7 @@ class Skybox(private val scene: TerrainScene) : IGLObjContainer by IGLObjContain
 
     private val updateTimer = TickTimer()
 
-    fun render(fboGroup: TerrainScene.FboGroup) {
+    fun render(fboGroup: FboGroup) {
         glDisable(GL_DEPTH_TEST)
         glDisable(GL_BLEND)
 

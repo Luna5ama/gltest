@@ -8,14 +8,10 @@ import dev.luna5ama.gltest.*
 import dev.luna5ama.gltest.structs.DrawElementsIndirectCommand
 import dev.luna5ama.gltest.structs.sizeof
 import dev.luna5ama.gltest.terrain.post.*
-import dev.luna5ama.glwrapper.ShaderBindingSpecs
 import dev.luna5ama.glwrapper.ShaderSource
 import dev.luna5ama.glwrapper.api.*
 import dev.luna5ama.glwrapper.enums.FilterMode
-import dev.luna5ama.glwrapper.enums.ImageFormat
 import dev.luna5ama.glwrapper.enums.WrapMode
-import dev.luna5ama.glwrapper.objects.FramebufferObject
-import dev.luna5ama.glwrapper.objects.TextureObject
 import dev.luna5ama.kmogus.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
@@ -46,9 +42,7 @@ class TerrainScene(gameInstance: GameInstance) : AbstractScene(gameInstance) {
     val deferredShaders = register(DeferredShaders(this))
     val textures = register(Textures(this))
 
-    private val swapFbo = register(MainFbo("Swap"))
-    private val mainFbo = register(MainFbo("Main"))
-    private val fboGroup = register(FboGroup())
+    private val fboGroup = register(FboGroup(this))
 
     val basic = register(Basic())
     val samplers = register(Samplers())
@@ -223,8 +217,8 @@ class TerrainScene(gameInstance: GameInstance) : AbstractScene(gameInstance) {
         glBlitNamedFramebuffer(
             fboGroup.output.fbo.id,
             fboGroup.input.fbo.id,
-            0, 0, mainFbo.width, mainFbo.height,
-            0, 0, mainFbo.width, mainFbo.height,
+            0, 0, fboGroup.mainFbo.fbo.width, fboGroup.mainFbo.fbo.height,
+            0, 0, fboGroup.mainFbo.fbo.width, fboGroup.mainFbo.fbo.height,
             GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT or GL_STENCIL_BUFFER_BIT,
             GL_NEAREST
         )
@@ -379,9 +373,9 @@ class TerrainScene(gameInstance: GameInstance) : AbstractScene(gameInstance) {
         glDisable(GL_DITHER)
         glBlitNamedFramebuffer(
             waterGBuffer.fbo.id,
-            mainFbo.fbo.id,
+            fboGroup.mainFbo.fbo.id,
             0, 0, waterGBuffer.width, waterGBuffer.height,
-            0, 0, mainFbo.width, mainFbo.height,
+            0, 0, fboGroup.mainFbo.fbo.width, fboGroup.mainFbo.fbo.height,
             GL_STENCIL_BUFFER_BIT or GL_DEPTH_BUFFER_BIT, GL_NEAREST
         )
         glEnable(GL_DITHER)
@@ -392,7 +386,7 @@ class TerrainScene(gameInstance: GameInstance) : AbstractScene(gameInstance) {
         shader.applyBinding {
             sampler(solidGBuffer.texBindings)
             sampler(waterGBuffer.texBindings)
-            sampler("usam_backSceneTex", swapFbo.colorTex, samplerManager.get {
+            sampler("usam_backSceneTex", fboGroup.swapFbo.colorTex, samplerManager.get {
                 filter(FilterMode.Nearest, FilterMode.Nearest)
                 wrap(WrapMode.ClampToEdge, WrapMode.ClampToEdge)
             })
@@ -405,7 +399,7 @@ class TerrainScene(gameInstance: GameInstance) : AbstractScene(gameInstance) {
             buffer(rtwsm.uboBinding)
             buffer(old.fogParametersBinding)
         }
-        mainFbo.fbo.bind()
+        fboGroup.mainFbo.fbo.bind()
 
         glEnable(GL_CULL_FACE)
         glCullFace(GL_BACK)
@@ -434,7 +428,7 @@ class TerrainScene(gameInstance: GameInstance) : AbstractScene(gameInstance) {
                 waterGBuffer.fbo.id,
                 fboGroup.input.fbo.id,
                 0, 0, waterGBuffer.width, waterGBuffer.height,
-                0, 0, mainFbo.width, mainFbo.height,
+                0, 0, fboGroup.mainFbo.fbo.width, fboGroup.mainFbo.fbo.height,
                 GL_DEPTH_BUFFER_BIT or GL_STENCIL_BUFFER_BIT,
                 GL_NEAREST
             )
@@ -443,7 +437,7 @@ class TerrainScene(gameInstance: GameInstance) : AbstractScene(gameInstance) {
                 waterGBuffer.fbo.id,
                 fboGroup.output.fbo.id,
                 0, 0, waterGBuffer.width, waterGBuffer.height,
-                0, 0, mainFbo.width, mainFbo.height,
+                0, 0, fboGroup.mainFbo.fbo.width, fboGroup.mainFbo.fbo.height,
                 GL_DEPTH_BUFFER_BIT or GL_STENCIL_BUFFER_BIT,
                 GL_NEAREST
             )
@@ -482,15 +476,15 @@ class TerrainScene(gameInstance: GameInstance) : AbstractScene(gameInstance) {
 
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
         val ratio = 1
-        val width = swapFbo.width / ratio
-        val height = swapFbo.height / ratio
-        val xEdge = (swapFbo.width - width) / 2
-        val yEdge = (swapFbo.height - height) / 2
+        val width = fboGroup.swapFbo.fbo.width / ratio
+        val height = fboGroup.swapFbo.fbo.height / ratio
+        val xEdge = (fboGroup.swapFbo.fbo.width - width) / 2
+        val yEdge = (fboGroup.swapFbo.fbo.height - height) / 2
         glBlitNamedFramebuffer(
             fboGroup.input.fbo.id,
             0,
             xEdge, yEdge, xEdge + width, yEdge + height,
-            0, 0, swapFbo.width, swapFbo.height,
+            0, 0, fboGroup.swapFbo.fbo.width, fboGroup.swapFbo.fbo.height,
             GL_COLOR_BUFFER_BIT,
             GL_NEAREST
         )
@@ -703,113 +697,4 @@ class TerrainScene(gameInstance: GameInstance) : AbstractScene(gameInstance) {
     }
 
     private fun drawElementsIndirectCommand(src: DrawElementsIndirectCommand) = src
-
-    inner class FboGroup : IGLObjContainer by IGLObjContainer.Impl() {
-        private val inputBindingList = listOf(
-            listOf(
-                ShaderBindingSpecs.Sampler("usam_mainFbo_inputColor", swapFbo.colorTex),
-                ShaderBindingSpecs.Sampler("usam_mainFbo_inputDepth", swapFbo.depthStencilTex)
-            ),
-            listOf(
-                ShaderBindingSpecs.Sampler("usam_mainFbo_inputColor", mainFbo.colorTex),
-                ShaderBindingSpecs.Sampler("usam_mainFbo_inputDepth", mainFbo.depthStencilTex)
-            )
-        )
-        private val outputBindingList = listOf(listOf(
-            ShaderBindingSpecs.Sampler("usam_mainFbo_outputColor", swapFbo.colorTex),
-            ShaderBindingSpecs.Sampler("usam_mainFbo_outputDepth", swapFbo.depthStencilTex)
-        ),
-        listOf(
-            ShaderBindingSpecs.Sampler("usam_mainFbo_outputColor", mainFbo.colorTex),
-            ShaderBindingSpecs.Sampler("usam_mainFbo_outputDepth", mainFbo.depthStencilTex)
-        ))
-
-        private var swapIdx = 0
-        private var fbos = listOf(swapFbo, mainFbo)
-
-        val input get() = fbos[swapIdx]
-        val output get() =  fbos[swapIdx xor 1]
-        val combined = register(FramebufferObject())
-
-        val inputBindings get() =  inputBindingList[swapIdx]
-        val outputBindings get() =  outputBindingList[swapIdx xor 1]
-
-        fun swap() {
-            swapIdx = swapIdx xor 1
-        }
-
-        fun reset() {
-            swapIdx = 0
-
-            swapFbo.update()
-            mainFbo.update()
-
-
-            mainFbo.fbo.bind()
-            glViewport(0, 0, camera.screenWidth, camera.screenHeight)
-            glClearColor(3.0f, 3.0f, 3.0f, 2.0f)
-            glClearDepth(1.0)
-            glClearStencil(0)
-            glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT or GL_STENCIL_BUFFER_BIT)
-
-            swapFbo.fbo.bind()
-            glClearColor(3.0f, 3.0f, 3.0f, 2.0f)
-            glClearDepth(1.0)
-            glClearStencil(0)
-            glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT or GL_STENCIL_BUFFER_BIT)
-//            glClearNamedFramebufferf(mainFbo.fbo.id, GL_COLOR, 0, 3.0f, 3.0f, 3.0f, 2.0f)
-//            glClearNamedFramebufferfi(mainFbo.fbo.id, GL_DEPTH_STENCIL, 0, 1.0f, 0)
-//
-//            glClearNamedFramebufferf(swapFbo.fbo.id, GL_COLOR, 0, 0.0f, 0.0f, 0.0f, 0.0f)
-//            glClearNamedFramebufferfi(swapFbo.fbo.id, GL_DEPTH_STENCIL, 0, 1.0f, 0)
-
-            if (mainFbo.fbo.sizeBit != combined.sizeBit) {
-                combined.apply {
-                    destroyFbo()
-                    attachNonLayered(mainFbo.colorTex, GL_COLOR_ATTACHMENT0)
-                    attachNonLayered(swapFbo.colorTex, GL_COLOR_ATTACHMENT1)
-                    attachNonLayered(mainFbo.depthStencilTex, GL_DEPTH_STENCIL_ATTACHMENT)
-                    setDrawBufferAll()
-                }
-            }
-        }
-    }
-
-    inner class MainFbo(private val name: String) : IGLObjContainer by IGLObjContainer.Impl() {
-        var width = -1
-        var height = -1
-        val colorTex = register(TextureObject.Texture2D())
-        val depthStencilTex = register(TextureObject.Texture2D())
-        val fbo = register(FramebufferObject())
-
-        fun update() {
-            val screenWidth = camera.screenWidth
-            val screenHeight = camera.screenHeight
-            if (width != screenWidth || height != screenHeight) {
-                fbo.destroy()
-
-                colorTex.apply {
-                    label("MainFBO.$name.Color")
-                    allocate(1, ImageFormat.R16_G16_B16_A16_F, screenWidth, screenHeight)
-                    linearClampEdge()
-                }
-                depthStencilTex.apply {
-                    label("MainFBO.$name.Depth")
-                    allocate(1, ImageFormat.Depth32FStencil8, screenWidth, screenHeight)
-                    linearClampEdge()
-                }
-
-                fbo.apply {
-                    clearAttachments()
-                    attachNonLayered(colorTex, GL_COLOR_ATTACHMENT0) // Regular color
-                    attachNonLayered(depthStencilTex, GL_DEPTH_STENCIL_ATTACHMENT) // Depth & Stencil
-                    check()
-                    label("MainFBO.$name.FBO")
-                }
-
-                width = screenWidth
-                height = screenHeight
-            }
-        }
-    }
 }

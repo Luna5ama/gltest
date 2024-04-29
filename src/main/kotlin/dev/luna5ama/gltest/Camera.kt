@@ -185,7 +185,7 @@ class Camera(val scene: AbstractScene) {
 
     fun rotate(mouseDelta: Vector2d, timeDelta: Double) {
         if (scene.gameInstance.cinematicCamera) {
-            val sensitivity = 0.001
+            val sensitivity = 0.0005
             val newDelta = Vector2d(mouseDelta).mul(-sensitivity)
 
             mouseMotion.mul(0.98.pow(timeDelta))

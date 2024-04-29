@@ -1,5 +1,6 @@
 package dev.luna5ama.gltest.terrain.post
 
+import dev.luna5ama.gltest.FboGroup
 import dev.luna5ama.gltest.terrain.IGLObjContainer
 import dev.luna5ama.gltest.terrain.register
 import dev.luna5ama.gltest.terrain.TerrainScene
@@ -15,7 +16,7 @@ class FXAA(private val scene: TerrainScene) : IGLObjContainer by IGLObjContainer
         )
     )
 
-    fun render(fboGroup: TerrainScene.FboGroup) {
+    fun render(fboGroup: FboGroup) {
         shader.bind()
         fboGroup.output.fbo.bind()
         shader.applyBinding {
