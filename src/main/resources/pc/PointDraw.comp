@@ -23,14 +23,6 @@ struct BatchMetadata {
     uint pointSampleCount;
 };
 
-//layout(std430) buffer DepthBuffer {
-//    uint ssbo_depthBuffer[];
-//};
-
-//layout(std430) buffer ColorBuffer {
-//    uint ssbo_colorBuffer[];
-//};
-
 layout(std430) restrict readonly buffer BatchMetadataBuffer {
     BatchMetadata ssbo_batchMetadataBuffer[];
 };
@@ -89,10 +81,9 @@ void main() {
     chunkOffset = chunkOffset * 16.0 + uval_originOffset;
 
 
+    vec4 bCoord;
     uint r2idx = uint(rand(float(gl_LocalInvocationID.x)) * 512.0) + (ubo_cameraDefault.gFrameIndex);
     vec2 r2 = r2Seq2(r2idx);
-
-    vec4 bCoord;
     r2.y = sqrt(r2.y);
     switch ((ubo_cameraDefault.gFrameIndex + gl_LocalInvocationID.x) & 3u) {
         case 0:
@@ -165,50 +156,16 @@ void main() {
     uint depth = floatBitsToUint(coordCS.w);
     uint writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
 
-//    uint oldValue = ssbo_depthBuffer[writeIdx];
     uint oldValue = imageLoad(uimg_depthRenderTex, outputCoord).x;
     if (depth > oldValue) return;
 
     uvec4 pballot = subgroupPartitionNV(writeIdx);
+
     uint sgMinDepth = subgroupPartitionedMinNV(depth, pballot);
-//    uint minDepth = atomicMin(ssbo_depthBuffer[writeIdx], sgMinDepth);
-    uint minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, sgMinDepth);
 
     if (subgroupBallotFindLSB(pballot) == gl_SubgroupInvocationID) {
+        uint minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, sgMinDepth);
         if (minDepth >= sgMinDepth) {
-//            vec2 texCoord = vec2(0.0);
-//            texCoord += unpackUnorm2x16(ssbo_pointAttribBuffer[pointAttriIdx]) * ratio.x;
-//            texCoord += unpackUnorm2x16(ssbo_pointAttribBuffer[pointAttriIdx + 3u]) * ratio.y;
-//            texCoord += unpackUnorm2x16(ssbo_pointAttribBuffer[pointAttriIdx + 6u]) * ratio.z;
-//            texCoord += unpackUnorm2x16(ssbo_pointAttribBuffer[pointAttriIdx + 9u]) * ratio.w;
-//
-//            vec4 colorFinal = textureLod(usam_blockAlbedoAtlas, texCoord, 5.0);
-//
-//            vec3 color = vec3(0.0);
-//            color += unpackUnorm4x8(ssbo_pointAttribBuffer[pointAttriIdx + 2u]).rgb * ratio.x;
-//            color += unpackUnorm4x8(ssbo_pointAttribBuffer[pointAttriIdx + 5u]).rgb * ratio.y;
-//            color += unpackUnorm4x8(ssbo_pointAttribBuffer[pointAttriIdx + 8u]).rgb * ratio.z;
-//            color += unpackUnorm4x8(ssbo_pointAttribBuffer[pointAttriIdx + 11u]).rgb * ratio.w;
-//            colorFinal.rgb *= color;
-//
-//            vec2 lightMapCoord = vec2(0.0);
-//            lightMapCoord += unpackUnorm4x8(ssbo_pointAttribBuffer[pointAttriIdx + 1u]).xy * ratio.x;
-//            lightMapCoord += unpackUnorm4x8(ssbo_pointAttribBuffer[pointAttriIdx + 4u]).xy * ratio.y;
-//            lightMapCoord += unpackUnorm4x8(ssbo_pointAttribBuffer[pointAttriIdx + 7u]).xy * ratio.z;
-//            lightMapCoord += unpackUnorm4x8(ssbo_pointAttribBuffer[pointAttriIdx + 10u]).xy * ratio.w;
-//
-//            vec4 lightMap = textureLod(usam_lightMap, lightMapCoord, 0.0);
-//            colorFinal.rgb *= lightMap.rgb;
-//            //            colorFinal.rgb = pow(colorFinal.rgb, vec3(1.0 / 2.2));
-//            colorFinal.a = 1.0;
-//
-//            uint colorEncoded = packUnorm4x8(colorFinal);
-//            uint colorEncoded = 0xFFFFFFFFu;
-
-//            imageAtomicExchange(uimg_colorTex, outputCoord, colorEncoded);
-
-//            imageAtomicExchange(uimg_quadIndex, outputCoord, globalQuadIdx);
-//            imageAtomicExchange(uimg_barycentricCoord, outputCoord, vbuffer_encodeBCoord(bCoord));
             imageStore(uimg_quadIndex, outputCoord, uvec4(globalQuadIdx));
             imageStore(uimg_barycentricCoord, outputCoord, uvec4(vbuffer_encodeBCoord(bCoord)));
         }
