@@ -40,10 +40,6 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
         label("depthCopyTex")
     }
 
-    val originX get() = -PointCloudData.ORIGIN * 16.0f
-    val originY get() = PointCloudData.MIN_CHUNK_Y * 16.0f
-    val originZ get() = -PointCloudData.ORIGIN * 16.0f
-
     private var frameIndex = 0
 
     private val drawShader = register(
@@ -298,5 +294,11 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
         camera.update(x.toFloat() * 0.5f, y.toFloat() * 0.5f)
 
         frameIndex++
+    }
+
+    companion object {
+        val originX get() = -PointCloudData.ORIGIN * 16.0f
+        val originY get() = PointCloudData.MIN_CHUNK_Y * 16.0f
+        val originZ get() = -PointCloudData.ORIGIN * 16.0f
     }
 }

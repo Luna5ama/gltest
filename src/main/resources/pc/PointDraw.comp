@@ -27,8 +27,12 @@ layout(std430) restrict readonly buffer BatchMetadataBuffer {
     BatchMetadata ssbo_batchMetadataBuffer[];
 };
 
-layout(std430) restrict readonly buffer PointPosBuffer {
-    uint ssbo_pointPosBuffer[];
+layout(std430) restrict readonly buffer QuadPosDataBuffer {
+    uint ssbo_quadPosDataBuffer[];
+};
+
+layout(std430) restrict readonly buffer QuadPosIndexBuffer {
+    uint ssbo_quadPosIndexBuffer[];
 };
 
 const vec3 coordConvert = vec3(2.51773861295491E-4);
@@ -48,8 +52,8 @@ vec2 r2Seq2(uint idx) {
 }
 
 vec4 readPos(uint idx) {
-    uint data1 = ssbo_pointPosBuffer[idx];
-    uint data2 = ssbo_pointPosBuffer[idx + 1];
+    uint data1 = ssbo_quadPosDataBuffer[idx];
+    uint data2 = ssbo_quadPosDataBuffer[idx + 1];
     return vec4(uvec4(data1 & 0xFFFFu, data1 >> 16u, data2 & 0xFFFFu, data2 >> 16u));
 }
 
@@ -73,9 +77,9 @@ struct PointAttrib {
 void main() {
     BatchMetadata batchMetadata = ssbo_batchMetadataBuffer[gl_WorkGroupID.x];
 //    uint quadIdx = gl_LocalInvocationID.x * 16u + ((ubo_cameraDefault.gFrameIndex + gl_LocalInvocationID.x) & 15u);
-    uint quadIdx = gl_LocalInvocationID.x / batchMetadata.pointSampleCount;
-    if (quadIdx >= batchMetadata.count) return;
-    uint globalQuadIdx = batchMetadata.first + quadIdx;
+    uint wgQuadIndex = gl_LocalInvocationID.x / batchMetadata.pointSampleCount;
+    if (wgQuadIndex >= batchMetadata.count) return;
+    uint quadIndex = batchMetadata.first + wgQuadIndex;
 
     vec3 chunkOffset = vec3(uvec3(batchMetadata.encoded_offsets) >> uvec3(0u, 8u, 16u) & uvec3(255u));
     chunkOffset = chunkOffset * 16.0 + uval_originOffset;
@@ -126,11 +130,11 @@ void main() {
     bCoord /= dot(bCoord, vec4(1.0));
 //    bCoord = vec4(0.25);
 
-    uint pointPosIdx = globalQuadIdx * 6u;
+    uint quadPosDataIdx = ssbo_quadPosIndexBuffer[quadIndex] * 6u;
 
-    vec4 posX = readPos(pointPosIdx);
-    vec4 posY = readPos(pointPosIdx + 2u);
-    vec4 posZ = readPos(pointPosIdx + 4u);
+    vec4 posX = readPos(quadPosDataIdx);
+    vec4 posY = readPos(quadPosDataIdx + 2u);
+    vec4 posZ = readPos(quadPosDataIdx + 4u);
 
     posX *= bCoord;
     posY *= bCoord;
@@ -166,7 +170,7 @@ void main() {
     if (subgroupBallotFindLSB(pballot) == gl_SubgroupInvocationID) {
         uint minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, sgMinDepth);
         if (minDepth >= sgMinDepth) {
-            imageStore(uimg_quadIndex, outputCoord, uvec4(globalQuadIdx));
+            imageStore(uimg_quadIndex, outputCoord, uvec4(quadIndex));
             imageStore(uimg_barycentricCoord, outputCoord, uvec4(vbuffer_encodeBCoord(bCoord)));
         }
     }
