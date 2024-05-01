@@ -129,6 +129,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
     }
 
     private val timer = GPUTimer(2500)
+    private val timer2 = GPUTimer(2500)
     private val printTimer = TickTimer()
     private val printTimer2 = TickTimer()
 
@@ -167,6 +168,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
     private val updateTimer = TickTimer()
 
     private suspend fun drawPointCloud() {
+        timer.begin()
         if (updateTimer.tickAndReset(25)) {
             pcData.updateBatchMeta()
         }
@@ -187,13 +189,12 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
         drawShader.uniform2f("uval_viewportSize", camera.screenSize.x.toFloat(), camera.screenSize.y.toFloat())
         drawShader.uniform2ui("uval_viewportSizeUI", camera.screenSize.x, camera.screenSize.y)
 
-        timer.begin()
         glDispatchCompute(pcData.batchCount, 1, 1)
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT or GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
         timer.end()
         if (printTimer.tickAndReset(2000)) {
             println("Draw point cloud: %.4f ms".format(timer.averageMS()))
         }
-        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT or GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
     }
 
     private fun holeFill() {
@@ -227,6 +228,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
     }
 
     private fun shading() {
+        timer2.begin()
         shadingShader.bind()
         shadingShader.applyBinding {
             buffer(camera.uboBinding)
@@ -243,6 +245,10 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
 
         fboGroup.swap()
+        timer2.end()
+        if (printTimer2.tickAndReset(2000)) {
+            println("Shading: %.4f ms".format(timer2.averageMS()))
+        }
     }
 
     private fun bufferBlit() {
