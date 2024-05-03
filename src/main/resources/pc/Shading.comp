@@ -5,19 +5,19 @@
 
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 
-layout(rg32ui) uniform restrict readonly uimage2D uimg_vbufferCombined;
-layout(rgba16f) uniform restrict writeonly image2D uimg_output;
+layout(rg32ui) uniform readonly uimage2D uimg_vbufferCombined;
+layout(rgba16f) uniform writeonly image2D uimg_output;
 
 uniform sampler2D usam_blockAlbedoAtlas;
 uniform sampler2D usam_lightMap;
 
 uniform sampler2D usam_mainFbo_inputDepth;
 
-layout(std430) restrict readonly buffer QuadAttribDataBuffer {
+layout(std430) readonly buffer QuadAttribDataBuffer {
     uint ssbo_quadAttribDataBuffer[];
 };
 
-layout(std430) restrict readonly buffer QuadAttribIndexBuffer {
+layout(std430) readonly buffer QuadAttribIndexBuffer {
     uint ssbo_quadAttribIndexBuffer[];
 };
 

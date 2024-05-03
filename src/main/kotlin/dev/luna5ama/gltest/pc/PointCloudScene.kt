@@ -17,11 +17,11 @@ import java.util.*
 
 class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) {
 //    private val pcData = register(PointCloudData(this, File("dumpTest")))
-        private val pcData = register(PointCloudData(this, File("dumpForestPC")))
+//        private val pcData = register(PointCloudData(this, File("dumpForestPC")))
 //    private val pcData = register(PointCloudData(this, File("dumpMountainV")))
 //    private val pcData = register(PointCloudData(this, File("dumpMountainS")))
 //    private val pcData = register(PointCloudData(this, File("dumpMountainS00")))
-//    private val pcData = register(PointCloudData(this, File("dumpMountainS64")))
+    private val pcData = register(PointCloudData(this, File("dumpMountainS64")))
 
     val vbuffer = register(PointCloudVisibilityBuffer(this))
     val fboGroup = register(FboGroup(this))
