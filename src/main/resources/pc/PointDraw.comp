@@ -12,8 +12,7 @@ uniform vec3 uval_originOffset;
 uniform vec2 uval_viewportSize;
 uniform uvec2 uval_viewportSizeUI;
 
-layout(r32ui) uniform writeonly uimage2D uimg_quadIndex;
-layout(r32ui) uniform writeonly uimage2D uimg_barycentricCoord;
+layout(r32ui) uniform writeonly uimage2D uimg_vbufferRender;
 layout(r32ui) uniform restrict uimage2D uimg_depthRenderTex;
 
 struct BatchMetadata {
@@ -74,6 +73,13 @@ struct PointAttrib {
 //    return attrib;
 //}
 
+const vec4 BCOORDS[] = {
+vec4(0.5, 0.375, 0.0, 0.125),
+vec4(0.125, 0.5, 0.375, 0.0),
+vec4(0.0, 0.125, 0.5, 0.375),
+vec4(0.375, 0.0, 0.125, 0.5)
+};
+
 void main() {
     BatchMetadata batchMetadata = ssbo_batchMetadataBuffer[gl_WorkGroupID.x];
     uint negSampleCount = uint(-batchMetadata.pointSampleCount);
@@ -89,50 +95,49 @@ void main() {
     chunkOffset = chunkOffset * 16.0 + uval_originOffset;
 
 
-    vec4 bCoord;
-    uint r2idx = uint(rand(float(gl_LocalInvocationID.x)) * 512.0) + (ubo_cameraDefault.gFrameIndex);
-    vec2 r2 = r2Seq2(r2idx);
-    r2.y = sqrt(r2.y);
-    switch ((ubo_cameraDefault.gFrameIndex + gl_LocalInvocationID.x) & 3u) {
-        case 0:
-            bCoord = vec4(
-                r2.x * 1.0,
-                1.0 - r2.y,
-                1.0 - r2.x * 1.0,
-                0.0
-            );
-            bCoord.xz *= r2.y;
-            break;
-        case 1:
-            bCoord = vec4(
-                r2.x * 1.0,
-                0.0,
-                1.0 - r2.x * 1.0,
-                1.0 - r2.y
-            );
-            bCoord.xz *= r2.y;
-            break;
-        case 2:
-            bCoord = vec4(
-                0.0,
-                r2.x * 1.0,
-                1.0 - r2.y,
-                1.0 - r2.x * 1.0
-            );
-            bCoord.yw *= r2.y;
-            break;
-        case 3:
-            bCoord = vec4(
-                1.0 - r2.y,
-                r2.x * 1.0,
-                0.0,
-                1.0 - r2.x * 1.0
-            );
-            bCoord.yw *= r2.y;
-            break;
-    }
-    bCoord /= dot(bCoord, vec4(1.0));
-    //    bCoord = vec4(0.25);
+    vec4 bCoord = BCOORDS[gl_LocalInvocationID.x & 3u];
+//    uint r2idx = uint(rand(float(gl_LocalInvocationID.x)) * 512.0) + (ubo_cameraDefault.gFrameIndex);
+//    vec2 r2 = r2Seq2(r2idx);
+//    r2.y = sqrt(r2.y);
+//    switch ((ubo_cameraDefault.gFrameIndex + gl_LocalInvocationID.x) & 3u) {
+//        case 0:
+//            bCoord = vec4(
+//                r2.x * 1.0,
+//                1.0 - r2.y,
+//                1.0 - r2.x * 1.0,
+//                0.0
+//            );
+//            bCoord.xz *= r2.y;
+//            break;
+//        case 1:
+//            bCoord = vec4(
+//                r2.x * 1.0,
+//                0.0,
+//                1.0 - r2.x * 1.0,
+//                1.0 - r2.y
+//            );
+//            bCoord.xz *= r2.y;
+//            break;
+//        case 2:
+//            bCoord = vec4(
+//                0.0,
+//                r2.x * 1.0,
+//                1.0 - r2.y,
+//                1.0 - r2.x * 1.0
+//            );
+//            bCoord.yw *= r2.y;
+//            break;
+//        case 3:
+//            bCoord = vec4(
+//                1.0 - r2.y,
+//                r2.x * 1.0,
+//                0.0,
+//                1.0 - r2.x * 1.0
+//            );
+//            bCoord.yw *= r2.y;
+//            break;
+//    }
+//    bCoord /= dot(bCoord, vec4(1.0));
 
     uint quadPosDataIdx = ssbo_quadPosIndexBuffer[quadIndex] * 6u;
 
@@ -174,8 +179,7 @@ void main() {
     if (subgroupBallotFindLSB(pballot) == gl_SubgroupInvocationID) {
         uint minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, sgMinDepth);
         if (minDepth > sgMinDepth) {
-            imageStore(uimg_quadIndex, outputCoord, uvec4(quadIndex));
-            imageStore(uimg_barycentricCoord, outputCoord, uvec4(vbuffer_encodeBCoord(bCoord)));
+            imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, vbuffer_encodeBCoord(bCoord), 0u, 0u));
         }
     }
 }

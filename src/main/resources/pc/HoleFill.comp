@@ -2,12 +2,11 @@
 
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 
-layout(r32ui) uniform restrict readonly uimage2D uimg_depthInput;
-layout(r32ui) uniform restrict writeonly uimage2D uimg_depthOutput;
+layout(r32ui) uniform readonly uimage2D uimg_depthInput;
+layout(r32ui) uniform writeonly uimage2D uimg_depthOutput;
 
-layout(r32ui) uniform restrict readonly uimage2D uimg_quadIndex;
-layout(r32ui) uniform restrict readonly uimage2D uimg_barycentricCoord;
-layout(rg32ui) uniform restrict writeonly uimage2D uimg_vbufferCombined;
+layout(rg32ui) uniform readonly uimage2D uimg_vbufferRender;
+layout(rg32ui) uniform writeonly uimage2D uimg_vbuffer;
 
 ivec2 outputSize = imageSize(uimg_depthOutput);
 
@@ -92,11 +91,9 @@ void main() {
         }
     }
 
-//    uint quadIndex = imageLoad(uimg_quadIndex, centerCoord).x;
-//    uint barycentricCoord = imageLoad(uimg_barycentricCoord, centerCoord).x;
-    uint quadIndex = imageLoad(uimg_quadIndex, minDepthCoord).x;
-    uint barycentricCoord = imageLoad(uimg_barycentricCoord, minDepthCoord).x;
+//    uvec4 data = imageLoad(uimg_vbufferRender, centerCoord);
+    uvec4 data = imageLoad(uimg_vbufferRender, minDepthCoord);
 
-    imageStore(uimg_vbufferCombined, centerCoord, uvec4(quadIndex, barycentricCoord, 0u, 0u));
+    imageStore(uimg_vbuffer, centerCoord, data);
     imageStore(uimg_depthOutput, centerCoord, uvec4(minDepth));
 }

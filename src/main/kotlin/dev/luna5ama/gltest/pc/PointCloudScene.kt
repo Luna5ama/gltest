@@ -164,10 +164,11 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
     private val updateTimer = TickTimer()
 
     private suspend fun drawPointCloud() {
-        timer.begin()
-        if (updateTimer.tickAndReset(25)) {
+        if (updateTimer.tickAndReset(50)) {
             pcData.updateBatchMeta()
         }
+        if (pcData.batchCount == 0) return
+        timer.begin()
         drawShader.bind()
         drawShader.uniform3f(
             "uval_originOffset",
@@ -179,7 +180,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
             buffer(camera.uboBinding)
             buffer(pcData.bufferBindings)
 
-            image(vbuffer.imageBindingSeparated)
+            image(vbuffer.imageBindings)
             image("uimg_depthRenderTex", depthRenderTex)
         }
         drawShader.uniform2f("uval_viewportSize", camera.screenSize.x.toFloat(), camera.screenSize.y.toFloat())
@@ -198,8 +199,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
         holeFill.applyBinding {
             image("uimg_depthInput", depthRenderTex)
             image("uimg_depthOutput", depthCopyTex)
-            image(vbuffer.imageBindingCombined)
-            image(vbuffer.imageBindingSeparated)
+            image(vbuffer.imageBindings)
         }
         glDispatchCompute((camera.screenSize.x + 15) / 16, (camera.screenSize.y + 15) / 16, 1)
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
@@ -234,7 +234,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
             sampler(textures.lightMap)
             sampler(fboGroup.inputBindings)
 
-            image(vbuffer.imageBindingCombined)
+            image(vbuffer.imageBindings)
             image("uimg_output", fboGroup.output.colorTex)
         }
         glDispatchCompute((camera.screenSize.x + 15) / 16, (camera.screenSize.y + 15) / 16, 1)

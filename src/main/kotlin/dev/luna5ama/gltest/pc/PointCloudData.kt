@@ -303,6 +303,8 @@ class PointCloudData(private val scene: AbstractScene, dir: File) : IGLObjContai
             }
         }
 
+        println()
+
         coroutineScope {
             launch {
                 for (chunkInfoList in channel) {
@@ -327,7 +329,6 @@ class PointCloudData(private val scene: AbstractScene, dir: File) : IGLObjContai
                 quadAttribDataBuffer.allocate(quadAttribDataCounter.get() * 48L, quadAttribUploadBuffer.ptr, 0)
                 quadPosIndexBuffer.allocate(quadCounter.get() * 4L, quadPosIndexUploadBuffer.ptr, 0)
                 quadAttribIndexBuffer.allocate(quadCounter.get() * 4L, quadAttribIndexUploadBuffer.ptr, 0)
-                batchMetadataBuffer.create()
             }
             fun FileChannel.write(data: Ptr, length: Long) {
                 this.write(data.asByteBuffer(length.toInt()))
@@ -439,8 +440,6 @@ class PointCloudData(private val scene: AbstractScene, dir: File) : IGLObjContai
             launch {
                 readFileToBuffer(File(dir, "pc_quad_attrib_index.bin"), quadAttribIndexBuffer)
             }
-
-            batchMetadataBuffer.create()
         }
     }
 
@@ -451,6 +450,7 @@ class PointCloudData(private val scene: AbstractScene, dir: File) : IGLObjContai
     }
 
     suspend fun updateBatchMeta() {
+        printTimer.reset()
         val originOffsetX = (PointCloudScene.originX - scene.camera.pos.x).floorToInt()
         val originOffsetY = (PointCloudScene.originY - scene.camera.pos.y).floorToInt()
         val originOffsetZ = (PointCloudScene.originZ - scene.camera.pos.z).floorToInt()
@@ -533,7 +533,8 @@ class PointCloudData(private val scene: AbstractScene, dir: File) : IGLObjContai
             if (!frustumCulling[chunkInfo.listIndex].value) continue
             val offset = chunkOffsets[chunkInfo.chunkIndex]
             var quadIdx = 0
-            val sampleCount = sampleCounts[chunkInfo.listIndex]
+//            val sampleCount = sampleCounts[chunkInfo.listIndex]
+            val sampleCount = 4
             val count = if (sampleCount > 0) BATCH_SIZE / sampleCount else BATCH_SIZE * -sampleCount
 
             while (quadIdx < chunkInfo.quadCount) {
@@ -551,12 +552,14 @@ class PointCloudData(private val scene: AbstractScene, dir: File) : IGLObjContai
             }
         }
         val metaLen = metaIdx * sizeof(BatchMetadata)
-        if (batchMetadataBuffer.size < metaLen) {
-            batchMetadataBuffer.destroy()
-            batchMetadataBuffer.allocate(metaLen, arr.ptr, GL_DYNAMIC_STORAGE_BIT)
-        } else {
-            batchMetadataBuffer.invalidate()
-            batchMetadataBuffer.upload(0L, metaLen, arr.ptr)
+        if (metaLen > 0) {
+            if (batchMetadataBuffer.size < metaLen) {
+                batchMetadataBuffer.destroy()
+                batchMetadataBuffer.allocate(metaLen, arr.ptr, GL_DYNAMIC_STORAGE_BIT)
+            } else {
+                batchMetadataBuffer.invalidate()
+                batchMetadataBuffer.upload(0L, metaLen, arr.ptr)
+            }
         }
         batchCount = metaIdx
         arr.free()
