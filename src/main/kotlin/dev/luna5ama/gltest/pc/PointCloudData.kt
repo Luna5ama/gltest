@@ -1,9 +1,6 @@
 package dev.luna5ama.gltest.pc
 
-import dev.fastmc.common.MathUtil
-import dev.fastmc.common.ParallelUtils
-import dev.fastmc.common.ceilToInt
-import dev.fastmc.common.floorToInt
+import dev.fastmc.common.*
 import dev.fastmc.common.sort.IntIntrosort
 import dev.luna5ama.gltest.AbstractScene
 import dev.luna5ama.gltest.structs.*
@@ -30,8 +27,8 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.CoroutineContext
 import kotlin.math.abs
-import kotlin.math.log2
 import kotlin.math.min
+import kotlin.math.sqrt
 
 class PointCloudData(private val scene: AbstractScene, dir: File) : IGLObjContainer by IGLObjContainer.Impl() {
     private val batchMetadataBuffer = register(BufferObject.Immutable())
@@ -447,6 +444,12 @@ class PointCloudData(private val scene: AbstractScene, dir: File) : IGLObjContai
         }
     }
 
+    private val printTimer = TickTimer()
+
+    private fun floorToPOT(value: Int): Int {
+        return 1 shl (32 - Integer.numberOfLeadingZeros(value - 1))
+    }
+
     suspend fun updateBatchMeta() {
         val originOffsetX = (PointCloudScene.originX - scene.camera.pos.x).floorToInt()
         val originOffsetY = (PointCloudScene.originY - scene.camera.pos.y).floorToInt()
@@ -466,6 +469,10 @@ class PointCloudData(private val scene: AbstractScene, dir: File) : IGLObjContai
                     (dx * dx + dy * dy + dz * dz)
                 }
 
+                if (printTimer.tick(3000)) {
+                    println("Min distance ${sqrt(distanceSqs.min().toDouble())}")
+                }
+
                 IntIntrosort.sort(chunkIndices, distanceSqs)
             }
             launch(Dispatchers.Default) {
@@ -477,8 +484,12 @@ class PointCloudData(private val scene: AbstractScene, dir: File) : IGLObjContai
                             for (i in start until end) {
                                 val chunkInfo = chunkinfos[i]
                                 val area = areaCalc.calc(chunkInfo)
-                                sampleCounts[chunkInfo.listIndex] =
-                                    MathUtil.ceilToPOT(log2(area).ceilToInt()).coerceIn(1, 16)
+                                if (area < 1.0f) {
+                                    val lol = floorToPOT((1.0f / area).floorToInt()).coerceIn(1, 16)
+                                    sampleCounts[chunkInfo.listIndex] = -lol
+                                } else {
+                                    sampleCounts[chunkInfo.listIndex] = MathUtil.ceilToPOT(area.ceilToInt()).coerceIn(1, 16)
+                                }
                             }
                         }
                     }
@@ -509,6 +520,12 @@ class PointCloudData(private val scene: AbstractScene, dir: File) : IGLObjContai
             }
         }
 
+        if (printTimer.tick(3000)) {
+            println("Min sample count: ${sampleCounts.min()}")
+            println("Average sample count: ${sampleCounts.average()}")
+            println("Max sample count: ${sampleCounts.max()}")
+        }
+
         val arr = Arr.malloc(chunkinfos.size * sizeof(BatchMetadata))
         var metaIdx = 0
         for (i in chunkIndices) {
@@ -517,11 +534,12 @@ class PointCloudData(private val scene: AbstractScene, dir: File) : IGLObjContai
             val offset = chunkOffsets[chunkInfo.chunkIndex]
             var quadIdx = 0
             val sampleCount = sampleCounts[chunkInfo.listIndex]
-//            val sampleCount = 1
+            val count = if (sampleCount > 0) BATCH_SIZE / sampleCount else BATCH_SIZE * -sampleCount
+
             while (quadIdx < chunkInfo.quadCount) {
                 arr.ensureCapacity((metaIdx + 1L) * sizeof(BatchMetadata), false)
                 val struct = BatchMetadata(arr.ptr + metaIdx * sizeof(BatchMetadata))
-                val batchCount = min(chunkInfo.quadCount - quadIdx, BATCH_SIZE / sampleCount)
+                val batchCount = min(chunkInfo.quadCount - quadIdx, count)
                 struct.first = (chunkInfo.startIndex + quadIdx).toInt()
                 struct.count = batchCount
                 struct.offsetX = offset.x.toByte()
@@ -542,6 +560,11 @@ class PointCloudData(private val scene: AbstractScene, dir: File) : IGLObjContai
         }
         batchCount = metaIdx
         arr.free()
+
+        if (printTimer.tick(3000)) {
+            println()
+            printTimer.reset()
+        }
     }
 
     private inner class QuadAreaCalc {

@@ -1,4 +1,3 @@
-
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
 
@@ -62,8 +61,14 @@ tasks {
     val fatJar by creating(Jar::class) {
         group = "build"
 
-        from(jar.get().archiveFile.map { zipTree(it)  })
-        from(configurations.runtimeClasspath.get().elements.map { set -> set.map { if (it.asFile.isDirectory) it else zipTree(it) } })
+        from(jar.get().archiveFile.map { zipTree(it) })
+        from(configurations.runtimeClasspath.get().elements.map { set ->
+            set.map {
+                if (it.asFile.isDirectory) it else zipTree(
+                    it
+                )
+            }
+        })
 
         duplicatesStrategy = DuplicatesStrategy.INCLUDE
 
@@ -88,11 +93,10 @@ allprojects {
     }
 
     kotlin {
-        kotlin {
-            compilerOptions {
-                jvmTarget.set(JvmTarget.JVM_21)
-                languageVersion.set(KotlinVersion.KOTLIN_1_9)
-            }
+        compilerOptions {
+            freeCompilerArgs = listOf("-Xdebug")
+            jvmTarget.set(JvmTarget.JVM_21)
+            languageVersion.set(KotlinVersion.KOTLIN_1_9)
         }
     }
 }
