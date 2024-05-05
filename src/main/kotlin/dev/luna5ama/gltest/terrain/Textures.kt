@@ -1,17 +1,18 @@
 package dev.luna5ama.gltest.terrain
 
+import dev.fastmc.common.MathUtil
 import dev.luna5ama.gltest.AbstractScene
 import dev.luna5ama.gltest.linearClampEdge
+import dev.luna5ama.gltest.readImage
+import dev.luna5ama.glwrapper.ShaderBindingSpecs
 import dev.luna5ama.glwrapper.api.*
-import dev.luna5ama.glwrapper.enums.*
+import dev.luna5ama.glwrapper.enums.ImageFormat
 import dev.luna5ama.glwrapper.objects.*
 import dev.luna5ama.kmogus.Arr
 import dev.luna5ama.kmogus.asByteBuffer
 import dev.luna5ama.kmogus.ensureCapacity
 import kotlinx.coroutines.*
 import net.jpountz.lz4.LZ4Factory
-import dev.luna5ama.gltest.readImage
-import dev.luna5ama.glwrapper.ShaderBindingSpecs
 import java.awt.image.BufferedImage
 import java.awt.image.DataBuffer
 import java.io.File
@@ -48,7 +49,7 @@ class Textures(val scene: AbstractScene) : IGLObjContainer by IGLObjContainer.Im
         Arr.malloc(0L).use {
             lightMapTex.apply {
                 allocate(1, ImageFormat.R8_G8_B8_UN, image.width, image.height)
-                    upload(0, 0, 0, image.width, image.height, GL_RGB, GL_UNSIGNED_BYTE, image.getRGB(it).ptr)
+                upload(0, 0, 0, image.width, image.height, GL_RGB, GL_UNSIGNED_BYTE, image.getRGB(it).ptr)
             }
         }
 
@@ -57,32 +58,88 @@ class Textures(val scene: AbstractScene) : IGLObjContainer by IGLObjContainer.Im
 
     private suspend fun initBlocks(dir: File) {
         Arr.malloc(0).use { buffer ->
-            repeat(5) {
-                val image = readImage(File(dir, "blocks_$it.png"))
-                if (it == 0) {
-                    blockTex.allocate(5, ImageFormat.R8_G8_B8_A8_UN, image.width, image.height)
+            val image = readImage(File(dir, "blocks_0.png"))
+            val data = image.getRGBA(buffer)
+            blockTex.allocate(5, ImageFormat.R8_G8_B8_A8_UN, image.width, image.height)
 
-                    blockTex.setMipLevels(0, 4)
-                    blockTex.setMipLod(0.0f, 4.0f)
-                    blockTex.setFilter(GL_NEAREST_MIPMAP_LINEAR, GL_NEAREST)
-                    blockTex.setWrap(GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE)
+            blockTex.setMipLevels(0, 4)
+            blockTex.setMipLod(0.0f, 4.0f)
+            blockTex.setFilter(GL_NEAREST_MIPMAP_LINEAR, GL_NEAREST)
+            blockTex.setWrap(GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE)
 
-                    // WTF Intel
-                    blockTex.setAnisotropy(16.0f)
-                }
+            // WTF Intel
+            blockTex.setAnisotropy(16.0f)
 
+            generateMipmap(data, image.width, image.height, 4).forEachIndexed { index, arr ->
                 blockTex.upload(
-                    it,
+                    index,
                     0,
                     0,
-                    image.width,
-                    image.height,
+                    image.width shr index,
+                    image.height shr index,
                     GL_RGBA,
                     GL_UNSIGNED_BYTE,
-                    image.getRGBA(buffer).ptr
+                    arr.ptr
                 )
             }
         }
+    }
+
+    fun generateMipmap(input: Arr, width: Int, height: Int, levels: Int) : List<Arr> {
+        var last = input
+        val result = mutableListOf(last)
+        var lastWidth = width
+        repeat(levels) { level ->
+            val mipWidth = width shr (level + 1)
+            val mipHeight = height shr (level + 1)
+            val mipSize = mipWidth * mipHeight * 4L
+            val mipData = Arr.malloc(mipSize)
+            val lastPtr = last.ptr
+
+            for (y in 0 until mipHeight) {
+                for (x in 0 until mipWidth) {
+                    val lastX = x shl 1
+                    val lastY = y shl 1
+
+                    var sumR = 0
+                    var sumG = 0
+                    var sumB = 0
+                    var count = 0
+
+                    for (dy in 0 until 2) {
+                        for (dx in 0 until 2) {
+                            val lastX2 = lastX + dx
+                            val lastY2 = lastY + dy
+                            val index = (lastY2 * lastWidth + lastX2) * 4L
+                            if ((lastPtr.getByte(index + 3).toInt() and 0xFF) <= 127) continue
+                            sumR += lastPtr.getByte(index + 0).toInt() and 0xFF
+                            sumG += lastPtr.getByte(index + 1).toInt() and 0xFF
+                            sumB += lastPtr.getByte(index + 2).toInt() and 0xFF
+                            count++
+                        }
+                    }
+
+                    val writeIndex = (y * mipWidth + x) * 4L
+                    if (count == 0) {
+                        mipData.ptr.setByte(writeIndex + 0, 0)
+                        mipData.ptr.setByte(writeIndex + 1, 0)
+                        mipData.ptr.setByte(writeIndex + 2, 0)
+                        mipData.ptr.setByte(writeIndex + 3, 0)
+                    } else {
+                        mipData.ptr.setByte(writeIndex + 0, MathUtil.clamp(sumR / count, 0, 255).toByte())
+                        mipData.ptr.setByte(writeIndex + 1, MathUtil.clamp(sumG / count, 0, 255).toByte())
+                        mipData.ptr.setByte(writeIndex + 2, MathUtil.clamp(sumB / count, 0, 255).toByte())
+                        mipData.ptr.setByte(writeIndex + 3, 255.toByte())
+                    }
+                }
+            }
+
+            last = mipData
+            lastWidth = mipWidth
+            result.add(mipData)
+        }
+
+        return result
     }
 
     private suspend fun initBlockNormal(dir: File) {

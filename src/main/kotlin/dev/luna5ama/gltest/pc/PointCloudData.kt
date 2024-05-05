@@ -1,6 +1,9 @@
 package dev.luna5ama.gltest.pc
 
-import dev.fastmc.common.*
+import dev.fastmc.common.ParallelUtils
+import dev.fastmc.common.TickTimer
+import dev.fastmc.common.ceilToInt
+import dev.fastmc.common.floorToInt
 import dev.fastmc.common.sort.IntIntrosort
 import dev.luna5ama.gltest.AbstractScene
 import dev.luna5ama.gltest.structs.*
@@ -27,6 +30,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.CoroutineContext
 import kotlin.math.abs
+import kotlin.math.log2
 import kotlin.math.min
 import kotlin.math.sqrt
 
@@ -444,109 +448,55 @@ class PointCloudData(private val scene: AbstractScene, dir: File) : IGLObjContai
     }
 
     private val printTimer = TickTimer()
-
-    private fun floorToPOT(value: Int): Int {
-        return 1 shl (32 - Integer.numberOfLeadingZeros(value - 1))
+    private val batchMetaUploadBuffer = Arr.malloc(chunkinfos.size * sizeof(BatchMetadata))
+    private val frustumCullingFlags = Array(chunkinfos.size) {
+        MutableBoolean(true)
     }
 
+    private val sampleCountPow2Array = IntArray(chunkinfos.size)
+
     suspend fun updateBatchMeta() {
-        printTimer.reset()
-        val originOffsetX = (PointCloudScene.originX - scene.camera.pos.x).floorToInt()
-        val originOffsetY = (PointCloudScene.originY - scene.camera.pos.y).floorToInt()
-        val originOffsetZ = (PointCloudScene.originZ - scene.camera.pos.z).floorToInt()
-        val sampleCounts = IntArray(chunkinfos.size)
-        val frustumCulling = Array(chunkinfos.size) {
-            MutableBoolean(true)
-        }
+//        printTimer.reset()
         coroutineScope {
             launch(Dispatchers.Default) {
-                val distanceSqs = IntArray(chunkIndices.size) {
-                    val chunkInfo = chunkinfos[it]
-                    val offset = chunkOffsets[chunkInfo.chunkIndex]
-                    val dx = offset.x * 16 + originOffsetX
-                    val dy = offset.y * 16 + originOffsetY
-                    val dz = offset.z * 16 + originOffsetZ
-                    (dx * dx + dy * dy + dz * dz)
-                }
-
-                if (printTimer.tick(3000)) {
-                    println("Min distance ${sqrt(distanceSqs.min().toDouble())}")
-                }
-
-                IntIntrosort.sort(chunkIndices, distanceSqs)
+                sortChunks()
             }
             launch(Dispatchers.Default) {
-                ParallelUtils.splitListIndex(
-                    chunkinfos.size,
-                    blockForEach = { start, end ->
-                        launch {
-                            val areaCalc = QuadAreaCalc()
-                            for (i in start until end) {
-                                val chunkInfo = chunkinfos[i]
-                                val area = areaCalc.calc(chunkInfo)
-                                if (area < 1.0f) {
-                                    val lol = floorToPOT((1.0f / area).floorToInt()).coerceIn(1, 16)
-                                    sampleCounts[chunkInfo.listIndex] = -lol
-                                } else {
-                                    sampleCounts[chunkInfo.listIndex] = MathUtil.ceilToPOT(area.ceilToInt()).coerceIn(1, 16)
-                                }
-                            }
-                        }
-                    }
-                )
+                calcSampleCount()
             }
             launch(Dispatchers.Default) {
-                val frustumCull = FrustumIntersection(scene.camera.combined, false)
-                ParallelUtils.splitListIndex(
-                    chunkIndices.size,
-                    blockForEach = { start, end ->
-                        launch {
-                            for (i in start until end) {
-                                val chunkInfo = chunkinfos[chunkIndices[i]]
-                                frustumCulling[chunkInfo.listIndex].setValue(
-                                    frustumCull.testAab(
-                                        (chunkInfo.minX - scene.camera.pos.x).toFloat(),
-                                        (chunkInfo.minY - scene.camera.pos.y).toFloat(),
-                                        (chunkInfo.minZ - scene.camera.pos.z).toFloat(),
-                                        (chunkInfo.maxX - scene.camera.pos.x).toFloat(),
-                                        (chunkInfo.maxY - scene.camera.pos.y).toFloat(),
-                                        (chunkInfo.maxZ - scene.camera.pos.z).toFloat()
-                                    )
-                                )
-                            }
-                        }
-                    }
-                )
+                doFrustumCulling()
             }
         }
 
         if (printTimer.tick(3000)) {
-            println("Min sample count: ${sampleCounts.min()}")
-            println("Average sample count: ${sampleCounts.average()}")
-            println("Max sample count: ${sampleCounts.max()}")
+            println()
+            println("Min sample count: ${sampleCountPow2Array.min()}")
+            println("Average sample count: ${sampleCountPow2Array.average()}")
+            println("Max sample count: ${sampleCountPow2Array.max()}")
         }
 
-        val arr = Arr.malloc(chunkinfos.size * sizeof(BatchMetadata))
         var metaIdx = 0
         for (i in chunkIndices) {
             val chunkInfo = chunkinfos[i]
-            if (!frustumCulling[chunkInfo.listIndex].value) continue
+            if (!frustumCullingFlags[chunkInfo.listIndex].value) continue
             val offset = chunkOffsets[chunkInfo.chunkIndex]
             var quadIdx = 0
-//            val sampleCount = sampleCounts[chunkInfo.listIndex]
-            val sampleCount = 4
-            val count = if (sampleCount > 0) BATCH_SIZE / sampleCount else BATCH_SIZE * -sampleCount
+//            val sampleCountPow2 = 4
+            val sampleCountPow2 = sampleCountPow2Array[chunkInfo.listIndex]
+            val sampleCount = 1 shl abs(sampleCountPow2)
+            val count = if (sampleCountPow2 > 0) BATCH_SIZE / sampleCount else BATCH_SIZE * sampleCount
 
             while (quadIdx < chunkInfo.quadCount) {
-                arr.ensureCapacity((metaIdx + 1L) * sizeof(BatchMetadata), false)
-                val struct = BatchMetadata(arr.ptr + metaIdx * sizeof(BatchMetadata))
+                batchMetaUploadBuffer.ensureCapacity((metaIdx + 1L) * sizeof(BatchMetadata), false)
+                val struct = BatchMetadata(batchMetaUploadBuffer.ptr + metaIdx * sizeof(BatchMetadata))
                 val batchCount = min(chunkInfo.quadCount - quadIdx, count)
                 struct.first = (chunkInfo.startIndex + quadIdx).toInt()
                 struct.count = batchCount
                 struct.offsetX = offset.x.toByte()
                 struct.offsetY = offset.y.toByte()
                 struct.offsetZ = offset.z.toByte()
-                struct.pointSampleCount = sampleCount
+                struct.pointSampleCount = sampleCountPow2
                 quadIdx += batchCount
                 metaIdx++
             }
@@ -555,26 +505,100 @@ class PointCloudData(private val scene: AbstractScene, dir: File) : IGLObjContai
         if (metaLen > 0) {
             if (batchMetadataBuffer.size < metaLen) {
                 batchMetadataBuffer.destroy()
-                batchMetadataBuffer.allocate(metaLen, arr.ptr, GL_DYNAMIC_STORAGE_BIT)
+                batchMetadataBuffer.allocate(metaLen, batchMetaUploadBuffer.ptr, GL_DYNAMIC_STORAGE_BIT)
             } else {
                 batchMetadataBuffer.invalidate()
-                batchMetadataBuffer.upload(0L, metaLen, arr.ptr)
+                batchMetadataBuffer.upload(0L, metaLen, batchMetaUploadBuffer.ptr)
             }
         }
         batchCount = metaIdx
-        arr.free()
 
         if (printTimer.tick(3000)) {
+            println("Batch count: ${chunkinfos.size}/$batchCount")
             println()
             printTimer.reset()
         }
+    }
+
+    private fun CoroutineScope.calcSampleCount() {
+        ParallelUtils.splitListIndex(
+            chunkinfos.size,
+            blockForEach = { start, end ->
+                launch {
+                    val areaCalc = QuadAreaCalc()
+                    for (i in start until end) {
+                        val chunkInfo = chunkinfos[i]
+                        val area = areaCalc.calc(chunkInfo)
+                        if (area < 1.0f) {
+                            val lol = min(log2(0.5f / area).floorToInt(), 8)
+                            sampleCountPow2Array[chunkInfo.listIndex] = -lol
+                        } else {
+                            sampleCountPow2Array[chunkInfo.listIndex] = min(log2(area).ceilToInt(), 4)
+                        }
+                    }
+                }
+            }
+        )
+    }
+
+    private val distanceSqs = IntArray(chunkIndices.size)
+    private suspend fun sortChunks() {
+        coroutineScope {
+            ParallelUtils.splitListIndex(
+                chunkIndices.size,
+                blockForEach = { start, end ->
+                    launch {
+                        val originOffsetX = (PointCloudScene.originX - scene.camera.pos.x).floorToInt()
+                        val originOffsetY = (PointCloudScene.originY - scene.camera.pos.y).floorToInt()
+                        val originOffsetZ = (PointCloudScene.originZ - scene.camera.pos.z).floorToInt()
+                        for (i in start until end) {
+                            val chunkInfo = chunkinfos[i]
+                            val offset = chunkOffsets[chunkInfo.chunkIndex]
+                            val dx = offset.x * 16 + originOffsetX
+                            val dy = offset.y * 16 + originOffsetY
+                            val dz = offset.z * 16 + originOffsetZ
+                            distanceSqs[i] = (dx * dx + dy * dy + dz * dz)
+                        }
+                    }
+                }
+            )
+        }
+
+        if (printTimer.tick(3000)) {
+            println("Min distance ${sqrt(distanceSqs.min().toDouble())}")
+        }
+
+        IntIntrosort.sort(chunkIndices, distanceSqs)
+    }
+
+    private fun CoroutineScope.doFrustumCulling() {
+        val frustumCull = FrustumIntersection(scene.camera.combined, false)
+        ParallelUtils.splitListIndex(
+            chunkIndices.size,
+            blockForEach = { start, end ->
+                launch {
+                    for (i in start until end) {
+                        val chunkInfo = chunkinfos[chunkIndices[i]]
+                        frustumCullingFlags[chunkInfo.listIndex].setValue(
+                            frustumCull.testAab(
+                                (chunkInfo.minX - scene.camera.pos.x).toFloat(),
+                                (chunkInfo.minY - scene.camera.pos.y).toFloat(),
+                                (chunkInfo.minZ - scene.camera.pos.z).toFloat(),
+                                (chunkInfo.maxX - scene.camera.pos.x).toFloat(),
+                                (chunkInfo.maxY - scene.camera.pos.y).toFloat(),
+                                (chunkInfo.maxZ - scene.camera.pos.z).toFloat()
+                            )
+                        )
+                    }
+                }
+            }
+        )
     }
 
     private inner class QuadAreaCalc {
         private val rotateMatrix = Matrix4f()
         private val vec3f1 = Vector3f()
         private val vec3f2 = Vector3f()
-        private val vec3f3 = Vector3f()
 
         private val point1 = Vector4f()
         private val point2 = Vector4f()

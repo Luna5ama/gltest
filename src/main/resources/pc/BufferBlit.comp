@@ -35,8 +35,8 @@ void main() {
 //    color.rgb = mix(prevColor.rgb, mix(currColor.rgb, prevColor.rgb, 0.5), min(currColor.a, 0.5));
 //    color.rgb = max(prevColor.rgb, currColor.rgb);
     color.rgb = mix(currColor.rgb, prevColor.rgb, uval_mixFactor);
+    color.a = 1.0;
     imageStore(uimg_prevTexture, texel, color);
-    color.rgb = pow(color.rgb, vec3(1.0 / 1.4));
 
     imageStore(uimg_output, texel, color);
 }
