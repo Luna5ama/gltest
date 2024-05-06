@@ -26,70 +26,68 @@ void main() {
 
     ivec2 minDepthCoord = centerCoord;
     uint minDepth = readDepth(minDepthCoord);
-    if (minDepth == 0x7F800000u) {
-        imageStore(uimg_depthOutput, centerCoord, uvec4(0x7F800000u));
-        return;
-    }
-
-    if (minDepth == 0x7F800000u) {
-        ivec2 nearCoord;
-        uint nearDepth;
-        nearCoord = centerCoord + ivec2(-1, -1);
-        nearDepth = readDepth(nearCoord);
-        if (nearDepth < minDepth) {
-            minDepth = nearDepth;
-            minDepthCoord = nearCoord;
-        }
-
-        nearCoord = centerCoord + ivec2(0, -1);
-        nearDepth = readDepth(nearCoord);
-        if (nearDepth < minDepth) {
-            minDepth = nearDepth;
-            minDepthCoord = nearCoord;
-        }
-
-        nearCoord = centerCoord + ivec2(0, -1);
-        nearDepth = readDepth(nearCoord);
-        if (nearDepth < minDepth) {
-            minDepth = nearDepth;
-            minDepthCoord = nearCoord;
-        }
-
-        nearCoord = centerCoord + ivec2(1, -1);
-        nearDepth = readDepth(nearCoord);
-        if (nearDepth < minDepth) {
-            minDepth = nearDepth;
-            minDepthCoord = nearCoord;
-        }
-
-        nearCoord = centerCoord + ivec2(-1, 0);
-        nearDepth = readDepth(nearCoord);
-        if (nearDepth < minDepth) {
-            minDepth = nearDepth;
-            minDepthCoord = nearCoord;
-        }
-
-        nearCoord = centerCoord + ivec2(1, 0);
-        nearDepth = readDepth(nearCoord);
-        if (nearDepth < minDepth) {
-            minDepth = nearDepth;
-            minDepthCoord = nearCoord;
-        }
-
-        nearCoord = centerCoord + ivec2(-1, 1);
-        nearDepth = readDepth(nearCoord);
-        if (nearDepth < minDepth) {
-            minDepth = nearDepth;
-            minDepthCoord = nearCoord;
-        }
-
-        nearCoord = centerCoord + ivec2(0, 1);
-        nearDepth = readDepth(nearCoord);
-        if (nearDepth < minDepth) {
-            minDepth = nearDepth;
-            minDepthCoord = nearCoord;
-        }
-    }
+//    if (minDepth == 0x7F800000u) {
+//        imageStore(uimg_depthOutput, centerCoord, uvec4(0x7F800000u));
+//        return;
+//    }
+//
+//        ivec2 nearCoord;
+//        uint nearDepth;
+//        nearCoord = centerCoord + ivec2(-1, -1);
+//        nearDepth = readDepth(nearCoord);
+//        if (nearDepth < minDepth) {
+//            minDepth = nearDepth;
+//            minDepthCoord = nearCoord;
+//        }
+//
+//        nearCoord = centerCoord + ivec2(0, -1);
+//        nearDepth = readDepth(nearCoord);
+//        if (nearDepth < minDepth) {
+//            minDepth = nearDepth;
+//            minDepthCoord = nearCoord;
+//        }
+//
+//        nearCoord = centerCoord + ivec2(0, -1);
+//        nearDepth = readDepth(nearCoord);
+//        if (nearDepth < minDepth) {
+//            minDepth = nearDepth;
+//            minDepthCoord = nearCoord;
+//        }
+//
+//        nearCoord = centerCoord + ivec2(1, -1);
+//        nearDepth = readDepth(nearCoord);
+//        if (nearDepth < minDepth) {
+//            minDepth = nearDepth;
+//            minDepthCoord = nearCoord;
+//        }
+//
+//        nearCoord = centerCoord + ivec2(-1, 0);
+//        nearDepth = readDepth(nearCoord);
+//        if (nearDepth < minDepth) {
+//            minDepth = nearDepth;
+//            minDepthCoord = nearCoord;
+//        }
+//
+//        nearCoord = centerCoord + ivec2(1, 0);
+//        nearDepth = readDepth(nearCoord);
+//        if (nearDepth < minDepth) {
+//            minDepth = nearDepth;
+//            minDepthCoord = nearCoord;
+//        }
+//
+//        nearCoord = centerCoord + ivec2(-1, 1);
+//        nearDepth = readDepth(nearCoord);
+//        if (nearDepth < minDepth) {
+//            minDepth = nearDepth;
+//            minDepthCoord = nearCoord;
+//        }
+//
+//        nearCoord = centerCoord + ivec2(0, 1);
+//        nearDepth = readDepth(nearCoord);
+//        if (nearDepth < minDepth) {
+//            minDepth = nearDepth;
+//            minDepthCoord = nearCoord;
+//        }
 
     uvec4 data = imageLoad(uimg_vbufferRender, centerCoord);
 //    uvec4 data = imageLoad(uimg_vbufferRender, minDepthCoord);

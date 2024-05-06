@@ -60,7 +60,7 @@ class PointAttrib(
 )
 
 @Struct(sizeAlignment = 1L, size = 16L)
-class BatchMetadata(
+class PointBatchInfo(
     val first: Int,
     val count: Int,
     val offsetX : Byte,
@@ -68,4 +68,13 @@ class BatchMetadata(
     val offsetZ : Byte,
     @Padding(1)
     val pointSampleCount: Int
+)
+
+@Struct(sizeAlignment = 1L, size = 8L)
+class QuadBatchInfo(
+    val first: Int,
+    val count: Byte,
+    val offsetX : Byte,
+    val offsetY : Byte,
+    val offsetZ : Byte,
 )

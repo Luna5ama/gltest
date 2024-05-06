@@ -185,10 +185,10 @@ class Camera(val scene: AbstractScene) {
 
     fun rotate(mouseDelta: Vector2d, timeDelta: Double) {
         if (scene.gameInstance.cinematicCamera) {
-            val sensitivity = 0.0005
+            val sensitivity = 0.0002
             val newDelta = Vector2d(mouseDelta).mul(-sensitivity)
 
-            mouseMotion.mul(0.98.pow(timeDelta))
+            mouseMotion.mul(0.99.pow(timeDelta))
             mouseMotion.add(newDelta)
         } else {
             val sensitivity = 0.1
@@ -201,10 +201,10 @@ class Camera(val scene: AbstractScene) {
 
     fun tick(keyboard: Keyboard, timeDelta: Double) {
         if (scene.gameInstance.cinematicCamera) {
-            var speed = 0.01 * speedMultiplier
+            var speed = 0.001 * speedMultiplier
             speed *= timeDelta
 
-            motion.mul(0.95.pow(timeDelta))
+            motion.mul(0.99.pow(timeDelta))
             val yawRad = rotation.x.toRadians()
             val sinYaw = sin(yawRad)
             val cosYaw = cos(yawRad)

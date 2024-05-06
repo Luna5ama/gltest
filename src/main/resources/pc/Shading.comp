@@ -44,7 +44,7 @@ void main() {
     texCoord += unpackUnorm2x16(ssbo_quadAttribDataBuffer[pointAttriIdx + 6u]) * bCoord.z;
     texCoord += unpackUnorm2x16(ssbo_quadAttribDataBuffer[pointAttriIdx + 9u]) * bCoord.w;
 
-    vec4 colorFinal = textureLod(usam_blockAlbedoAtlas, texCoord, 5.0);
+    vec4 colorFinal = textureLod(usam_blockAlbedoAtlas, texCoord, 99.0);
 
     vec3 color = vec3(0.0);
     color += unpackUnorm4x8(ssbo_quadAttribDataBuffer[pointAttriIdx + 2u]).rgb * bCoord.x;

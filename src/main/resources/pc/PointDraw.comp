@@ -1,4 +1,6 @@
 #version 460 core
+#pragma optionNV (unroll all)
+
 #extension GL_NV_shader_subgroup_partitioned : enable
 #extension GL_KHR_shader_subgroup_ballot : enable
 #extension GL_KHR_shader_subgroup_arithmetic : enable
@@ -9,21 +11,24 @@
 layout(local_size_x = BATCH_SIZE, local_size_y = 1, local_size_z = 1) in;
 
 uniform vec3 uval_originOffset;
-uniform vec2 uval_viewportSize;
+uniform vec4 uval_viewportSize;
 uniform uvec2 uval_viewportSizeUI;
 
-layout(r32ui) uniform writeonly uimage2D uimg_vbufferRender;
+layout(rg32ui) uniform restrict writeonly uimage2D uimg_vbufferRender;
 layout(r32ui) uniform restrict uimage2D uimg_depthRenderTex;
+#ifdef OVERDRAW_DEBUG
+layout(r32ui) uniform uimage2D uimg_overdrawCounter;
+#endif
 
-struct BatchMetadata {
+struct PointBatchInfo {
     uint first;
     uint count;
     uint encoded_offsets;
     int pointSamplePow2;
 };
 
-layout(std430) restrict readonly buffer BatchMetadataBuffer {
-    BatchMetadata ssbo_batchMetadataBuffer[];
+layout(std430) restrict readonly buffer PointBatchInfoBuffer {
+    PointBatchInfo ssbo_pointBatchInfoBuffer[];
 };
 
 layout(std430) restrict readonly buffer QuadPosDataBuffer {
@@ -33,6 +38,7 @@ layout(std430) restrict readonly buffer QuadPosDataBuffer {
 layout(std430) restrict readonly buffer QuadPosIndexBuffer {
     uint ssbo_quadPosIndexBuffer[];
 };
+
 
 const vec3 coordConvert = vec3(2.51773861295491E-4);
 
@@ -55,12 +61,6 @@ vec4 readPos(uint idx) {
     uint data2 = ssbo_quadPosDataBuffer[idx + 1];
     return vec4(uvec4(data1 & 0xFFFFu, data1 >> 16u, data2 & 0xFFFFu, data2 >> 16u));
 }
-
-struct PointAttrib {
-    vec2 texCoord;
-    vec2 lightMapCoord;
-    vec3 color;
-};
 
 const vec4 BCOORDS[] = {
 vec4(0.25, 0.25, 0.25, 0.25),
@@ -108,34 +108,37 @@ vec4(0.0625, 0.9375, 0.0, 0.0)
 };
 
 const uint BCOORDS_IDX_OFFSETS[] = {
-    0u,
-    1u,
-    1u + 2u,
-    1u + 2u + 4u,
-    1u + 2u + 4u + 8u
+0u,
+1u,
+1u + 2u,
+1u + 2u + 4u,
+1u + 2u + 4u + 8u
 };
 
 void main() {
-    BatchMetadata batchMetadata = ssbo_batchMetadataBuffer[gl_WorkGroupID.x];
-    uint absSamplePow2 = abs(batchMetadata.pointSamplePow2);
-    uint sampleCount = 1u << absSamplePow2;
+    PointBatchInfo batchMetadata = ssbo_pointBatchInfoBuffer[gl_WorkGroupID.x];
+    uint metaFirst;
+    uint metaCount;
+    int metaPointSamplePow2;
+    vec3 chunkOffset;
 
-    uint wgQuadIndex = batchMetadata.pointSamplePow2 < 0 ?
-    gl_LocalInvocationID.x * sampleCount + ((ubo_cameraDefault.gFrameIndex + gl_LocalInvocationID.x) & uint(sampleCount - 1)) :
-    gl_LocalInvocationID.x / sampleCount;
+    if (gl_SubgroupInvocationID == 0u) {
+        chunkOffset = vec3(uvec3(batchMetadata.encoded_offsets) >> uvec3(0u, 8u, 16u) & uvec3(255u));
+        chunkOffset = chunkOffset * 16.0 + uval_originOffset;
+    }
+    chunkOffset = subgroupBroadcast(chunkOffset, 0u);
+    metaFirst = batchMetadata.first;
+    metaCount = batchMetadata.count;
+    metaPointSamplePow2 = batchMetadata.pointSamplePow2;
 
-    uint bCoordIdx = batchMetadata.pointSamplePow2 < 0 ?
-    0 :
-    BCOORDS_IDX_OFFSETS[absSamplePow2] + (gl_LocalInvocationID.x & (sampleCount - 1u));
+    uint samplePow2 = max(0, metaPointSamplePow2);
+    uint sampleCount = 1u << samplePow2;
+    uint sampleCount2 = 1u << -metaPointSamplePow2;
+    uint wgQuadIndex = metaPointSamplePow2 >= 0 ?
+    gl_LocalInvocationID.x : gl_LocalInvocationID.x * sampleCount2 + ((ubo_cameraDefault.gFrameIndex + gl_LocalInvocationID.x) & uint(sampleCount2 - 1));
+    if (wgQuadIndex >= metaCount) return;
 
-    if (wgQuadIndex >= batchMetadata.count) return;
-    uint quadIndex = batchMetadata.first + wgQuadIndex;
-
-    vec3 chunkOffset = vec3(uvec3(batchMetadata.encoded_offsets) >> uvec3(0u, 8u, 16u) & uvec3(255u));
-    chunkOffset = chunkOffset * 16.0 + uval_originOffset;
-
-
-    vec4 bCoord = BCOORDS[bCoordIdx];
+    uint quadIndex = metaFirst + wgQuadIndex;
 
     uint quadPosDataIdx = ssbo_quadPosIndexBuffer[quadIndex] * 6u;
 
@@ -143,33 +146,76 @@ void main() {
     vec4 posY = readPos(quadPosDataIdx + 2u);
     vec4 posZ = readPos(quadPosDataIdx + 4u);
 
-    posX *= bCoord;
-    posY *= bCoord;
-    posZ *= bCoord;
+    vec3 pos1 = (ubo_cameraDefault.combined * vec4(vec3(posX.x, posY.x, posZ.x) * coordConvert + chunkOffset, 1.0)).xyw;
+    vec3 pos2 = (ubo_cameraDefault.combined * vec4(vec3(posX.y, posY.y, posZ.y) * coordConvert + chunkOffset, 1.0)).xyw;
+    vec3 pos3 = (ubo_cameraDefault.combined * vec4(vec3(posX.z, posY.z, posZ.z) * coordConvert + chunkOffset, 1.0)).xyw;
+    vec3 pos4 = (ubo_cameraDefault.combined * vec4(vec3(posX.w, posY.w, posZ.w) * coordConvert + chunkOffset, 1.0)).xyw;
 
-    vec2 posX2 = posX.xy + posX.zw;
-    vec2 posY2 = posY.xy + posY.zw;
-    vec2 posZ2 = posZ.xy + posZ.zw;
+    if (any(lessThanEqual(vec4(pos1.z, pos2.z, pos3.z, pos4.z), vec4(0.0)))) return;
 
-    vec3 pointPos = vec3(posX2.x + posX2.y, posY2.x + posY2.y, posZ2.x + posZ2.y);
+    pos1.xy /= pos1.z;
+    pos2.xy /= pos2.z;
+    pos3.xy /= pos3.z;
+    pos4.xy /= pos4.z;
 
-    vec4 coordCS = ubo_cameraDefault.combined * vec4(pointPos * coordConvert + chunkOffset, 1.0);
-    coordCS.xy /= coordCS.w;
+    pos1.xy = pos1.xy * 0.5 + 0.5;
+    pos2.xy = pos2.xy * 0.5 + 0.5;
+    pos3.xy = pos3.xy * 0.5 + 0.5;
+    pos4.xy = pos4.xy * 0.5 + 0.5;
 
-    ivec2 outputCoord = ivec2((coordCS.xy * 0.5 + 0.5).xy * uval_viewportSize);
+    if (determinant(mat2(pos3.xy - pos1.xy, pos2.xy - pos1.xy)) >= 0.0) {
+        return;
+    }
 
-    uint depth = floatBitsToUint(coordCS.w);
-    if (depth > imageLoad(uimg_depthRenderTex, outputCoord).x) return;
+    if (any(bvec2(
+        any(greaterThanEqual(abs(vec4(pos1.xy, pos2.xy)), vec4(1.0))),
+        any(greaterThanEqual(abs(vec4(pos3.xy, pos4.xy)), vec4(1.0)))
+    ))) return;
 
-    uint writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
-    uvec4 pballot = subgroupPartitionNV(writeIdx);
+    if (samplePow2 == 0u) {
+        vec4 bCoord = BCOORDS[0u];
+        vec3 coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
 
-    uint sgMinDepth = subgroupPartitionedMinNV(depth, pballot);
+        ivec2 outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
 
-    if (subgroupBallotFindMSB(pballot) == gl_SubgroupInvocationID) {
-        uint minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, sgMinDepth);
-        if (minDepth > sgMinDepth) {
-            imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, vbuffer_encodeBCoord(bCoord), 0u, 0u));
+        uint depth = floatBitsToUint(coordCS.z);
+        if (depth > imageLoad(uimg_depthRenderTex, outputCoord).x) return;
+
+        uint writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
+
+        uvec4 pballot = subgroupPartitionNV(writeIdx);
+        uint sgMinDepth = subgroupPartitionedMinNV(depth, pballot);
+//        uint sgMinDepth = depth;
+
+        if (subgroupBallotFindLSB(pballot) == gl_SubgroupInvocationID) {
+            uint minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, sgMinDepth);
+            if (minDepth > sgMinDepth) {
+                imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, vbuffer_encodeBCoord(bCoord), 0u, 0u));
+                #ifdef OVERDRAW_DEBUG
+                imageAtomicAdd(uimg_overdrawCounter, outputCoord, 1u);
+                #endif
+            }
+        }
+    } else {
+        for (uint lol = 0u; lol < sampleCount; lol++) {
+            vec4 bCoord = BCOORDS[BCOORDS_IDX_OFFSETS[samplePow2] + lol];
+            vec3 coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+
+            ivec2 outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
+
+            uint depth = floatBitsToUint(coordCS.z);
+            if (depth > imageLoad(uimg_depthRenderTex, outputCoord).x) continue;
+
+            uint writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
+
+            uint sgMinDepth = depth;
+            uint minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, sgMinDepth);
+            if (minDepth > sgMinDepth) {
+                imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, vbuffer_encodeBCoord(bCoord), 0u, 0u));
+                #ifdef OVERDRAW_DEBUG
+                imageAtomicAdd(uimg_overdrawCounter, outputCoord, 1u);
+                #endif
+            }
         }
     }
 }
