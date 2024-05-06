@@ -70,6 +70,10 @@ tasks {
             }
         })
 
+        manifest {
+            attributes["Main-Class"] = "dev.luna5ama.gltest.MainKt"
+        }
+
         duplicatesStrategy = DuplicatesStrategy.INCLUDE
 
         archiveClassifier.set("fatjar")

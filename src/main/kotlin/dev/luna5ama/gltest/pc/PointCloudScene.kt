@@ -1,7 +1,6 @@
 package dev.luna5ama.gltest.pc
 
 import dev.fastmc.common.TickTimer
-import dev.fastmc.common.address
 import dev.luna5ama.gltest.*
 import dev.luna5ama.gltest.terrain.Textures
 import dev.luna5ama.gltest.terrain.register
@@ -122,8 +121,8 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
         Runtime.getRuntime().addShutdownHook(Thread {
             saveCameraPos()
         })
-        dumpShaderAsm(pointDrawShader, "PointDraw.txt")
-        dumpShaderAsm(quadDrawShader, "QuadDraw.txt")
+//        dumpShaderAsm(pointDrawShader, "PointDraw.txt")
+//        dumpShaderAsm(quadDrawShader, "QuadDraw.txt")
 //        exitProcess(0)
     }
 
@@ -167,8 +166,8 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
         }
     }
 
-    private val timer = GPUTimer(500)
-    private val timer2 = GPUTimer(500)
+    private val timer = GPUTimer(1000)
+    private val timer2 = GPUTimer(1000)
     private val printTimer = TickTimer()
     private val printTimer2 = TickTimer()
 
@@ -197,7 +196,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
     private val updateTimer = TickTimer()
 
     private suspend fun draw() {
-        if (updateTimer.tickAndReset(25)) {
+        if (updateTimer.tickAndReset(100)) {
             pcData.updateBatchMeta()
         }
         timer.begin()
@@ -256,13 +255,14 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
 
         timer.end()
         if (printTimer.tickAndReset(3000)) {
-            val text = buildString {
-                appendLine("Draw: %.4f ms".format(timer.averageMS()))
-                appendLine("Quad count: %,d".format(pcData.quadBatchCount))
-                appendLine("Point count: %,d(%,d)".format(pcData.drawPointCount, pcData.drawPointTotalCount))
-            }
-            print(text)
-            File("G:\\temp\\xd.txt").writeText(text)
+            println("Draw: %.4f ms".format(timer.averageMS()))
+//            val text = buildString {
+//                appendLine("Draw: %.4f ms".format(timer.averageMS()))
+//                appendLine("Quad count: %,d".format(pcData.quadBatchCount))
+//                appendLine("Point count: %,d(%,d)".format(pcData.drawPointCount, pcData.drawPointTotalCount))
+//            }
+//            print(text)
+//            File("G:\\temp\\xd.txt").writeText(text)
         }
     }
 
@@ -296,7 +296,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
     }
 
     private fun shading() {
-//        timer2.begin()
+        timer2.begin()
         shadingShader.bind()
         shadingShader.applyBinding {
             buffer(camera.uboBinding)
@@ -313,10 +313,10 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
 
         fboGroup.swap()
-//        timer2.end()
-//        if (printTimer2.tickAndReset(3000)) {
-//            println("Shading: %.4f ms".format(timer2.averageMS()))
-//        }
+        timer2.end()
+        if (printTimer2.tickAndReset(3000)) {
+            println("Shading: %.4f ms".format(timer2.averageMS()))
+        }
     }
 
     private fun bufferBlit() {

@@ -1,9 +1,5 @@
 #version 460 core
 
-#extension GL_NV_shader_subgroup_partitioned : enable
-#extension GL_KHR_shader_subgroup_ballot : enable
-#extension GL_KHR_shader_subgroup_arithmetic : enable
-
 #include "vbuffer/VBuffers.glsl"
 #include "GlobalCamera.glsl"
 

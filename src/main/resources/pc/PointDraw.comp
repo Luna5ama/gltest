@@ -1,10 +1,6 @@
 #version 460 core
 #pragma optionNV (unroll all)
 
-#extension GL_NV_shader_subgroup_partitioned : enable
-#extension GL_KHR_shader_subgroup_ballot : enable
-#extension GL_KHR_shader_subgroup_arithmetic : enable
-
 #include "vbuffer/VBuffers.glsl"
 #include "GlobalCamera.glsl"
 
@@ -212,17 +208,15 @@ void main() {
     pos12 = pos12 * 0.5 + 0.5;
     pos34 = pos34 * 0.5 + 0.5;
 
-    pos1.xy = pos12.xy;
-    pos2.xy = pos12.zw;
-    pos3.xy = pos34.xy;
-    pos4.xy = pos34.zw;
+    posX = vec4(pos12.xz, pos34.xz);
+    posY = vec4(pos12.yw, pos34.yw);
+    posZ = vec4(pos1.z, pos2.z, pos3.z, pos4.z);
 
     uint bCoordIdx;
     vec4 bCoord;
     vec3 coordCS;
     ivec2 outputCoord;
     uint depth;
-    uint writeIdx;
     uint minDepth;
     uint bCoordOffset;
     switch (sampleCount) {
@@ -230,11 +224,10 @@ void main() {
             bCoordOffset = BCOORDS_IDX_OFFSETS[4];
             bCoordIdx = bCoordOffset + 15;
             bCoord = BCOORDS[bCoordIdx];
-            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            coordCS = vec3(dot(posX, bCoord), dot(posY, bCoord), dot(posZ, bCoord));
             outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
             depth = floatBitsToUint(coordCS.z);
             if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
-                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
                 minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
                 if (minDepth > depth) {
                     imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
@@ -245,11 +238,10 @@ void main() {
             }
             bCoordIdx = bCoordOffset + 14;
             bCoord = BCOORDS[bCoordIdx];
-            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            coordCS = vec3(dot(posX, bCoord), dot(posY, bCoord), dot(posZ, bCoord));
             outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
             depth = floatBitsToUint(coordCS.z);
             if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
-                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
                 minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
                 if (minDepth > depth) {
                     imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
@@ -260,11 +252,10 @@ void main() {
             }
             bCoordIdx = bCoordOffset + 13;
             bCoord = BCOORDS[bCoordIdx];
-            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            coordCS = vec3(dot(posX, bCoord), dot(posY, bCoord), dot(posZ, bCoord));
             outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
             depth = floatBitsToUint(coordCS.z);
             if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
-                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
                 minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
                 if (minDepth > depth) {
                     imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
@@ -275,11 +266,10 @@ void main() {
             }
             bCoordIdx = bCoordOffset + 12;
             bCoord = BCOORDS[bCoordIdx];
-            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            coordCS = vec3(dot(posX, bCoord), dot(posY, bCoord), dot(posZ, bCoord));
             outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
             depth = floatBitsToUint(coordCS.z);
             if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
-                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
                 minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
                 if (minDepth > depth) {
                     imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
@@ -290,11 +280,10 @@ void main() {
             }
             bCoordIdx = bCoordOffset + 11;
             bCoord = BCOORDS[bCoordIdx];
-            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            coordCS = vec3(dot(posX, bCoord), dot(posY, bCoord), dot(posZ, bCoord));
             outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
             depth = floatBitsToUint(coordCS.z);
             if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
-                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
                 minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
                 if (minDepth > depth) {
                     imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
@@ -305,11 +294,10 @@ void main() {
             }
             bCoordIdx = bCoordOffset + 10;
             bCoord = BCOORDS[bCoordIdx];
-            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            coordCS = vec3(dot(posX, bCoord), dot(posY, bCoord), dot(posZ, bCoord));
             outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
             depth = floatBitsToUint(coordCS.z);
             if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
-                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
                 minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
                 if (minDepth > depth) {
                     imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
@@ -320,11 +308,10 @@ void main() {
             }
             bCoordIdx = bCoordOffset + 9;
             bCoord = BCOORDS[bCoordIdx];
-            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            coordCS = vec3(dot(posX, bCoord), dot(posY, bCoord), dot(posZ, bCoord));
             outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
             depth = floatBitsToUint(coordCS.z);
             if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
-                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
                 minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
                 if (minDepth > depth) {
                     imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
@@ -335,11 +322,10 @@ void main() {
             }
             bCoordIdx = bCoordOffset + 8;
             bCoord = BCOORDS[bCoordIdx];
-            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            coordCS = vec3(dot(posX, bCoord), dot(posY, bCoord), dot(posZ, bCoord));
             outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
             depth = floatBitsToUint(coordCS.z);
             if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
-                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
                 minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
                 if (minDepth > depth) {
                     imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
@@ -350,11 +336,10 @@ void main() {
             }
             bCoordIdx = bCoordOffset + 7;
             bCoord = BCOORDS[bCoordIdx];
-            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            coordCS = vec3(dot(posX, bCoord), dot(posY, bCoord), dot(posZ, bCoord));
             outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
             depth = floatBitsToUint(coordCS.z);
             if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
-                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
                 minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
                 if (minDepth > depth) {
                     imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
@@ -365,11 +350,10 @@ void main() {
             }
             bCoordIdx = bCoordOffset + 6;
             bCoord = BCOORDS[bCoordIdx];
-            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            coordCS = vec3(dot(posX, bCoord), dot(posY, bCoord), dot(posZ, bCoord));
             outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
             depth = floatBitsToUint(coordCS.z);
             if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
-                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
                 minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
                 if (minDepth > depth) {
                     imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
@@ -380,11 +364,10 @@ void main() {
             }
             bCoordIdx = bCoordOffset + 5;
             bCoord = BCOORDS[bCoordIdx];
-            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            coordCS = vec3(dot(posX, bCoord), dot(posY, bCoord), dot(posZ, bCoord));
             outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
             depth = floatBitsToUint(coordCS.z);
             if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
-                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
                 minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
                 if (minDepth > depth) {
                     imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
@@ -395,11 +378,10 @@ void main() {
             }
             bCoordIdx = bCoordOffset + 4;
             bCoord = BCOORDS[bCoordIdx];
-            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            coordCS = vec3(dot(posX, bCoord), dot(posY, bCoord), dot(posZ, bCoord));
             outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
             depth = floatBitsToUint(coordCS.z);
             if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
-                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
                 minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
                 if (minDepth > depth) {
                     imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
@@ -410,11 +392,10 @@ void main() {
             }
             bCoordIdx = bCoordOffset + 3;
             bCoord = BCOORDS[bCoordIdx];
-            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            coordCS = vec3(dot(posX, bCoord), dot(posY, bCoord), dot(posZ, bCoord));
             outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
             depth = floatBitsToUint(coordCS.z);
             if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
-                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
                 minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
                 if (minDepth > depth) {
                     imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
@@ -425,11 +406,10 @@ void main() {
             }
             bCoordIdx = bCoordOffset + 2;
             bCoord = BCOORDS[bCoordIdx];
-            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            coordCS = vec3(dot(posX, bCoord), dot(posY, bCoord), dot(posZ, bCoord));
             outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
             depth = floatBitsToUint(coordCS.z);
             if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
-                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
                 minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
                 if (minDepth > depth) {
                     imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
@@ -440,11 +420,10 @@ void main() {
             }
             bCoordIdx = bCoordOffset + 1;
             bCoord = BCOORDS[bCoordIdx];
-            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            coordCS = vec3(dot(posX, bCoord), dot(posY, bCoord), dot(posZ, bCoord));
             outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
             depth = floatBitsToUint(coordCS.z);
             if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
-                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
                 minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
                 if (minDepth > depth) {
                     imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
@@ -454,11 +433,10 @@ void main() {
                 }
             }
             bCoord = BCOORDS[bCoordOffset];
-            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            coordCS = vec3(dot(posX, bCoord), dot(posY, bCoord), dot(posZ, bCoord));
             outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
             depth = floatBitsToUint(coordCS.z);
             if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
-                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
                 minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
                 if (minDepth > depth) {
                     imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordOffset], 0u, 0u));
@@ -472,11 +450,10 @@ void main() {
             bCoordOffset = BCOORDS_IDX_OFFSETS[3];
             bCoordIdx = bCoordOffset + 7;
             bCoord = BCOORDS[bCoordIdx];
-            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            coordCS = vec3(dot(posX, bCoord), dot(posY, bCoord), dot(posZ, bCoord));
             outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
             depth = floatBitsToUint(coordCS.z);
             if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
-                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
                 minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
                 if (minDepth > depth) {
                     imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
@@ -487,11 +464,10 @@ void main() {
             }
             bCoordIdx = bCoordOffset + 6;
             bCoord = BCOORDS[bCoordIdx];
-            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            coordCS = vec3(dot(posX, bCoord), dot(posY, bCoord), dot(posZ, bCoord));
             outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
             depth = floatBitsToUint(coordCS.z);
             if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
-                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
                 minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
                 if (minDepth > depth) {
                     imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
@@ -502,11 +478,10 @@ void main() {
             }
             bCoordIdx = bCoordOffset + 5;
             bCoord = BCOORDS[bCoordIdx];
-            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            coordCS = vec3(dot(posX, bCoord), dot(posY, bCoord), dot(posZ, bCoord));
             outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
             depth = floatBitsToUint(coordCS.z);
             if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
-                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
                 minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
                 if (minDepth > depth) {
                     imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
@@ -517,11 +492,10 @@ void main() {
             }
             bCoordIdx = bCoordOffset + 4;
             bCoord = BCOORDS[bCoordIdx];
-            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            coordCS = vec3(dot(posX, bCoord), dot(posY, bCoord), dot(posZ, bCoord));
             outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
             depth = floatBitsToUint(coordCS.z);
             if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
-                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
                 minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
                 if (minDepth > depth) {
                     imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
@@ -532,11 +506,10 @@ void main() {
             }
             bCoordIdx = bCoordOffset + 3;
             bCoord = BCOORDS[bCoordIdx];
-            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            coordCS = vec3(dot(posX, bCoord), dot(posY, bCoord), dot(posZ, bCoord));
             outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
             depth = floatBitsToUint(coordCS.z);
             if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
-                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
                 minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
                 if (minDepth > depth) {
                     imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
@@ -547,11 +520,10 @@ void main() {
             }
             bCoordIdx = bCoordOffset + 2;
             bCoord = BCOORDS[bCoordIdx];
-            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            coordCS = vec3(dot(posX, bCoord), dot(posY, bCoord), dot(posZ, bCoord));
             outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
             depth = floatBitsToUint(coordCS.z);
             if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
-                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
                 minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
                 if (minDepth > depth) {
                     imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
@@ -562,11 +534,10 @@ void main() {
             }
             bCoordIdx = bCoordOffset + 1;
             bCoord = BCOORDS[bCoordIdx];
-            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            coordCS = vec3(dot(posX, bCoord), dot(posY, bCoord), dot(posZ, bCoord));
             outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
             depth = floatBitsToUint(coordCS.z);
             if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
-                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
                 minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
                 if (minDepth > depth) {
                     imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
@@ -576,11 +547,10 @@ void main() {
                 }
             }
             bCoord = BCOORDS[bCoordOffset];
-            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            coordCS = vec3(dot(posX, bCoord), dot(posY, bCoord), dot(posZ, bCoord));
             outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
             depth = floatBitsToUint(coordCS.z);
             if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
-                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
                 minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
                 if (minDepth > depth) {
                     imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordOffset], 0u, 0u));
@@ -594,11 +564,10 @@ void main() {
             bCoordOffset = BCOORDS_IDX_OFFSETS[2];
             bCoordIdx = bCoordOffset + 3;
             bCoord = BCOORDS[bCoordIdx];
-            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            coordCS = vec3(dot(posX, bCoord), dot(posY, bCoord), dot(posZ, bCoord));
             outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
             depth = floatBitsToUint(coordCS.z);
             if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
-                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
                 minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
                 if (minDepth > depth) {
                     imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
@@ -609,11 +578,10 @@ void main() {
             }
             bCoordIdx = bCoordOffset + 2;
             bCoord = BCOORDS[bCoordIdx];
-            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            coordCS = vec3(dot(posX, bCoord), dot(posY, bCoord), dot(posZ, bCoord));
             outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
             depth = floatBitsToUint(coordCS.z);
             if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
-                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
                 minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
                 if (minDepth > depth) {
                     imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
@@ -624,11 +592,10 @@ void main() {
             }
             bCoordIdx = bCoordOffset + 1;
             bCoord = BCOORDS[bCoordIdx];
-            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            coordCS = vec3(dot(posX, bCoord), dot(posY, bCoord), dot(posZ, bCoord));
             outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
             depth = floatBitsToUint(coordCS.z);
             if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
-                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
                 minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
                 if (minDepth > depth) {
                     imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
@@ -638,11 +605,10 @@ void main() {
                 }
             }
             bCoord = BCOORDS[bCoordOffset];
-            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            coordCS = vec3(dot(posX, bCoord), dot(posY, bCoord), dot(posZ, bCoord));
             outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
             depth = floatBitsToUint(coordCS.z);
             if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
-                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
                 minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
                 if (minDepth > depth) {
                     imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordOffset], 0u, 0u));
@@ -656,11 +622,10 @@ void main() {
             bCoordOffset = BCOORDS_IDX_OFFSETS[1];
             bCoordIdx = bCoordOffset + 1;
             bCoord = BCOORDS[bCoordIdx];
-            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            coordCS = vec3(dot(posX, bCoord), dot(posY, bCoord), dot(posZ, bCoord));
             outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
             depth = floatBitsToUint(coordCS.z);
             if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
-                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
                 minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
                 if (minDepth > depth) {
                     imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
@@ -670,11 +635,10 @@ void main() {
                 }
             }
             bCoord = BCOORDS[bCoordOffset];
-            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            coordCS = vec3(dot(posX, bCoord), dot(posY, bCoord), dot(posZ, bCoord));
             outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
             depth = floatBitsToUint(coordCS.z);
             if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
-                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
                 minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
                 if (minDepth > depth) {
                     imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordOffset], 0u, 0u));
@@ -687,11 +651,10 @@ void main() {
         case 1u:
             bCoordOffset = BCOORDS_IDX_OFFSETS[0];
             bCoord = BCOORDS[bCoordOffset];
-            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            coordCS = vec3(dot(posX, bCoord), dot(posY, bCoord), dot(posZ, bCoord));
             outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
             depth = floatBitsToUint(coordCS.z);
             if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
-                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
                 minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
                 if (minDepth > depth) {
                     imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordOffset], 0u, 0u));

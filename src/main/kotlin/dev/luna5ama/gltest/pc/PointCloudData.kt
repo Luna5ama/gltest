@@ -588,7 +588,7 @@ class PointCloudData(private val scene: AbstractScene, dir: File) : IGLObjContai
 //                        } else {
 //                            sampleCountPow2Array[chunkInfo.listIndex] = min(log2(area + 2.0f).ceilToInt(), 5)
 //                        }
-                            sampleCountPow2Array[chunkInfo.listIndex] = MathUtil.clamp((log2(area) + 0.25f).ceilToInt(), 0, 5)
+                            sampleCountPow2Array[chunkInfo.listIndex] = MathUtil.clamp((log2(area) + 0.25f).ceilToInt(), 1, 5)
                     }
                 }
             }
