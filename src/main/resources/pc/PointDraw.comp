@@ -57,9 +57,9 @@ vec2 r2Seq2(uint idx) {
 }
 
 vec4 readPos(uint idx) {
-    uint data1 = ssbo_quadPosDataBuffer[idx];
-    uint data2 = ssbo_quadPosDataBuffer[idx + 1];
-    return vec4(uvec4(data1 & 0xFFFFu, data1 >> 16u, data2 & 0xFFFFu, data2 >> 16u));
+    uvec4 data = uvec2(ssbo_quadPosDataBuffer[idx], ssbo_quadPosDataBuffer[idx + 1]).xxyy;
+    data = (data >> uvec4(0u, 16u, 0u, 16u)) & uvec4(0xFFFFu);
+    return vec4(data);
 }
 
 const vec4 BCOORDS[] = {
@@ -107,6 +107,51 @@ vec4(0.8125, 0.125, 0.0, 0.0625),
 vec4(0.0625, 0.9375, 0.0, 0.0)
 };
 
+const uint BCOORDS_ENCODED[] = {
+vbuffer_encodeBCoord(vec4(0.25, 0.25, 0.25, 0.25)),
+
+vbuffer_encodeBCoord(vec4(0.5, 0.25, 0.0, 0.25)),
+vbuffer_encodeBCoord(vec4(0.0, 0.25, 0.5, 0.25)),
+
+
+vbuffer_encodeBCoord(vec4(0.0, 0.125, 0.5, 0.375)),
+vbuffer_encodeBCoord(vec4(0.375, 0.0, 0.125, 0.5)),
+vbuffer_encodeBCoord(vec4(0.125, 0.5, 0.375, 0.0)),
+vbuffer_encodeBCoord(vec4(0.5, 0.375, 0.0, 0.125)),
+
+
+vbuffer_encodeBCoord(vec4(0.0, 0.3125, 0.125, 0.5625)),
+vbuffer_encodeBCoord(vec4(0.125, 0.5625, 0.0, 0.3125)),
+vbuffer_encodeBCoord(vec4(0.5625, 0.0, 0.1875, 0.25)),
+vbuffer_encodeBCoord(vec4(0.1875, 0.0, 0.6875, 0.125)),
+
+vbuffer_encodeBCoord(vec4(0.0, 0.8125, 0.0, 0.1875)),
+vbuffer_encodeBCoord(vec4(0.0625, 0.375, 0.5625, 0.0)),
+vbuffer_encodeBCoord(vec4(0.625, 0.3125, 0.0, 0.0625)),
+vbuffer_encodeBCoord(vec4(0.0625, 0.0, 0.0625, 0.875)),
+
+
+vbuffer_encodeBCoord(vec4(0.125, 0.4375, 0.0, 0.4375)),
+vbuffer_encodeBCoord(vec4(0.3125, 0.0, 0.5625, 0.125)),
+vbuffer_encodeBCoord(vec4(0.0, 0.625, 0.0625, 0.3125)),
+vbuffer_encodeBCoord(vec4(0.1875, 0.25, 0.0, 0.5625)),
+
+vbuffer_encodeBCoord(vec4(0.1875, 0.1875, 0.625, 0.0)),
+vbuffer_encodeBCoord(vec4(0.625, 0.1875, 0.1875, 0.0)),
+vbuffer_encodeBCoord(vec4(0.6875, 0.0, 0.1875, 0.125)),
+vbuffer_encodeBCoord(vec4(0.0, 0.1875, 0.125, 0.6875)),
+
+vbuffer_encodeBCoord(vec4(0.25, 0.625, 0.0, 0.125)),
+vbuffer_encodeBCoord(vec4(0.0625, 0.0, 0.5, 0.4375)),
+vbuffer_encodeBCoord(vec4(0.125, 0.0, 0.75, 0.125)),
+vbuffer_encodeBCoord(vec4(0.0, 0.75, 0.125, 0.125)),
+
+vbuffer_encodeBCoord(vec4(0.0, 0.5, 0.5, 0.0)),
+vbuffer_encodeBCoord(vec4(0.1875, 0.0625, 0.0, 0.75)),
+vbuffer_encodeBCoord(vec4(0.8125, 0.125, 0.0, 0.0625)),
+vbuffer_encodeBCoord(vec4(0.0625, 0.9375, 0.0, 0.0))
+};
+
 const uint BCOORDS_IDX_OFFSETS[] = {
 0u,
 1u,
@@ -117,25 +162,19 @@ const uint BCOORDS_IDX_OFFSETS[] = {
 
 void main() {
     PointBatchInfo batchMetadata = ssbo_pointBatchInfoBuffer[gl_WorkGroupID.x];
-    uint metaFirst;
-    uint metaCount;
-    int metaPointSamplePow2;
-    vec3 chunkOffset;
+    uint metaFirst = batchMetadata.first;
+    uint metaCount = batchMetadata.count;
+    uint metaEncodedOffsets = batchMetadata.encoded_offsets;
+    int metaPointSamplePow2 = batchMetadata.pointSamplePow2;
 
-    if (gl_SubgroupInvocationID == 0u) {
-        chunkOffset = vec3(uvec3(batchMetadata.encoded_offsets) >> uvec3(0u, 8u, 16u) & uvec3(255u));
-        chunkOffset = chunkOffset * 16.0 + uval_originOffset;
-    }
-    chunkOffset = subgroupBroadcast(chunkOffset, 0u);
-    metaFirst = batchMetadata.first;
-    metaCount = batchMetadata.count;
-    metaPointSamplePow2 = batchMetadata.pointSamplePow2;
-
+    vec3 chunkOffset = vec3(uvec3(metaEncodedOffsets) >> uvec3(0u, 8u, 16u) & uvec3(255u));
+    chunkOffset = chunkOffset * 16.0 + uval_originOffset;
     uint samplePow2 = max(0, metaPointSamplePow2);
     uint sampleCount = 1u << samplePow2;
-    uint sampleCount2 = 1u << -metaPointSamplePow2;
+
     uint wgQuadIndex = metaPointSamplePow2 >= 0 ?
-    gl_LocalInvocationID.x : gl_LocalInvocationID.x * sampleCount2 + ((ubo_cameraDefault.gFrameIndex + gl_LocalInvocationID.x) & uint(sampleCount2 - 1));
+    gl_LocalInvocationID.x :
+    gl_LocalInvocationID.x * (1u << -metaPointSamplePow2) + ((ubo_cameraDefault.gFrameIndex + gl_LocalInvocationID.x) & uint((1u << -metaPointSamplePow2) - 1));
     if (wgQuadIndex >= metaCount) return;
 
     uint quadIndex = metaFirst + wgQuadIndex;
@@ -151,71 +190,516 @@ void main() {
     vec3 pos3 = (ubo_cameraDefault.combined * vec4(vec3(posX.z, posY.z, posZ.z) * coordConvert + chunkOffset, 1.0)).xyw;
     vec3 pos4 = (ubo_cameraDefault.combined * vec4(vec3(posX.w, posY.w, posZ.w) * coordConvert + chunkOffset, 1.0)).xyw;
 
+    vec4 pos12 = vec4(pos1.xy, pos2.xy);
+    vec4 pos34 = vec4(pos3.xy, pos4.xy);
+
+    vec4 posZInv = 1.0 / vec4(pos1.z, pos2.z, pos3.z, pos4.z);
+
+    pos12 = pos12 * posZInv.xxyy;
+    pos34 = pos34 * posZInv.zzww;
+
     if (any(lessThanEqual(vec4(pos1.z, pos2.z, pos3.z, pos4.z), vec4(0.0)))) return;
 
-    pos1.xy /= pos1.z;
-    pos2.xy /= pos2.z;
-    pos3.xy /= pos3.z;
-    pos4.xy /= pos4.z;
-
-    pos1.xy = pos1.xy * 0.5 + 0.5;
-    pos2.xy = pos2.xy * 0.5 + 0.5;
-    pos3.xy = pos3.xy * 0.5 + 0.5;
-    pos4.xy = pos4.xy * 0.5 + 0.5;
-
-    if (determinant(mat2(pos3.xy - pos1.xy, pos2.xy - pos1.xy)) >= 0.0) {
+    if (determinant(mat2(pos34.xy - pos12.xy, pos12.zw - pos12.xy)) >= 0.0) {
         return;
     }
 
     if (any(bvec2(
-        any(greaterThanEqual(abs(vec4(pos1.xy, pos2.xy)), vec4(1.0))),
-        any(greaterThanEqual(abs(vec4(pos3.xy, pos4.xy)), vec4(1.0)))
+        any(greaterThanEqual(abs(pos12), vec4(1.0))),
+        any(greaterThanEqual(abs(pos34), vec4(1.0)))
     ))) return;
 
-    if (samplePow2 == 0u) {
-        vec4 bCoord = BCOORDS[0u];
-        vec3 coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+    pos12 = pos12 * 0.5 + 0.5;
+    pos34 = pos34 * 0.5 + 0.5;
 
-        ivec2 outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
+    pos1.xy = pos12.xy;
+    pos2.xy = pos12.zw;
+    pos3.xy = pos34.xy;
+    pos4.xy = pos34.zw;
 
-        uint depth = floatBitsToUint(coordCS.z);
-        if (depth > imageLoad(uimg_depthRenderTex, outputCoord).x) return;
-
-        uint writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
-
-        uvec4 pballot = subgroupPartitionNV(writeIdx);
-        uint sgMinDepth = subgroupPartitionedMinNV(depth, pballot);
-//        uint sgMinDepth = depth;
-
-        if (subgroupBallotFindLSB(pballot) == gl_SubgroupInvocationID) {
-            uint minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, sgMinDepth);
-            if (minDepth > sgMinDepth) {
-                imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, vbuffer_encodeBCoord(bCoord), 0u, 0u));
-                #ifdef OVERDRAW_DEBUG
-                imageAtomicAdd(uimg_overdrawCounter, outputCoord, 1u);
-                #endif
+    uint bCoordIdx;
+    vec4 bCoord;
+    vec3 coordCS;
+    ivec2 outputCoord;
+    uint depth;
+    uint writeIdx;
+    uint minDepth;
+    uint bCoordOffset;
+    switch (sampleCount) {
+        case 16u:
+            bCoordOffset = BCOORDS_IDX_OFFSETS[4];
+            bCoordIdx = bCoordOffset + 15;
+            bCoord = BCOORDS[bCoordIdx];
+            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
+            depth = floatBitsToUint(coordCS.z);
+            if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
+                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
+                minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
+                if (minDepth > depth) {
+                    imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
+                    #ifdef OVERDRAW_DEBUG
+                    imageAtomicAdd(uimg_overdrawCounter, outputCoord, 1u);
+                    #endif
+                }
             }
-        }
-    } else {
-        for (uint lol = 0u; lol < sampleCount; lol++) {
-            vec4 bCoord = BCOORDS[BCOORDS_IDX_OFFSETS[samplePow2] + lol];
-            vec3 coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
-
-            ivec2 outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
-
-            uint depth = floatBitsToUint(coordCS.z);
-            if (depth > imageLoad(uimg_depthRenderTex, outputCoord).x) continue;
-
-            uint writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
-
-            uint sgMinDepth = depth;
-            uint minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, sgMinDepth);
-            if (minDepth > sgMinDepth) {
-                imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, vbuffer_encodeBCoord(bCoord), 0u, 0u));
-                #ifdef OVERDRAW_DEBUG
-                imageAtomicAdd(uimg_overdrawCounter, outputCoord, 1u);
-                #endif
+            bCoordIdx = bCoordOffset + 14;
+            bCoord = BCOORDS[bCoordIdx];
+            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
+            depth = floatBitsToUint(coordCS.z);
+            if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
+                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
+                minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
+                if (minDepth > depth) {
+                    imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
+                    #ifdef OVERDRAW_DEBUG
+                    imageAtomicAdd(uimg_overdrawCounter, outputCoord, 1u);
+                    #endif
+                }
             }
-        }
+            bCoordIdx = bCoordOffset + 13;
+            bCoord = BCOORDS[bCoordIdx];
+            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
+            depth = floatBitsToUint(coordCS.z);
+            if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
+                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
+                minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
+                if (minDepth > depth) {
+                    imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
+                    #ifdef OVERDRAW_DEBUG
+                    imageAtomicAdd(uimg_overdrawCounter, outputCoord, 1u);
+                    #endif
+                }
+            }
+            bCoordIdx = bCoordOffset + 12;
+            bCoord = BCOORDS[bCoordIdx];
+            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
+            depth = floatBitsToUint(coordCS.z);
+            if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
+                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
+                minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
+                if (minDepth > depth) {
+                    imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
+                    #ifdef OVERDRAW_DEBUG
+                    imageAtomicAdd(uimg_overdrawCounter, outputCoord, 1u);
+                    #endif
+                }
+            }
+            bCoordIdx = bCoordOffset + 11;
+            bCoord = BCOORDS[bCoordIdx];
+            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
+            depth = floatBitsToUint(coordCS.z);
+            if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
+                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
+                minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
+                if (minDepth > depth) {
+                    imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
+                    #ifdef OVERDRAW_DEBUG
+                    imageAtomicAdd(uimg_overdrawCounter, outputCoord, 1u);
+                    #endif
+                }
+            }
+            bCoordIdx = bCoordOffset + 10;
+            bCoord = BCOORDS[bCoordIdx];
+            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
+            depth = floatBitsToUint(coordCS.z);
+            if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
+                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
+                minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
+                if (minDepth > depth) {
+                    imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
+                    #ifdef OVERDRAW_DEBUG
+                    imageAtomicAdd(uimg_overdrawCounter, outputCoord, 1u);
+                    #endif
+                }
+            }
+            bCoordIdx = bCoordOffset + 9;
+            bCoord = BCOORDS[bCoordIdx];
+            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
+            depth = floatBitsToUint(coordCS.z);
+            if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
+                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
+                minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
+                if (minDepth > depth) {
+                    imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
+                    #ifdef OVERDRAW_DEBUG
+                    imageAtomicAdd(uimg_overdrawCounter, outputCoord, 1u);
+                    #endif
+                }
+            }
+            bCoordIdx = bCoordOffset + 8;
+            bCoord = BCOORDS[bCoordIdx];
+            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
+            depth = floatBitsToUint(coordCS.z);
+            if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
+                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
+                minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
+                if (minDepth > depth) {
+                    imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
+                    #ifdef OVERDRAW_DEBUG
+                    imageAtomicAdd(uimg_overdrawCounter, outputCoord, 1u);
+                    #endif
+                }
+            }
+            bCoordIdx = bCoordOffset + 7;
+            bCoord = BCOORDS[bCoordIdx];
+            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
+            depth = floatBitsToUint(coordCS.z);
+            if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
+                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
+                minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
+                if (minDepth > depth) {
+                    imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
+                    #ifdef OVERDRAW_DEBUG
+                    imageAtomicAdd(uimg_overdrawCounter, outputCoord, 1u);
+                    #endif
+                }
+            }
+            bCoordIdx = bCoordOffset + 6;
+            bCoord = BCOORDS[bCoordIdx];
+            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
+            depth = floatBitsToUint(coordCS.z);
+            if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
+                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
+                minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
+                if (minDepth > depth) {
+                    imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
+                    #ifdef OVERDRAW_DEBUG
+                    imageAtomicAdd(uimg_overdrawCounter, outputCoord, 1u);
+                    #endif
+                }
+            }
+            bCoordIdx = bCoordOffset + 5;
+            bCoord = BCOORDS[bCoordIdx];
+            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
+            depth = floatBitsToUint(coordCS.z);
+            if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
+                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
+                minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
+                if (minDepth > depth) {
+                    imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
+                    #ifdef OVERDRAW_DEBUG
+                    imageAtomicAdd(uimg_overdrawCounter, outputCoord, 1u);
+                    #endif
+                }
+            }
+            bCoordIdx = bCoordOffset + 4;
+            bCoord = BCOORDS[bCoordIdx];
+            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
+            depth = floatBitsToUint(coordCS.z);
+            if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
+                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
+                minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
+                if (minDepth > depth) {
+                    imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
+                    #ifdef OVERDRAW_DEBUG
+                    imageAtomicAdd(uimg_overdrawCounter, outputCoord, 1u);
+                    #endif
+                }
+            }
+            bCoordIdx = bCoordOffset + 3;
+            bCoord = BCOORDS[bCoordIdx];
+            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
+            depth = floatBitsToUint(coordCS.z);
+            if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
+                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
+                minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
+                if (minDepth > depth) {
+                    imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
+                    #ifdef OVERDRAW_DEBUG
+                    imageAtomicAdd(uimg_overdrawCounter, outputCoord, 1u);
+                    #endif
+                }
+            }
+            bCoordIdx = bCoordOffset + 2;
+            bCoord = BCOORDS[bCoordIdx];
+            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
+            depth = floatBitsToUint(coordCS.z);
+            if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
+                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
+                minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
+                if (minDepth > depth) {
+                    imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
+                    #ifdef OVERDRAW_DEBUG
+                    imageAtomicAdd(uimg_overdrawCounter, outputCoord, 1u);
+                    #endif
+                }
+            }
+            bCoordIdx = bCoordOffset + 1;
+            bCoord = BCOORDS[bCoordIdx];
+            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
+            depth = floatBitsToUint(coordCS.z);
+            if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
+                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
+                minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
+                if (minDepth > depth) {
+                    imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
+                    #ifdef OVERDRAW_DEBUG
+                    imageAtomicAdd(uimg_overdrawCounter, outputCoord, 1u);
+                    #endif
+                }
+            }
+            bCoord = BCOORDS[bCoordOffset];
+            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
+            depth = floatBitsToUint(coordCS.z);
+            if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
+                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
+                minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
+                if (minDepth > depth) {
+                    imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordOffset], 0u, 0u));
+                    #ifdef OVERDRAW_DEBUG
+                    imageAtomicAdd(uimg_overdrawCounter, outputCoord, 1u);
+                    #endif
+                }
+            }
+            break;
+        case 8u:
+            bCoordOffset = BCOORDS_IDX_OFFSETS[3];
+            bCoordIdx = bCoordOffset + 7;
+            bCoord = BCOORDS[bCoordIdx];
+            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
+            depth = floatBitsToUint(coordCS.z);
+            if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
+                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
+                minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
+                if (minDepth > depth) {
+                    imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
+                    #ifdef OVERDRAW_DEBUG
+                    imageAtomicAdd(uimg_overdrawCounter, outputCoord, 1u);
+                    #endif
+                }
+            }
+            bCoordIdx = bCoordOffset + 6;
+            bCoord = BCOORDS[bCoordIdx];
+            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
+            depth = floatBitsToUint(coordCS.z);
+            if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
+                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
+                minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
+                if (minDepth > depth) {
+                    imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
+                    #ifdef OVERDRAW_DEBUG
+                    imageAtomicAdd(uimg_overdrawCounter, outputCoord, 1u);
+                    #endif
+                }
+            }
+            bCoordIdx = bCoordOffset + 5;
+            bCoord = BCOORDS[bCoordIdx];
+            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
+            depth = floatBitsToUint(coordCS.z);
+            if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
+                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
+                minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
+                if (minDepth > depth) {
+                    imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
+                    #ifdef OVERDRAW_DEBUG
+                    imageAtomicAdd(uimg_overdrawCounter, outputCoord, 1u);
+                    #endif
+                }
+            }
+            bCoordIdx = bCoordOffset + 4;
+            bCoord = BCOORDS[bCoordIdx];
+            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
+            depth = floatBitsToUint(coordCS.z);
+            if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
+                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
+                minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
+                if (minDepth > depth) {
+                    imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
+                    #ifdef OVERDRAW_DEBUG
+                    imageAtomicAdd(uimg_overdrawCounter, outputCoord, 1u);
+                    #endif
+                }
+            }
+            bCoordIdx = bCoordOffset + 3;
+            bCoord = BCOORDS[bCoordIdx];
+            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
+            depth = floatBitsToUint(coordCS.z);
+            if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
+                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
+                minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
+                if (minDepth > depth) {
+                    imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
+                    #ifdef OVERDRAW_DEBUG
+                    imageAtomicAdd(uimg_overdrawCounter, outputCoord, 1u);
+                    #endif
+                }
+            }
+            bCoordIdx = bCoordOffset + 2;
+            bCoord = BCOORDS[bCoordIdx];
+            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
+            depth = floatBitsToUint(coordCS.z);
+            if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
+                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
+                minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
+                if (minDepth > depth) {
+                    imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
+                    #ifdef OVERDRAW_DEBUG
+                    imageAtomicAdd(uimg_overdrawCounter, outputCoord, 1u);
+                    #endif
+                }
+            }
+            bCoordIdx = bCoordOffset + 1;
+            bCoord = BCOORDS[bCoordIdx];
+            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
+            depth = floatBitsToUint(coordCS.z);
+            if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
+                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
+                minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
+                if (minDepth > depth) {
+                    imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
+                    #ifdef OVERDRAW_DEBUG
+                    imageAtomicAdd(uimg_overdrawCounter, outputCoord, 1u);
+                    #endif
+                }
+            }
+            bCoord = BCOORDS[bCoordOffset];
+            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
+            depth = floatBitsToUint(coordCS.z);
+            if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
+                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
+                minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
+                if (minDepth > depth) {
+                    imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordOffset], 0u, 0u));
+                    #ifdef OVERDRAW_DEBUG
+                    imageAtomicAdd(uimg_overdrawCounter, outputCoord, 1u);
+                    #endif
+                }
+            }
+            break;
+        case 4u:
+            bCoordOffset = BCOORDS_IDX_OFFSETS[2];
+            bCoordIdx = bCoordOffset + 3;
+            bCoord = BCOORDS[bCoordIdx];
+            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
+            depth = floatBitsToUint(coordCS.z);
+            if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
+                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
+                minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
+                if (minDepth > depth) {
+                    imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
+                    #ifdef OVERDRAW_DEBUG
+                    imageAtomicAdd(uimg_overdrawCounter, outputCoord, 1u);
+                    #endif
+                }
+            }
+            bCoordIdx = bCoordOffset + 2;
+            bCoord = BCOORDS[bCoordIdx];
+            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
+            depth = floatBitsToUint(coordCS.z);
+            if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
+                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
+                minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
+                if (minDepth > depth) {
+                    imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
+                    #ifdef OVERDRAW_DEBUG
+                    imageAtomicAdd(uimg_overdrawCounter, outputCoord, 1u);
+                    #endif
+                }
+            }
+            bCoordIdx = bCoordOffset + 1;
+            bCoord = BCOORDS[bCoordIdx];
+            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
+            depth = floatBitsToUint(coordCS.z);
+            if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
+                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
+                minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
+                if (minDepth > depth) {
+                    imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
+                    #ifdef OVERDRAW_DEBUG
+                    imageAtomicAdd(uimg_overdrawCounter, outputCoord, 1u);
+                    #endif
+                }
+            }
+            bCoord = BCOORDS[bCoordOffset];
+            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
+            depth = floatBitsToUint(coordCS.z);
+            if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
+                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
+                minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
+                if (minDepth > depth) {
+                    imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordOffset], 0u, 0u));
+                    #ifdef OVERDRAW_DEBUG
+                    imageAtomicAdd(uimg_overdrawCounter, outputCoord, 1u);
+                    #endif
+                }
+            }
+            break;
+        case 2u:
+            bCoordOffset = BCOORDS_IDX_OFFSETS[1];
+            bCoordIdx = bCoordOffset + 1;
+            bCoord = BCOORDS[bCoordIdx];
+            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
+            depth = floatBitsToUint(coordCS.z);
+            if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
+                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
+                minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
+                if (minDepth > depth) {
+                    imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordIdx], 0u, 0u));
+                    #ifdef OVERDRAW_DEBUG
+                    imageAtomicAdd(uimg_overdrawCounter, outputCoord, 1u);
+                    #endif
+                }
+            }
+            bCoord = BCOORDS[bCoordOffset];
+            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
+            depth = floatBitsToUint(coordCS.z);
+            if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
+                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
+                minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
+                if (minDepth > depth) {
+                    imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordOffset], 0u, 0u));
+                    #ifdef OVERDRAW_DEBUG
+                    imageAtomicAdd(uimg_overdrawCounter, outputCoord, 1u);
+                    #endif
+                }
+            }
+            break;
+        case 1u:
+            bCoordOffset = BCOORDS_IDX_OFFSETS[0];
+            bCoord = BCOORDS[bCoordOffset];
+            coordCS = pos1 * bCoord.x + pos2 * bCoord.y + pos3 * bCoord.z + pos4 * bCoord.w;
+            outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);
+            depth = floatBitsToUint(coordCS.z);
+            if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
+                writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
+                minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
+                if (minDepth > depth) {
+                    imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, BCOORDS_ENCODED[bCoordOffset], 0u, 0u));
+                    #ifdef OVERDRAW_DEBUG
+                    imageAtomicAdd(uimg_overdrawCounter, outputCoord, 1u);
+                    #endif
+                }
+            }
+            break;
     }
 }

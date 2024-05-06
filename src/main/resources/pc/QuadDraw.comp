@@ -105,19 +105,17 @@ float min3(vec3 v) {
     return min(v.x, min(v.y, v.z));
 }
 
+float min4(vec4 v) {
+    return min(min(v.x, v.y), min(v.z, v.w));
+}
+
 void main() {
     QuadBatchInfo batchMetadata = ssbo_quadBatchInfoBuffer[gl_WorkGroupID.x];
-    uint metaFirst;
-    uint metaCount;
-    vec3 chunkOffset;
-
-    if (gl_SubgroupInvocationID == 0u) {
-        chunkOffset = vec3(uvec3(batchMetadata.encoded_count_offsets) >> uvec3(8u, 16u, 24u) & uvec3(255u));
-        chunkOffset = chunkOffset * 16.0 + uval_originOffset;
-    }
-    chunkOffset = subgroupBroadcast(chunkOffset, 0u);
-    metaFirst = batchMetadata.first;
-    metaCount = batchMetadata.encoded_count_offsets & 0xFFu;
+    uint metaEncoded = batchMetadata.encoded_count_offsets;
+    uint metaFirst = batchMetadata.first;
+    uint metaCount = metaEncoded & 0xFFu;
+    vec3 chunkOffset = vec3(uvec3(metaEncoded) >> uvec3(8u, 16u, 24u) & uvec3(255u));
+    chunkOffset = chunkOffset * 16.0 + uval_originOffset;
 
     if (gl_LocalInvocationID.x >= metaCount) return;
 
@@ -163,30 +161,32 @@ void main() {
     minPos = vec2(minPixelPos) * uval_viewportSize.zw;
     maxPos = vec2(maxPixelPos) * uval_viewportSize.zw;
 
-    float nx = 1.0 / float(maxPixelPos.x - minPixelPos.x);
-    float ny = 1.0 / float(maxPixelPos.y - minPixelPos.y);
-
     vec3 t1pa = pos1;
     vec3 t1pb = pos2;
     vec3 t1pc = pos3;
     vec4 t1v;
     vec3 t1d;
-    calcVD(t1pa.xy, t1pb.xy, t1pc.xy, t1v, t1d);
 
     vec3 t2pa = pos3;
     vec3 t2pb = pos4;
     vec3 t2pc = pos1;
     vec4 t2bv;
     vec3 t2bd;
+
+    calcVD(t1pa.xy, t1pb.xy, t1pc.xy, t1v, t1d);
     calcVD(t2pa.xy, t2pb.xy, t2pc.xy, t2bv, t2bd);
 
     vec3 t1bBase = barycentric(minPos - t1pa.xy, t1v, t1d);
-    vec3 t1bMx = barycentric(vec2(maxPos.x, minPos.y) - t1pa.xy, t1v, t1d);
-    vec3 t1bMy = barycentric(vec2(minPos.x, maxPos.y) - t1pa.xy, t1v, t1d);
-
     vec3 t2bBase = barycentric(minPos - t2pa.xy, t2bv, t2bd);
+    vec3 t1bMx = barycentric(vec2(maxPos.x, minPos.y) - t1pa.xy, t1v, t1d);
     vec3 t2bMx = barycentric(vec2(maxPos.x, minPos.y) - t2pa.xy, t2bv, t2bd);
+    vec3 t1bMy = barycentric(vec2(minPos.x, maxPos.y) - t1pa.xy, t1v, t1d);
     vec3 t2bMy = barycentric(vec2(minPos.x, maxPos.y) - t2pa.xy, t2bv, t2bd);
+
+    int xn = maxPixelPos.x - minPixelPos.x;
+    int yn = maxPixelPos.y - minPixelPos.y;
+    float nx = 1.0 / float(xn);
+    float ny = 1.0 / float(yn);
 
     vec3 b1Dx = (t1bMx - t1bBase) * nx;
     vec3 b1Dy = (t1bMy - t1bBase) * ny;
@@ -194,41 +194,40 @@ void main() {
     vec3 b2Dx = (t2bMx - t2bBase) * nx;
     vec3 b2Dy = (t2bMy - t2bBase) * ny;
 
-    float t1DepthBase = dot(vec3(t1pa.z, t1pb.z, t1pc.z), t1bBase);
-    float t1DepthMx = dot(vec3(t1pa.z, t1pb.z, t1pc.z), t1bMx);
-    float t1DepthMy = dot(vec3(t1pa.z, t1pb.z, t1pc.z), t1bMy);
+    vec2 tDepthBase = vec2(dot(vec3(t1pa.z, t1pb.z, t1pc.z), t1bBase), dot(vec3(t2pa.z, t2pb.z, t2pc.z), t2bBase));
+    vec2 tDepthMx = vec2(dot(vec3(t1pa.z, t1pb.z, t1pc.z), t1bMx), dot(vec3(t2pa.z, t2pb.z, t2pc.z), t2bMx));
+    vec2 tDepthMy = vec2(dot(vec3(t1pa.z, t1pb.z, t1pc.z), t1bMy), dot(vec3(t2pa.z, t2pb.z, t2pc.z), t2bMy));
 
-    float t2DepthBase = dot(vec3(t2pa.z, t2pb.z, t2pc.z), t2bBase);
-    float t2DepthMx = dot(vec3(t2pa.z, t2pb.z, t2pc.z), t2bMx);
-    float t2DepthMy = dot(vec3(t2pa.z, t2pb.z, t2pc.z), t2bMy);
-
-    float t1DepthDx = (t1DepthMx - t1DepthBase) * nx;
-    float t1DepthDy = (t1DepthMy - t1DepthBase) * ny;
-
-    float t2DepthDx = (t2DepthMx - t2DepthBase) * nx;
-    float t2DepthDy = (t2DepthMy - t2DepthBase) * ny;
+    vec2 tDepthDx = (tDepthMx - tDepthBase) * nx;
+    vec2 tDepthDy = (tDepthMy - tDepthBase) * nx;
 
     vec3 t1bYStart = t1bBase;
     vec3 t2bYStart = t2bBase;
 
-    float t1DepthYStart = t1DepthBase;
-    float t2DepthYStart = t2DepthBase;
+    vec2 tDepthYStart = tDepthBase;
 
-    for (int y = minPixelPos.y; y < maxPixelPos.y; y++) {
-        vec3 t1b = t1bYStart;
-        vec3 t2b = t2bYStart;
-        float t1Depth = t1DepthYStart;
-        float t2Depth = t2DepthYStart;
+    ivec2 outputCoord = minPixelPos;
 
-        for (int x = minPixelPos.x; x < maxPixelPos.x; x++) {
-            ivec2 outputCoord = ivec2(x, y);
+    uint depth;
+    uint minDepth;
+    vec4 bCoord4;
 
+    vec3 t1b;
+    vec3 t2b;
+    vec2 tDepth;
+
+    for (int y = 0; y < yn; y++) {
+        t1b = t1bYStart;
+        t2b = t2bYStart;
+        tDepth = tDepthYStart;
+
+        for (int x = 0; x < xn; x++) {
             if (min3(t1b) >= 0.0) {
-                uint depth = floatBitsToUint(t1Depth);
-                if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x){
-                    uint minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
+                depth = floatBitsToUint(tDepth.x);
+                if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
+                    minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
                     if (minDepth > depth) {
-                        vec4 bCoord4 = vec4(t1b, 0.0);
+                        bCoord4 = vec4(t1b, 0.0);
                         imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, vbuffer_encodeBCoord(bCoord4), 0u, 0u));
                         #ifdef OVERDRAW_DEBUG
                         imageAtomicAdd(uimg_overdrawCounter, outputCoord, 1u);
@@ -236,13 +235,12 @@ void main() {
                     }
                 }
             }
-
             if (min3(t2b) >= 0.0) {
-                uint depth = floatBitsToUint(t2Depth);
-                if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x){
-                    uint minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
+                depth = floatBitsToUint(tDepth.y);
+                if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
+                    minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
                     if (minDepth > depth) {
-                        vec4 bCoord4 = vec4(t2b.z, 0.0, t2b.x, t2b.y);
+                        bCoord4 = vec4(t2b.z, 0.0, t2b.x, t2b.y);
                         imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, vbuffer_encodeBCoord(bCoord4), 0u, 0u));
                         #ifdef OVERDRAW_DEBUG
                         imageAtomicAdd(uimg_overdrawCounter, outputCoord, 1u);
@@ -250,16 +248,15 @@ void main() {
                     }
                 }
             }
-
             t1b += b1Dx;
             t2b += b2Dx;
-            t1Depth += t1DepthDx;
-            t2Depth += t2DepthDx;
+            tDepth += tDepthDx;
+            outputCoord.x++;
         }
 
         t1bYStart += b1Dy;
         t2bYStart += b2Dy;
-        t1DepthYStart += t1DepthDy;
-        t2DepthYStart += t2DepthDy;
+        tDepthYStart += tDepthDy;
+        outputCoord = ivec2(minPixelPos.x, outputCoord.y + 1);
     }
 }

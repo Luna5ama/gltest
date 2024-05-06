@@ -1,6 +1,7 @@
 package dev.luna5ama.gltest.pc
 
 import dev.fastmc.common.TickTimer
+import dev.fastmc.common.address
 import dev.luna5ama.gltest.*
 import dev.luna5ama.gltest.terrain.Textures
 import dev.luna5ama.gltest.terrain.register
@@ -9,14 +10,18 @@ import dev.luna5ama.glwrapper.ShaderSource
 import dev.luna5ama.glwrapper.api.*
 import dev.luna5ama.glwrapper.enums.ImageFormat
 import dev.luna5ama.glwrapper.objects.TextureObject
+import dev.luna5ama.kmogus.Arr
 import dev.luna5ama.kmogus.MemoryStack
 import dev.luna5ama.kmogus.Ptr
 import org.joml.Vector2i
 import java.io.File
+import java.nio.channels.FileChannel
+import java.nio.file.StandardOpenOption
 import java.util.*
+import kotlin.system.exitProcess
 
 class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) {
-//    private val pcData = register(PointCloudData(this, File("dumpTest")))
+    //    private val pcData = register(PointCloudData(this, File("dumpTest")))
 //        private val pcData = register(PointCloudData(this, File("dumpForestPC")))
 //    private val pcData = register(PointCloudData(this, File("dumpMountainV")))
 //    private val pcData = register(PointCloudData(this, File("dumpMountainS")))
@@ -117,6 +122,9 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
         Runtime.getRuntime().addShutdownHook(Thread {
             saveCameraPos()
         })
+        dumpShaderAsm(pointDrawShader, "PointDraw.txt")
+        dumpShaderAsm(quadDrawShader, "QuadDraw.txt")
+//        exitProcess(0)
     }
 
     override fun destroy() {
@@ -138,6 +146,24 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
             )
         }.onFailure {
             it.printStackTrace()
+        }
+    }
+
+    private fun dumpShaderAsm(program: ShaderProgram, name: String) {
+        val binLen = glGetProgrami(pointDrawShader.id, GL_PROGRAM_BINARY_LENGTH)
+        val file = File("shaderasm/$name")
+        file.delete()
+        FileChannel.open(
+            file.toPath(),
+            StandardOpenOption.READ,
+            StandardOpenOption.WRITE,
+            StandardOpenOption.CREATE
+        ).use { channel ->
+            val mapped = Arr.wrap(channel.map(FileChannel.MapMode.READ_WRITE, 0, binLen.toLong()))
+            MemoryStack {
+                val binaryFormat = calloc(4)
+                glGetProgramBinary(program.id, binLen, Ptr.NULL, binaryFormat.ptr, mapped.ptr)
+            }
         }
     }
 
@@ -171,64 +197,60 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
     private val updateTimer = TickTimer()
 
     private suspend fun draw() {
-        if (updateTimer.tickAndReset(5)) {
+        if (updateTimer.tickAndReset(25)) {
             pcData.updateBatchMeta()
         }
         timer.begin()
 
-//        glDebugGroup("Quad") {
-            if (pcData.quadBatchCount > 0) {
-                quadDrawShader.bind()
-                quadDrawShader.uniform3f(
-                    "uval_originOffset",
-                    (originX - camera.pos.x - 0.5).toFloat(),
-                    (originY - camera.pos.y).toFloat(),
-                    (originZ - camera.pos.z - 0.5).toFloat()
-                )
-                quadDrawShader.applyBinding {
-                    buffer(camera.uboBinding)
-                    buffer(pcData.bufferBindings)
-                    image(vbuffer.imageBindings)
-                    image("uimg_depthRenderTex", depthRenderTex)
-                    image("uimg_overdrawCounter", overdrawCounterTex)
-                }
-                quadDrawShader.uniform4f(
-                    "uval_viewportSize",
-                    camera.screenSize.x.toFloat(), camera.screenSize.y.toFloat(),
-                    1.0f / camera.screenSize.x.toFloat(), 1.0f / camera.screenSize.y.toFloat()
-                )
-                quadDrawShader.uniform2ui("uval_viewportSizeUI", camera.screenSize.x, camera.screenSize.y)
-
-                glDispatchCompute(pcData.quadBatchCount, 1, 1)
+        if (pcData.quadBatchCount > 0) {
+            quadDrawShader.bind()
+            quadDrawShader.uniform3f(
+                "uval_originOffset",
+                (originX - camera.pos.x - 0.5).toFloat(),
+                (originY - camera.pos.y).toFloat(),
+                (originZ - camera.pos.z - 0.5).toFloat()
+            )
+            quadDrawShader.applyBinding {
+                buffer(camera.uboBinding)
+                buffer(pcData.bufferBindings)
+                image(vbuffer.imageBindings)
+                image("uimg_depthRenderTex", depthRenderTex)
+                image("uimg_overdrawCounter", overdrawCounterTex)
             }
-//        }
+            quadDrawShader.uniform4f(
+                "uval_viewportSize",
+                camera.screenSize.x.toFloat(), camera.screenSize.y.toFloat(),
+                1.0f / camera.screenSize.x.toFloat(), 1.0f / camera.screenSize.y.toFloat()
+            )
+            quadDrawShader.uniform2ui("uval_viewportSizeUI", camera.screenSize.x, camera.screenSize.y)
 
-//        glDebugGroup("Point") {
-            if (pcData.pointBatchCount > 0) {
-                pointDrawShader.bind()
-                pointDrawShader.uniform3f(
-                    "uval_originOffset",
-                    (originX - camera.pos.x - 0.5).toFloat(),
-                    (originY - camera.pos.y).toFloat(),
-                    (originZ - camera.pos.z - 0.5).toFloat()
-                )
-                pointDrawShader.applyBinding {
-                    buffer(camera.uboBinding)
-                    buffer(pcData.bufferBindings)
-                    image(vbuffer.imageBindings)
-                    image("uimg_depthRenderTex", depthRenderTex)
-                    image("uimg_overdrawCounter", overdrawCounterTex)
-                }
-                pointDrawShader.uniform4f(
-                    "uval_viewportSize",
-                    camera.screenSize.x.toFloat(), camera.screenSize.y.toFloat(),
-                    1.0f / camera.screenSize.x.toFloat(), 1.0f / camera.screenSize.y.toFloat()
-                )
-                pointDrawShader.uniform2ui("uval_viewportSizeUI", camera.screenSize.x, camera.screenSize.y)
+            glDispatchCompute(pcData.quadBatchCount, 1, 1)
+        }
 
-                glDispatchCompute(pcData.pointBatchCount, 1, 1)
+        if (pcData.pointBatchCount > 0) {
+            pointDrawShader.bind()
+            pointDrawShader.uniform3f(
+                "uval_originOffset",
+                (originX - camera.pos.x - 0.5).toFloat(),
+                (originY - camera.pos.y).toFloat(),
+                (originZ - camera.pos.z - 0.5).toFloat()
+            )
+            pointDrawShader.applyBinding {
+                buffer(camera.uboBinding)
+                buffer(pcData.bufferBindings)
+                image(vbuffer.imageBindings)
+                image("uimg_depthRenderTex", depthRenderTex)
+                image("uimg_overdrawCounter", overdrawCounterTex)
             }
-//        }
+            pointDrawShader.uniform4f(
+                "uval_viewportSize",
+                camera.screenSize.x.toFloat(), camera.screenSize.y.toFloat(),
+                1.0f / camera.screenSize.x.toFloat(), 1.0f / camera.screenSize.y.toFloat()
+            )
+            pointDrawShader.uniform2ui("uval_viewportSizeUI", camera.screenSize.x, camera.screenSize.y)
+
+            glDispatchCompute(pcData.pointBatchCount, 1, 1)
+        }
 
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
 
@@ -236,8 +258,8 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
         if (printTimer.tickAndReset(3000)) {
             val text = buildString {
                 appendLine("Draw: %.4f ms".format(timer.averageMS()))
-//                appendLine("Quad count: %,d".format(pcData.quadBatchCount))
-//                appendLine("Point count: %,d(%,d)".format(pcData.drawPointCount, pcData.drawPointTotalCount))
+                appendLine("Quad count: %,d".format(pcData.quadBatchCount))
+                appendLine("Point count: %,d(%,d)".format(pcData.drawPointCount, pcData.drawPointTotalCount))
             }
             print(text)
             File("G:\\temp\\xd.txt").writeText(text)
@@ -323,7 +345,12 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
             taaPrevTex.allocate(1, ImageFormat.R16_G16_B16_A16_F, camera.screenSize.x, camera.screenSize.y)
             depthRenderTex.allocate(1, ImageFormat.R32_UI, camera.screenSize.x, camera.screenSize.y)
             depthCopyTex.allocate(1, ImageFormat.R32_F, camera.screenSize.x, camera.screenSize.y)
-            if (overdrawDebug) overdrawCounterTex.allocate(1, ImageFormat.R32_UI, camera.screenSize.x, camera.screenSize.y)
+            if (overdrawDebug) overdrawCounterTex.allocate(
+                1,
+                ImageFormat.R32_UI,
+                camera.screenSize.x,
+                camera.screenSize.y
+            )
         }
 
         fboGroup.reset()
