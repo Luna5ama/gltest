@@ -1,12 +1,17 @@
 #version 460 core
+#extension GL_ARB_gpu_shader_int64 : enable
 
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 
 layout(r32ui) uniform readonly uimage2D uimg_depthInput;
 layout(r32ui) uniform writeonly uimage2D uimg_depthOutput;
 
-layout(rg32ui) uniform readonly uimage2D uimg_vbufferRender;
+layout(r32ui) uniform readonly uimage2D uimg_vbufferRender;
 layout(rg32ui) uniform writeonly uimage2D uimg_vbuffer;
+
+layout(std430) readonly buffer VBufferRender {
+    uint64_t ssbo_vBufferRender[];
+};
 
 ivec2 outputSize = imageSize(uimg_depthOutput);
 
@@ -24,74 +29,85 @@ void main() {
         return;
     }
 
-    ivec2 minDepthCoord = centerCoord;
-    uint minDepth = readDepth(minDepthCoord);
-//    if (minDepth == 0x7F800000u) {
+//    ivec2 minDepthCoord = centerCoord;
+//    uint centerDepth = readDepth(centerCoord);
+//    if (centerDepth == 0x7F800000u) {
 //        imageStore(uimg_depthOutput, centerCoord, uvec4(0x7F800000u));
 //        return;
 //    }
 //
-//        ivec2 nearCoord;
-//        uint nearDepth;
-//        nearCoord = centerCoord + ivec2(-1, -1);
-//        nearDepth = readDepth(nearCoord);
-//        if (nearDepth < minDepth) {
-//            minDepth = nearDepth;
-//            minDepthCoord = nearCoord;
-//        }
+//    uint minDepth = centerDepth;
 //
-//        nearCoord = centerCoord + ivec2(0, -1);
-//        nearDepth = readDepth(nearCoord);
-//        if (nearDepth < minDepth) {
-//            minDepth = nearDepth;
-//            minDepthCoord = nearCoord;
-//        }
+//    ivec2 nearCoord;
+//    uint nearDepth;
+//    nearCoord = centerCoord + ivec2(-1, -1);
+//    nearDepth = readDepth(nearCoord);
+//    if (nearDepth < minDepth) {
+//        minDepth = nearDepth;
+//        minDepthCoord = nearCoord;
+//    }
 //
-//        nearCoord = centerCoord + ivec2(0, -1);
-//        nearDepth = readDepth(nearCoord);
-//        if (nearDepth < minDepth) {
-//            minDepth = nearDepth;
-//            minDepthCoord = nearCoord;
-//        }
+//    nearCoord = centerCoord + ivec2(0, -1);
+//    nearDepth = readDepth(nearCoord);
+//    if (nearDepth < minDepth) {
+//        minDepth = nearDepth;
+//        minDepthCoord = nearCoord;
+//    }
 //
-//        nearCoord = centerCoord + ivec2(1, -1);
-//        nearDepth = readDepth(nearCoord);
-//        if (nearDepth < minDepth) {
-//            minDepth = nearDepth;
-//            minDepthCoord = nearCoord;
-//        }
+//    nearCoord = centerCoord + ivec2(0, -1);
+//    nearDepth = readDepth(nearCoord);
+//    if (nearDepth < minDepth) {
+//        minDepth = nearDepth;
+//        minDepthCoord = nearCoord;
+//    }
 //
-//        nearCoord = centerCoord + ivec2(-1, 0);
-//        nearDepth = readDepth(nearCoord);
-//        if (nearDepth < minDepth) {
-//            minDepth = nearDepth;
-//            minDepthCoord = nearCoord;
-//        }
+//    nearCoord = centerCoord + ivec2(1, -1);
+//    nearDepth = readDepth(nearCoord);
+//    if (nearDepth < minDepth) {
+//        minDepth = nearDepth;
+//        minDepthCoord = nearCoord;
+//    }
 //
-//        nearCoord = centerCoord + ivec2(1, 0);
-//        nearDepth = readDepth(nearCoord);
-//        if (nearDepth < minDepth) {
-//            minDepth = nearDepth;
-//            minDepthCoord = nearCoord;
-//        }
+//    nearCoord = centerCoord + ivec2(-1, 0);
+//    nearDepth = readDepth(nearCoord);
+//    if (nearDepth < minDepth) {
+//        minDepth = nearDepth;
+//        minDepthCoord = nearCoord;
+//    }
 //
-//        nearCoord = centerCoord + ivec2(-1, 1);
-//        nearDepth = readDepth(nearCoord);
-//        if (nearDepth < minDepth) {
-//            minDepth = nearDepth;
-//            minDepthCoord = nearCoord;
-//        }
+//    nearCoord = centerCoord + ivec2(1, 0);
+//    nearDepth = readDepth(nearCoord);
+//    if (nearDepth < minDepth) {
+//        minDepth = nearDepth;
+//        minDepthCoord = nearCoord;
+//    }
 //
-//        nearCoord = centerCoord + ivec2(0, 1);
-//        nearDepth = readDepth(nearCoord);
-//        if (nearDepth < minDepth) {
-//            minDepth = nearDepth;
-//            minDepthCoord = nearCoord;
-//        }
+//    nearCoord = centerCoord + ivec2(-1, 1);
+//    nearDepth = readDepth(nearCoord);
+//    if (nearDepth < minDepth) {
+//        minDepth = nearDepth;
+//        minDepthCoord = nearCoord;
+//    }
+//
+//    nearCoord = centerCoord + ivec2(0, 1);
+//    nearDepth = readDepth(nearCoord);
+//    if (nearDepth < minDepth) {
+//        minDepth = nearDepth;
+//        minDepthCoord = nearCoord;
+//    }
 
-    uvec4 data = imageLoad(uimg_vbufferRender, centerCoord);
-//    uvec4 data = imageLoad(uimg_vbufferRender, minDepthCoord);
+//    if (uintBitsToFloat(centerDepth) - uintBitsToFloat(minDepth) < 1.0f) {
+//        minDepthCoord = centerCoord;
+//        minDepth = centerDepth;
+//    }
 
-    imageStore(uimg_vbuffer, centerCoord, data);
-    imageStore(uimg_depthOutput, centerCoord, uvec4(minDepth));
+//    uvec4 data = imageLoad(uimg_vbufferRender, centerCoord);
+
+    uint64_t dataRaw = ssbo_vBufferRender[getIndex(centerCoord)];
+    uint depth = uint(dataRaw >> 32u);
+    uint quadIndex = uint(dataRaw);
+    uint bCoord = imageLoad(uimg_vbufferRender, centerCoord).x;
+
+    imageStore(uimg_vbuffer, centerCoord, uvec4(quadIndex, bCoord, 0u, 0u));
+    imageStore(uimg_depthOutput, centerCoord, uvec4(depth, 0u, 0u, 0u));
 }

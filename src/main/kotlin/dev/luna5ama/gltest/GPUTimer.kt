@@ -23,8 +23,9 @@ class GPUTimer(private val runtimeLength: Int) : IGLObjContainer {
         while (!queryQueue.isEmpty) {
             val available = glGetQueryObjecti(queryQueue.firstInt(), GL_QUERY_RESULT_AVAILABLE)
             if (available == GL_TRUE) {
-                val time = glGetQueryObjectui64(queryQueue.dequeueInt(), GL_QUERY_RESULT)
-                glDeleteQueries(queryQueue.dequeueInt())
+                val id = queryQueue.dequeueInt()
+                val time = glGetQueryObjectui64(id, GL_QUERY_RESULT)
+                glDeleteQueries(id)
                 times.add(time)
             } else {
                 break

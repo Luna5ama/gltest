@@ -1,4 +1,6 @@
 #version 460 core
+#extension GL_ARB_gpu_shader_int64 : enable
+#extension GL_NV_shader_atomic_int64 : enable
 
 #include "GlobalCamera.glsl"
 
@@ -8,10 +10,13 @@ uniform vec3 uval_originOffset;
 uniform vec4 uval_viewportSize;
 uniform uvec2 uval_viewportSizeUI;
 
-layout(rg32ui) uniform restrict writeonly uimage2D uimg_vbufferRender;
-layout(r32ui) uniform restrict uimage2D uimg_depthRenderTex;
+layout(std430) buffer VBufferRender {
+    int64_t ssbo_vBufferRender[];
+};
+
+layout(r32ui) uniform writeonly uimage2D uimg_vbufferRender;
 #ifdef OVERDRAW_DEBUG
-layout(r32ui) uniform uimage2D uimg_overdrawCounter;
+layout(r32ui) uniform writeonly uimage2D uimg_overdrawCounter;
 #endif
 
 struct PointBatchInfo {
@@ -56,21 +61,21 @@ vec4 readPos(uint idx) {
     return vec4(data);
 }
 
-
 #ifdef OVERDRAW_DEBUG
-#define WRITE_POINT(be) imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, be, 0u, 0u));\
+#define WRITE_POINT(be) imageStore(uimg_vbufferRender, outputCoord, uvec4(be, 0u, 0u, 0u));\
 imageAtomicAdd(uimg_overdrawCounter, outputCoord, 1u);
 #else
-#define WRITE_POINT(be) imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, be, 0u, 0u));
+#define WRITE_POINT(be) imageStore(uimg_vbufferRender, outputCoord, uvec4(be, 0u, 0u, 0u));
 #endif
 
 #define DRAW_POINT(bc, be) bCoord = bc;\
 coordCS = vec3(dot(posX, bCoord), dot(posY, bCoord), dot(posZ, bCoord));\
-outputCoord = ivec2(coordCS.xy * uval_viewportSize.xy);\
-depth = floatBitsToUint(coordCS.z);\
-if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {\
-minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);\
-if (minDepth > depth) {\
+outputCoord = ivec2(round(coordCS.xy * uval_viewportSize.xy));\
+writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;\
+writeValue = (int64_t(floatBitsToInt(coordCS.z)) << 32) | int64_t(quadIndex);\
+if (writeValue < ssbo_vBufferRender[writeIdx]) {\
+minValue = atomicMin(ssbo_vBufferRender[writeIdx], writeValue);\
+if (minValue > writeValue) {\
 WRITE_POINT(be)\
 }\
 }\
@@ -134,8 +139,9 @@ void main() {
     vec4 bCoord;
     vec3 coordCS;
     ivec2 outputCoord;
-    uint depth;
-    uint minDepth;
+    uint writeIdx;
+    int64_t minValue;
+    int64_t writeValue;
     switch (samplePow2) {
         UNROLLED_CODE;
     }

@@ -2,8 +2,12 @@
 
 #include "vbuffer/VBuffers.glsl"
 #include "GlobalCamera.glsl"
+#include "SWRUtils.glsl"
 
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+uniform vec4 uval_viewportSize;
+uniform vec3 uval_originOffset;
 
 layout(rg32ui) uniform readonly uimage2D uimg_vbuffer;
 layout(rgba16f) uniform writeonly image2D uimg_output;
@@ -13,8 +17,20 @@ uniform sampler2D usam_lightMap;
 
 uniform sampler2D usam_mainFbo_inputDepth;
 
-layout(std430) readonly buffer QuadAttribDataBuffer {
-    uint ssbo_quadAttribDataBuffer[];
+layout(std430) restrict readonly buffer QuadPosDataBuffer {
+    uint ssbo_quadPosDataBuffer[];
+};
+
+layout(std430) restrict readonly buffer QuadPosIndexBuffer {
+    uint ssbo_quadPosIndexBuffer[];
+};
+
+layout(std430) readonly buffer QuadTexCoordDataBuffer {
+    uint ssbo_quadTexCoordDataBuffer[];
+};
+
+layout(std430) readonly buffer QuadExtraAttribDataBuffer {
+    uint ssbo_quadExtraAttribDataBuffer[];
 };
 
 layout(std430) readonly buffer QuadAttribIndexBuffer {
@@ -23,12 +39,23 @@ layout(std430) readonly buffer QuadAttribIndexBuffer {
 
 ivec2 outputSize = imageSize(uimg_output);
 
+const float coordConvert = 2.51773861295491E-4;
+
+vec4 readPos(uint idx) {
+    uvec4 data = uvec2(ssbo_quadPosDataBuffer[idx], ssbo_quadPosDataBuffer[idx + 1]).xxyy;
+    data = (data >> uvec4(0u, 16u, 0u, 16u)) & uvec4(0xFFFFu);
+    return vec4(data);
+}
+
+const float FLOAT_POS_INF = uintBitsToFloat(0x7F800000u);
+
 void main() {
     ivec2 centerCoord = ivec2(gl_GlobalInvocationID.xy);
     if (any(greaterThanEqual(centerCoord, outputSize))) {
         return;
     }
-    if (texelFetch(usam_mainFbo_inputDepth, centerCoord, 0).r == 1.0) {
+    float linearDepth = texelFetch(usam_mainFbo_inputDepth, centerCoord, 0).r;
+    if (linearDepth == FLOAT_POS_INF) {
         return;
     }
 
@@ -36,32 +63,108 @@ void main() {
     uint quadIndex = vbufferData.x;
     vec4 bCoord = vbuffer_decodeBCoord(vbufferData.y);
 
-    uint pointAttriIdx = ssbo_quadAttribIndexBuffer[quadIndex] * 12u;
+    uint attribIdx = ssbo_quadAttribIndexBuffer[quadIndex];
+    uint texCoordIdx = attribIdx * 4u;
+    vec4 texCoordX = vec4(
+        unpackUnorm2x16(ssbo_quadTexCoordDataBuffer[texCoordIdx]),
+        unpackUnorm2x16(ssbo_quadTexCoordDataBuffer[texCoordIdx + 1u])
+    );
+    vec4 texCoordY = vec4(
+        unpackUnorm2x16(ssbo_quadTexCoordDataBuffer[texCoordIdx + 2u]),
+        unpackUnorm2x16(ssbo_quadTexCoordDataBuffer[texCoordIdx + 3u])
+    );
+    vec2 texCoord = vec2(dot(texCoordX, bCoord), dot(texCoordY, bCoord));
 
-    vec2 texCoord = vec2(0.0);
-    texCoord += unpackUnorm2x16(ssbo_quadAttribDataBuffer[pointAttriIdx]) * bCoord.x;
-    texCoord += unpackUnorm2x16(ssbo_quadAttribDataBuffer[pointAttriIdx + 3u]) * bCoord.y;
-    texCoord += unpackUnorm2x16(ssbo_quadAttribDataBuffer[pointAttriIdx + 6u]) * bCoord.z;
-    texCoord += unpackUnorm2x16(ssbo_quadAttribDataBuffer[pointAttriIdx + 9u]) * bCoord.w;
+    uint quadPosDataIdx = ssbo_quadPosIndexBuffer[quadIndex] * 6u;
 
-    vec4 colorFinal = textureLod(usam_blockAlbedoAtlas, texCoord, 99.0);
+    vec3 viewCoord = vec3(vec2(centerCoord) + 0.5, -linearDepth);
+    viewCoord.xy = viewCoord.xy * uval_viewportSize.zw * 2.0 - 1.0;
+    viewCoord.xy *= linearDepth;
+    viewCoord.xy /= vec2(ubo_cameraDefault.projection[0][0], ubo_cameraDefault.projection[1][1]);
+    vec3 worldCoord = (ubo_cameraDefault.invModelView * vec4(viewCoord, 1.0)).xyz;
 
-    vec3 color = vec3(0.0);
-    color += unpackUnorm4x8(ssbo_quadAttribDataBuffer[pointAttriIdx + 2u]).rgb * bCoord.x;
-    color += unpackUnorm4x8(ssbo_quadAttribDataBuffer[pointAttriIdx + 5u]).rgb * bCoord.y;
-    color += unpackUnorm4x8(ssbo_quadAttribDataBuffer[pointAttriIdx + 8u]).rgb * bCoord.z;
-    color += unpackUnorm4x8(ssbo_quadAttribDataBuffer[pointAttriIdx + 11u]).rgb * bCoord.w;
-    colorFinal.rgb *= color;
+    vec4 posX = readPos(quadPosDataIdx) * coordConvert;
+    vec4 posY = readPos(quadPosDataIdx + 2u) * coordConvert;
+    vec4 posZ = readPos(quadPosDataIdx + 4u) * coordConvert;
 
-    vec2 lightMapCoord = vec2(0.0);
-    lightMapCoord += unpackUnorm4x8(ssbo_quadAttribDataBuffer[pointAttriIdx + 1u]).xy * bCoord.x;
-    lightMapCoord += unpackUnorm4x8(ssbo_quadAttribDataBuffer[pointAttriIdx + 4u]).xy * bCoord.y;
-    lightMapCoord += unpackUnorm4x8(ssbo_quadAttribDataBuffer[pointAttriIdx + 7u]).xy * bCoord.z;
-    lightMapCoord += unpackUnorm4x8(ssbo_quadAttribDataBuffer[pointAttriIdx + 10u]).xy * bCoord.w;
+    vec3 interpolatedPos = vec3(
+        dot(posX, bCoord),
+        dot(posY, bCoord),
+        dot(posZ, bCoord)
+    );
 
-    vec4 lightMap = textureLod(usam_lightMap, lightMapCoord, 0.0);
-    colorFinal.rgb *= lightMap.rgb;
-    colorFinal.a = 1.0;
+    vec3 offset = worldCoord.xyz - interpolatedPos;
 
-    imageStore(uimg_output, centerCoord, colorFinal);
+    vec3 pos1 = (ubo_cameraDefault.combined * vec4(vec3(posX.x, posY.x, posZ.x) + offset, 1.0)).xyw;
+    vec3 pos2 = (ubo_cameraDefault.combined * vec4(vec3(posX.y, posY.y, posZ.y) + offset, 1.0)).xyw;
+    vec3 pos3 = (ubo_cameraDefault.combined * vec4(vec3(posX.z, posY.z, posZ.z) + offset, 1.0)).xyw;
+    vec3 pos4 = (ubo_cameraDefault.combined * vec4(vec3(posX.w, posY.w, posZ.w) + offset, 1.0)).xyw;
+
+    vec4 pos12 = vec4(pos1.xy, pos2.xy);
+    vec4 pos34 = vec4(pos3.xy, pos4.xy);
+
+    vec4 posZInv = 1.0 / vec4(pos1.z, pos2.z, pos3.z, pos4.z);
+
+    pos12 = pos12 * posZInv.xxyy;
+    pos34 = pos34 * posZInv.zzww;
+
+    pos12 = pos12 * 0.5 + 0.5;
+    pos34 = pos34 * 0.5 + 0.5;
+
+    pos1 = vec3(pos12.xy, pos1.z);
+    pos2 = vec3(pos12.zw, pos2.z);
+    pos3 = vec3(pos34.xy, pos3.z);
+    pos4 = vec3(pos34.zw, pos4.z);
+
+    vec2 minScreen = clamp(min(min(pos1.xy, pos2.xy), min(pos3.xy, pos4.xy)), 0.0, 1.0);
+    vec2 maxScreen = clamp(max(max(pos1.xy, pos2.xy), max(pos3.xy, pos4.xy)), 0.0, 1.0);
+    ivec2 minTexel = ivec2(floor(minScreen * uval_viewportSize.xy));
+    ivec2 maxTexel = ivec2(ceil(maxScreen * uval_viewportSize.xy));
+
+    minScreen = vec2(minTexel) * uval_viewportSize.zw;
+    maxScreen = vec2(maxTexel) * uval_viewportSize.zw;
+
+    ivec2 texelN = maxTexel - minTexel;
+    vec2 invTexelN = 1.0 / vec2(texelN);
+
+    vec3 t1bBase, t1bMx, t1bMy, t1bDx, t1bDy;
+    swr_calcBarycentricGrad(minScreen, maxScreen, invTexelN, pos1.xy, pos2.xy, pos3.xy, t1bBase, t1bMx, t1bMy, t1bDx, t1bDy);
+
+    vec2 tTexCoordBase, tTexCoordDx, tTexCoordDy;
+    swr_calcAttribGrad(invTexelN, t1bBase, t1bMx, t1bMy, texCoordX.xyz, texCoordY.xyz, tTexCoordBase, tTexCoordDx, tTexCoordDy);
+
+    {
+        uint extraAttribIdx = attribIdx * 6u;
+        vec4 lightCoordX = unpackUnorm4x8(ssbo_quadExtraAttribDataBuffer[extraAttribIdx]);
+        vec4 lightCoordY = unpackUnorm4x8(ssbo_quadExtraAttribDataBuffer[extraAttribIdx + 1u]);
+        vec2 lightCoord = vec2(dot(lightCoordX, bCoord), dot(lightCoordY, bCoord));
+
+        vec4 colorMulR = unpackUnorm4x8(ssbo_quadExtraAttribDataBuffer[extraAttribIdx + 2u]);
+        vec4 colorMulG = unpackUnorm4x8(ssbo_quadExtraAttribDataBuffer[extraAttribIdx + 3u]);
+        vec4 colorMulB = unpackUnorm4x8(ssbo_quadExtraAttribDataBuffer[extraAttribIdx + 4u]);
+        vec3 colorMul = vec3(
+            dot(colorMulR, bCoord),
+            dot(colorMulG, bCoord),
+            dot(colorMulB, bCoord)
+        );
+        uint materialID = ssbo_quadExtraAttribDataBuffer[extraAttribIdx + 5u];
+
+        vec4 colorMaxLod = textureLod(usam_blockAlbedoAtlas, texCoord, 114.514);
+        vec4 colorMinLod = textureLod(usam_blockAlbedoAtlas, texCoord, 0.0);
+//        vec4 colorNormal = textureGrad(usam_blockAlbedoAtlas, texCoord, tTexCoordDx, tTexCoordDy);
+        vec4 colorNormal = colorMinLod;
+
+        vec4 colorFinal = mix(colorMaxLod, colorNormal, colorMinLod.a);
+        colorFinal.rgb *= colorMul;
+        colorFinal.rgb *= textureLod(usam_lightMap, lightCoord, 0.0).rgb;
+        colorFinal.a = 1.0;
+        colorFinal.a = 1.0;
+//        colorFinal.rgb = vec3(float((materialID >> 1u) & 1u));
+
+//        colorFinal.r = tTexCoordDx.x;
+//        colorFinal.g = tTexCoordDy.y;
+//        colorFinal.rgb = offset;
+
+        imageStore(uimg_output, centerCoord, colorFinal);
+    }
 }

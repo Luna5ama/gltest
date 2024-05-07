@@ -1,7 +1,10 @@
 #version 460 core
+#extension GL_ARB_gpu_shader_int64 : enable
+#extension GL_NV_shader_atomic_int64 : enable
 
 #include "vbuffer/VBuffers.glsl"
 #include "GlobalCamera.glsl"
+#include "SWRUtils.glsl"
 
 layout(local_size_x = BATCH_SIZE, local_size_y = 1, local_size_z = 1) in;
 
@@ -9,10 +12,25 @@ uniform vec3 uval_originOffset;
 uniform vec4 uval_viewportSize;
 uniform uvec2 uval_viewportSizeUI;
 
-layout(rg32ui) uniform restrict writeonly uimage2D uimg_vbufferRender;
-layout(r32ui) uniform restrict uimage2D uimg_depthRenderTex;
+#ifdef CUTOUT
+uniform sampler2D usam_blockAlbedoAtlas;
+
+layout(std430) readonly buffer QuadTexCoordDataBuffer {
+    uint ssbo_quadTexCoordDataBuffer[];
+};
+
+layout(std430) readonly buffer QuadAttribIndexBuffer {
+    uint ssbo_quadAttribIndexBuffer[];
+};
+#endif
+
+layout(std430) buffer VBufferRender {
+    int64_t ssbo_vBufferRender[];
+};
+
+layout(r32ui) uniform writeonly uimage2D uimg_vbufferRender;
 #ifdef OVERDRAW_DEBUG
-layout(r32ui) uniform uimage2D uimg_overdrawCounter;
+layout(r32ui) uniform writeonly uimage2D uimg_overdrawCounter;
 #endif
 
 struct QuadBatchInfo {
@@ -76,27 +94,6 @@ vec4 readPos(uint idx) {
 //    return uvw;
 //}
 
-vec3 barycentric(vec2 pa, vec4 v, vec3 d) {
-    float d20p = dot(pa, v.xy);
-    float d21p = dot(pa, v.zw);
-
-    float denom = d.x * d.z - d.y * d.y;
-    vec3 uvw;
-    uvw.y = (d.z * d20p - d.y * d21p) / denom;
-    uvw.z = (d.x * d21p - d.y * d20p) / denom;
-    uvw.x = 1.0f - uvw.y - uvw.z;
-    return uvw;
-}
-
-void calcVD(vec2 a, vec2 b, vec2 c, out vec4 v, out vec3 d) {
-    v = vec4(b, c) - vec4(a, a);
-    d = vec3(
-        dot(v.xy, v.xy),
-        dot(v.xy, v.zw),
-        dot(v.zw, v.zw)
-    );
-}
-
 float min3(vec3 v) {
     return min(v.x, min(v.y, v.z));
 }
@@ -155,60 +152,61 @@ void main() {
 
     if (all(bvec2(all(clipping1), all(clipping2)))) return;
 
-    vec2 minPos = clamp(min(min(pos1.xy, pos2.xy), min(pos3.xy, pos4.xy)), 0.0, 1.0);
-    vec2 maxPos = clamp(max(max(pos1.xy, pos2.xy), max(pos3.xy, pos4.xy)), 0.0, 1.0);
-    ivec2 minPixelPos = ivec2(floor(minPos * uval_viewportSize.xy));
-    ivec2 maxPixelPos = ivec2(ceil(maxPos * uval_viewportSize.xy));
 
-    minPos = vec2(minPixelPos) * uval_viewportSize.zw;
-    maxPos = vec2(maxPixelPos) * uval_viewportSize.zw;
+    vec2 minScreen = clamp(min(min(pos1.xy, pos2.xy), min(pos3.xy, pos4.xy)), 0.0, 1.0);
+    vec2 maxScreen = clamp(max(max(pos1.xy, pos2.xy), max(pos3.xy, pos4.xy)), 0.0, 1.0);
+    ivec2 minTexel = ivec2(floor(minScreen * uval_viewportSize.xy));
+    ivec2 maxTexel = ivec2(ceil(maxScreen * uval_viewportSize.xy));
 
-    vec3 t1pa = pos1;
-    vec3 t1pb = pos2;
-    vec3 t1pc = pos3;
-    vec4 t1v;
-    vec3 t1d;
+    minScreen = vec2(minTexel) * uval_viewportSize.zw;
+    maxScreen = vec2(maxTexel) * uval_viewportSize.zw;
 
-    vec3 t2pa = pos3;
-    vec3 t2pb = pos4;
-    vec3 t2pc = pos1;
-    vec4 t2bv;
-    vec3 t2bd;
+    ivec2 texelN = maxTexel - minTexel;
+    vec2 invTexelN = 1.0 / vec2(texelN);
 
-    calcVD(t1pa.xy, t1pb.xy, t1pc.xy, t1v, t1d);
-    calcVD(t2pa.xy, t2pb.xy, t2pc.xy, t2bv, t2bd);
+    vec3 t1bBase, t1bMx, t1bMy, t1bDx, t1bDy;
+    swr_calcBarycentricGrad(minScreen, maxScreen, invTexelN, pos1.xy, pos2.xy, pos3.xy, t1bBase, t1bMx, t1bMy, t1bDx, t1bDy);
 
-    vec3 t1bBase = barycentric(minPos - t1pa.xy, t1v, t1d);
-    vec3 t2bBase = barycentric(minPos - t2pa.xy, t2bv, t2bd);
-    vec3 t1bMx = barycentric(vec2(maxPos.x, minPos.y) - t1pa.xy, t1v, t1d);
-    vec3 t2bMx = barycentric(vec2(maxPos.x, minPos.y) - t2pa.xy, t2bv, t2bd);
-    vec3 t1bMy = barycentric(vec2(minPos.x, maxPos.y) - t1pa.xy, t1v, t1d);
-    vec3 t2bMy = barycentric(vec2(minPos.x, maxPos.y) - t2pa.xy, t2bv, t2bd);
+    vec3 t2bBase, t2bMx, t2bMy, t2bDx, t2bDy;
+    swr_calcBarycentricGrad(minScreen, maxScreen, invTexelN, pos3.xy, pos4.xy, pos1.xy, t2bBase, t2bMx, t2bMy, t2bDx, t2bDy);
 
-    int xn = maxPixelPos.x - minPixelPos.x;
-    int yn = maxPixelPos.y - minPixelPos.y;
-    float nx = 1.0 / float(xn);
-    float ny = 1.0 / float(yn);
+    vec2 tDepthBase;
+    vec4 tDepthDxDy;
+    swr_calcAttribGrad(invTexelN, t1bBase, t1bMx, t1bMy, vec3(pos1.z, pos2.z, pos3.z), tDepthBase.x, tDepthDxDy.x, tDepthDxDy.z);
+    swr_calcAttribGrad(invTexelN, t2bBase, t2bMx, t2bMy, vec3(pos3.z, pos4.z, pos1.z), tDepthBase.y, tDepthDxDy.y, tDepthDxDy.w);
 
-    vec3 b1Dx = (t1bMx - t1bBase) * nx;
-    vec3 b1Dy = (t1bMy - t1bBase) * ny;
+    #ifdef CUTOUT
+    uint texCoordIdx = ssbo_quadAttribIndexBuffer[quadIndex] * 4u;
 
-    vec3 b2Dx = (t2bMx - t2bBase) * nx;
-    vec3 b2Dy = (t2bMy - t2bBase) * ny;
+    vec4 texCoordX = vec4(
+        unpackUnorm2x16(ssbo_quadTexCoordDataBuffer[texCoordIdx]),
+        unpackUnorm2x16(ssbo_quadTexCoordDataBuffer[texCoordIdx + 1u])
+    );
+    vec4 texCoordY = vec4(
+        unpackUnorm2x16(ssbo_quadTexCoordDataBuffer[texCoordIdx + 2u]),
+        unpackUnorm2x16(ssbo_quadTexCoordDataBuffer[texCoordIdx + 3u])
+    );
 
-    vec2 tDepthBase = vec2(dot(vec3(t1pa.z, t1pb.z, t1pc.z), t1bBase), dot(vec3(t2pa.z, t2pb.z, t2pc.z), t2bBase));
-    vec2 tDepthMx = vec2(dot(vec3(t1pa.z, t1pb.z, t1pc.z), t1bMx), dot(vec3(t2pa.z, t2pb.z, t2pc.z), t2bMx));
-    vec2 tDepthMy = vec2(dot(vec3(t1pa.z, t1pb.z, t1pc.z), t1bMy), dot(vec3(t2pa.z, t2pb.z, t2pc.z), t2bMy));
+    vec3 t1TexCoordX = texCoordX.xyz;
+    vec3 t1TexCoordY = texCoordY.xyz;
+    vec3 t2TexCoordX = texCoordX.zwx;
+    vec3 t2TexCoordY = texCoordY.zwx;
+    vec4 tTexCoordBase = vec4(dot(t1TexCoordX, t1bBase), dot(t1TexCoordY, t1bBase), dot(t2TexCoordX, t2bBase), dot(t2TexCoordY, t2bBase));
+    vec4 tTexCoordMx = vec4(dot(t1TexCoordX, t1bMx), dot(t1TexCoordY, t1bMx), dot(t2TexCoordX, t2bMx), dot(t2TexCoordY, t2bMx));
+    vec4 tTexCoordMy = vec4(dot(t1TexCoordX, t1bMy), dot(t1TexCoordY, t1bMy), dot(t2TexCoordX, t2bMy), dot(t2TexCoordY, t2bMy));
 
-    vec2 tDepthDx = (tDepthMx - tDepthBase) * nx;
-    vec2 tDepthDy = (tDepthMy - tDepthBase) * nx;
+    vec4 tTexCoordDx = (tTexCoordMx - tTexCoordBase) * invTexelN.xxxx;
+    vec4 tTexCoordDy = (tTexCoordMy - tTexCoordBase) * invTexelN.yyyy;
+    vec4 tTexCoordYStart = tTexCoordBase;
+
+    vec4 tTexCoord;
+    #endif
 
     vec3 t1bYStart = t1bBase;
     vec3 t2bYStart = t2bBase;
-
     vec2 tDepthYStart = tDepthBase;
 
-    ivec2 outputCoord = minPixelPos;
+    ivec2 outputCoord = minTexel;
 
     uint depth;
     uint minDepth;
@@ -218,47 +216,70 @@ void main() {
     vec3 t2b;
     vec2 tDepth;
 
-    for (int y = 0; y < yn; y++) {
+    for (int y = 0; y < texelN.y; y++) {
         t1b = t1bYStart;
         t2b = t2bYStart;
         tDepth = tDepthYStart;
+        #ifdef CUTOUT
+        tTexCoord = tTexCoordYStart;
+        #endif
 
-        for (int x = 0; x < xn; x++) {
+        for (int x = 0; x < texelN.x; x++) {
             if (min3(t1b) >= 0.0) {
-                depth = floatBitsToUint(tDepth.x);
-                if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
-                    minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
-                    if (minDepth > depth) {
-                        bCoord4 = vec4(t1b, 0.0);
-                        imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, vbuffer_encodeBCoord(bCoord4), 0u, 0u));
-                        #ifdef OVERDRAW_DEBUG
-                        imageAtomicAdd(uimg_overdrawCounter, outputCoord, 1u);
-                        #endif
+                #ifdef CUTOUT
+                if (textureLod(usam_blockAlbedoAtlas, tTexCoord.zw, 0.0).a > 0.5) {
+                    #endif
+                    uint writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
+                    int64_t writeValue = (int64_t(floatBitsToInt(tDepth.x)) << 32) | int64_t(quadIndex);
+                    if (writeValue <= ssbo_vBufferRender[writeIdx]) {
+                        int64_t minValue = atomicMin(ssbo_vBufferRender[writeIdx], writeValue);
+                        if (minValue >= writeValue) {
+                            bCoord4 = vec4(t1b, 0.0);
+                            imageStore(uimg_vbufferRender, outputCoord, uvec4(vbuffer_encodeBCoord(bCoord4), 0u, 0u, 0u));
+                            #ifdef OVERDRAW_DEBUG
+                            imageAtomicAdd(uimg_overdrawCounter, outputCoord, 1u);
+                            #endif
+                        }
                     }
+                    #ifdef CUTOUT
                 }
+                #endif
             }
             if (min3(t2b) >= 0.0) {
-                depth = floatBitsToUint(tDepth.y);
-                if (depth < imageLoad(uimg_depthRenderTex, outputCoord).x) {
-                    minDepth = imageAtomicMin(uimg_depthRenderTex, outputCoord, depth);
-                    if (minDepth > depth) {
-                        bCoord4 = vec4(t2b.z, 0.0, t2b.x, t2b.y);
-                        imageStore(uimg_vbufferRender, outputCoord, uvec4(quadIndex, vbuffer_encodeBCoord(bCoord4), 0u, 0u));
-                        #ifdef OVERDRAW_DEBUG
-                        imageAtomicAdd(uimg_overdrawCounter, outputCoord, 1u);
-                        #endif
+                #ifdef CUTOUT
+                if (textureLod(usam_blockAlbedoAtlas, tTexCoord.zw, 0.0).a > 0.5) {
+                    #endif
+                    uint writeIdx = outputCoord.y * uval_viewportSizeUI.x + outputCoord.x;
+                    int64_t writeValue = (int64_t(floatBitsToInt(tDepth.y)) << 32) | int64_t(quadIndex);
+                    if (writeValue <= ssbo_vBufferRender[writeIdx]) {
+                        int64_t minValue = atomicMin(ssbo_vBufferRender[writeIdx], writeValue);
+                        if (minValue >= writeValue) {
+                            bCoord4 = vec4(t2b.z, 0.0, t2b.x, t2b.y);
+                            imageStore(uimg_vbufferRender, outputCoord, uvec4(vbuffer_encodeBCoord(bCoord4), 0u, 0u, 0u));
+                            #ifdef OVERDRAW_DEBUG
+                            imageAtomicAdd(uimg_overdrawCounter, outputCoord, 1u);
+                            #endif
+                        }
                     }
+                    #ifdef CUTOUT
                 }
+                #endif
             }
-            t1b += b1Dx;
-            t2b += b2Dx;
-            tDepth += tDepthDx;
+            t1b += t1bDx;
+            t2b += t2bDx;
+            tDepth += tDepthDxDy.xy;
             outputCoord.x++;
+            #ifdef CUTOUT
+            tTexCoord += tTexCoordDx;
+            #endif
         }
 
-        t1bYStart += b1Dy;
-        t2bYStart += b2Dy;
-        tDepthYStart += tDepthDy;
-        outputCoord = ivec2(minPixelPos.x, outputCoord.y + 1);
+        t1bYStart += t1bDy;
+        t2bYStart += t2bDy;
+        tDepthYStart += tDepthDxDy.zw;
+        outputCoord = ivec2(minTexel.x, outputCoord.y + 1);
+        #ifdef CUTOUT
+        tTexCoordYStart += tTexCoordDy;
+        #endif
     }
 }

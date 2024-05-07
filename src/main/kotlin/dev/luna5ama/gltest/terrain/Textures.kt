@@ -58,28 +58,29 @@ class Textures(val scene: AbstractScene) : IGLObjContainer by IGLObjContainer.Im
 
     private suspend fun initBlocks(dir: File) {
         Arr.malloc(0).use { buffer ->
-            val image = readImage(File(dir, "blocks_0.png"))
-            val data = image.getRGBA(buffer)
-            blockTex.allocate(5, ImageFormat.R8_G8_B8_A8_UN, image.width, image.height)
+            repeat(5) {
+                val image = readImage(File(dir, "blocks_$it.png"))
+                if (it == 0) {
+                    blockTex.allocate(5, ImageFormat.R8_G8_B8_A8_UN, image.width, image.height)
 
-            blockTex.setMipLevels(0, 4)
-            blockTex.setMipLod(0.0f, 4.0f)
-            blockTex.setFilter(GL_NEAREST_MIPMAP_LINEAR, GL_NEAREST)
-            blockTex.setWrap(GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE)
+                    blockTex.setMipLevels(0, 4)
+                    blockTex.setMipLod(0.0f, 4.0f)
+                    blockTex.setFilter(GL_NEAREST_MIPMAP_LINEAR, GL_NEAREST)
+                    blockTex.setWrap(GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE)
 
-            // WTF Intel
-            blockTex.setAnisotropy(16.0f)
+                    // WTF Intel
+                    blockTex.setAnisotropy(16.0f)
+                }
 
-            generateMipmap(data, image.width, image.height, 4).forEachIndexed { index, arr ->
                 blockTex.upload(
-                    index,
+                    it,
                     0,
                     0,
-                    image.width shr index,
-                    image.height shr index,
+                    image.width,
+                    image.height,
                     GL_RGBA,
                     GL_UNSIGNED_BYTE,
-                    arr.ptr
+                    image.getRGBA(buffer).ptr
                 )
             }
         }

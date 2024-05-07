@@ -31,8 +31,8 @@ class TerrainVertex(
     val attrib: Byte
 )
 
-@Struct(sizeAlignment = 1L, size = 24L)
-class PointPos(
+@Struct
+class QuadPos(
     val posX1: Short,
     val posX2: Short,
     val posX3: Short,
@@ -47,16 +47,47 @@ class PointPos(
     val posZ4: Short
 )
 
-@Struct(sizeAlignment = 1L, size = 12L)
-class PointAttrib(
-    val uvU: Short,
-    val uvV: Short,
-    val lightMapX: Byte,
-    val lightMapY: Byte,
-    @Padding(2)
-    val colorR: Byte,
-    val colorG: Byte,
-    val colorB: Byte
+@Struct
+class QuadTexCoord(
+    val x1: Short,
+    val x2: Short,
+    val x3: Short,
+    val x4: Short,
+
+    val y1: Short,
+    val y2: Short,
+    val y3: Short,
+    val y4: Short
+)
+
+@Struct
+class QuadExtraAttrib(
+    val lightCoordX1: Byte,
+    val lightCoordX2: Byte,
+    val lightCoordX3: Byte,
+    val lightCoordX4: Byte,
+
+    val lightCoordY1: Byte,
+    val lightCoordY2: Byte,
+    val lightCoordY3: Byte,
+    val lightCoordY4: Byte,
+
+    val r1: Byte,
+    val r2: Byte,
+    val r3: Byte,
+    val r4: Byte,
+
+    val g1: Byte,
+    val g2: Byte,
+    val g3: Byte,
+    val g4: Byte,
+
+    val b1: Byte,
+    val b2: Byte,
+    val b3: Byte,
+    val b4: Byte,
+
+    val materialID: Int
 )
 
 @Struct(sizeAlignment = 1L, size = 16L)

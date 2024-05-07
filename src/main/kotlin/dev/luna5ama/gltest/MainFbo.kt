@@ -3,6 +3,7 @@ package dev.luna5ama.gltest
 import dev.luna5ama.gltest.terrain.IGLObjContainer
 import dev.luna5ama.gltest.terrain.register
 import dev.luna5ama.glwrapper.api.GL_COLOR_ATTACHMENT0
+import dev.luna5ama.glwrapper.api.GL_DEPTH_ATTACHMENT
 import dev.luna5ama.glwrapper.api.GL_DEPTH_STENCIL_ATTACHMENT
 import dev.luna5ama.glwrapper.enums.ImageFormat
 import dev.luna5ama.glwrapper.objects.FramebufferObject
@@ -21,22 +22,27 @@ class MainFbo(private val scene: AbstractScene, private val name: String) : IGLO
 
             colorTex.apply {
                 label("MainFBO.$name.Color")
-                allocate(1, ImageFormat.R16_G16_B16_A16_F, screenWidth, screenHeight)
+                allocate(1, FORMAT, screenWidth, screenHeight)
                 linearClampEdge()
             }
             depthStencilTex.apply {
                 label("MainFBO.$name.Depth")
-                allocate(1, ImageFormat.Depth32FStencil8, screenWidth, screenHeight)
+                allocate(1, ImageFormat.Depth32FNV, screenWidth, screenHeight)
                 linearClampEdge()
             }
 
             fbo.apply {
                 clearAttachments()
                 attachNonLayered(colorTex, GL_COLOR_ATTACHMENT0) // Regular color
-                attachNonLayered(depthStencilTex, GL_DEPTH_STENCIL_ATTACHMENT) // Depth & Stencil
+                attachNonLayered(depthStencilTex, GL_DEPTH_ATTACHMENT) // Depth & Stencil
                 check()
                 label("MainFBO.$name.FBO")
             }
         }
+    }
+
+    companion object {
+//         val FORMAT = ImageFormat.R32_G32_B32_A32_F
+        val FORMAT = ImageFormat.R16_G16_B16_A16_F
     }
 }

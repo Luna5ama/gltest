@@ -14,7 +14,7 @@ struct Camera {
 
 layout(std140) uniform GlobalCameraJitter {
     Camera ubo_cameraJitter;
-} ;
+};
 
 layout(std140) uniform GlobalCameraNoJitter {
     Camera ubo_cameraNoJitter;
@@ -26,7 +26,7 @@ layout(std140) uniform GlobalCameraDefault {
 
 layout(std140) uniform PrevGlobalCameraJitter {
     Camera ubo_prevCameraJitter;
-} ;
+};
 
 layout(std140) uniform PrevGlobalCameraNoJitter {
     Camera ubo_prevCameraNoJitter;

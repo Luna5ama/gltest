@@ -73,7 +73,7 @@ class FboGroup(private val scene: AbstractScene) : IGLObjContainer by IGLObjCont
                 destroyFbo()
                 attachNonLayered(mainFbo.colorTex, GL_COLOR_ATTACHMENT0)
                 attachNonLayered(swapFbo.colorTex, GL_COLOR_ATTACHMENT1)
-                attachNonLayered(mainFbo.depthStencilTex, GL_DEPTH_STENCIL_ATTACHMENT)
+                attachNonLayered(mainFbo.depthStencilTex, GL_DEPTH_ATTACHMENT)
                 setDrawBufferAll()
             }
         }
