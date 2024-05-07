@@ -582,13 +582,13 @@ class PointCloudData(private val scene: AbstractScene, dir: File) : IGLObjContai
                     for (i in start until end) {
                         val chunkInfo = chunkinfos[i]
                         val area = areaCalc.calc(chunkInfo)
-//                        if (area + 0.25f < 1.0f) {
-//                            val v = min(log2(1.0f / (area + 0.33f)).floorToInt(), 8)
-//                            sampleCountPow2Array[chunkInfo.listIndex] = -v
-//                        } else {
-//                            sampleCountPow2Array[chunkInfo.listIndex] = min(log2(area + 2.0f).ceilToInt(), 5)
-//                        }
-                            sampleCountPow2Array[chunkInfo.listIndex] = MathUtil.clamp((log2(area) + 0.25f).ceilToInt(), 1, 5)
+                        if (area + 0.25f < 1.0f) {
+                            val v = min(log2(1.0f / (area + 0.33f)).floorToInt(), 8)
+                            sampleCountPow2Array[chunkInfo.listIndex] = -v
+                        } else {
+                            sampleCountPow2Array[chunkInfo.listIndex] = MathUtil.clamp((log2(area + 0.25f) + 0.25f).ceilToInt(), 0, 5)
+                        }
+//                            sampleCountPow2Array[chunkInfo.listIndex] = MathUtil.clamp((log2(area) + 0.25f).ceilToInt(), 1, 5)
                     }
                 }
             }

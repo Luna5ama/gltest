@@ -28,7 +28,7 @@ void main() {
     vec3 nearMax = max(max(nearCurr0, nearCurr1), max(nearCurr2, nearCurr3));
 
     vec4 prevColor = imageLoad(uimg_prevTexture, texel);
-    prevColor.rgb = mix(prevColor.rgb, clamp(prevColor.rgb, nearMin, nearMax), 0.5);
+//    prevColor.rgb = mix(prevColor.rgb, clamp(prevColor.rgb, nearMin, nearMax), 0.5);
 
     vec4 color = currColor;
 

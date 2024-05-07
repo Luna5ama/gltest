@@ -46,6 +46,7 @@ class Camera(val scene: AbstractScene) {
     val projection = Matrix4f()
     val modelView = Matrix4f()
     val combined = Matrix4f()
+    val viewDir = Vector3f()
 
     val invProjection = Matrix4f()
     val invModelView = Matrix4f()
@@ -155,6 +156,8 @@ class Camera(val scene: AbstractScene) {
         invModelView.set(modelView).invert()
         invCombined.set(combined).invert()
 
+        viewDir.set(0.0f, 0.0f, -1.0f).mulDirection(invModelView)
+
         MemoryStack {
             val arr = calloc(UBO_SIZE).asMutable()
             projection.copyToMutableArr(arr)
@@ -171,7 +174,11 @@ class Camera(val scene: AbstractScene) {
             }
             rotation.copyToMutableArr(arr)
             arr.usePtr {
-                setFloatInc(0.05f)
+                setFloatInc(viewDir.x)
+                    .setFloatInc(viewDir.y)
+                    .setFloatInc(viewDir.z)
+                    .inc()
+                    .setFloatInc(0.05f)
                     .setFloatInc(viewDistance * 1.5f)
                     .setIntInc(frameIndex)
             }
@@ -309,6 +316,6 @@ class Camera(val scene: AbstractScene) {
     }
 
     companion object {
-        const val UBO_SIZE = 420L
+        const val UBO_SIZE = 436L
     }
 }
