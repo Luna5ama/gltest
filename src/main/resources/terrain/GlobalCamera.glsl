@@ -6,6 +6,7 @@ struct Camera {
     mat4 invModelView;
     mat4 invCombined;
     vec4 screenSize;
+    vec3 viewDir;
     vec2 cameraRotation;
     vec2 planeZ;
     uint gFrameIndex;

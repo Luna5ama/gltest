@@ -4,6 +4,7 @@ layout(early_fragment_tests) in;
 #endif
 
 #include "../GBuffers.glsl"
+#include "../ColorUtils.glsl"
 
 uniform sampler2D usam_blockAlbedoAtlas;
 
@@ -35,6 +36,7 @@ void main() {
     #endif
 
     outData.albedo *= fragData.colorMul;
+    outData.albedo.rgb = srgb2linear(outData.albedo.rgb);
 
     outData.worldCoord = fragData.worldCoord;
     outData.worldNormal = fragData.worldNormal;

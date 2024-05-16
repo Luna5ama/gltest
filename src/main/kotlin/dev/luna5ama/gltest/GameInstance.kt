@@ -100,8 +100,8 @@ class GameInstance(val window: Long) {
 
         pollErrors("Pre Setup")
 //    val scene = TestScene(this)
-//        val scene = TerrainScene(this)
-        val scene = PointCloudScene(this)
+        val scene = TerrainScene(this)
+//        val scene = PointCloudScene(this)
 //        val scene = ImpostorTestScene(this)
 
         val mouse = Mouse()

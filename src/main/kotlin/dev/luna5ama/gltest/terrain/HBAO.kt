@@ -46,7 +46,7 @@ class HBAO(private val scene: TerrainScene, private val solidLighting: SolidLigh
         if (sizeBit != lastUpdateSizeBit) {
             finalTex.apply {
                 destroy()
-                allocate(1, ImageFormat.R16_G16_B16_A16_F, input.width / 2, input.height / 2)
+                allocate(1, ImageFormat.R16_G16_B16_A16_F, input.width, input.height)
             }
             finalFbo.apply {
                 clearAttachments()
@@ -77,7 +77,7 @@ class HBAO(private val scene: TerrainScene, private val solidLighting: SolidLigh
 //        val invTanRad = 1.0f / tan(scene.camera.fov.toRadians() * 0.5f)
         shader.uniform1f("uval_tangentBias", 20.0f.toRadians())
         shader.uniform1f("uval_radius", 4.0f)
-        shader.uniform2f("uval_aoStrength", 2.0f, 1.0f)
+        shader.uniform2f("uval_aoStrength", 2.0f, 2.0f)
         shader.uniform1f("uval_giStrength", 1.0f)
         shader.uniform1ui("uval_idk", 1)
         shader.uniform1i("uval_randR", 2)

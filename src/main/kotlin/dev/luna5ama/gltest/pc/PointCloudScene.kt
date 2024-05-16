@@ -27,8 +27,8 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
 //    private val pcData = register(PointCloudData(this, File("dumpMountainV")))
 //    private val pcData = register(PointCloudData(this, File("dumpMountainS")))
 //    private val pcData = register(PointCloudData(this, File("dumpMountainS00")))
-//    private val pcData = register(PointCloudData(this, File("dumpMountainS64")))
-    private val pcData = register(PointCloudData(this, File("dumpForest2")))
+    private val pcData = register(PointCloudData(this, File("dumpMountainS64")))
+//    private val pcData = register(PointCloudData(this, File("dumpForest2")))
 
     val vbuffer = register(PointCloudVisibilityBuffer(this))
     val fboGroup = register(FboGroup(this))
@@ -208,7 +208,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
             saveCameraPos()
         })
 //        dumpShaderAsm(pointDrawShader, "PointDraw.txt")
-        dumpShaderAsm(quadDrawShader, "QuadDraw.txt")
+//        dumpShaderAsm(quadDrawShader, "QuadDraw.txt")
     }
 
     override fun destroy() {
@@ -257,7 +257,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
     private val printTimer2 = TickTimer()
 
     override suspend fun renderFrame() {
-        exitProcess(0)
+//        exitProcess(0)
         glDisable(GL_BLEND)
         updateCamera()
 

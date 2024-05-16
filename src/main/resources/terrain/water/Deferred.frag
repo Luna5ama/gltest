@@ -61,6 +61,7 @@ void main() {
     outData.worldNormal.y += 0.004 * (r2Seq1(worldCoordRand2 + ubo_cameraDefault.gFrameIndex) * 2.0 - 1.0);
 
     outData.albedo *= vertData.colorMul;
+    outData.albedo.rgb = srgb2linear(outData.albedo.rgb);
 
     outData.worldCoord = vertData.worldCoord;
     outData.materialID = frag_mdlAttrib;

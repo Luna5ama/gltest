@@ -53,7 +53,7 @@ class PointCloudVisibilityBuffer(private val scene: PointCloudScene) : IGLObjCon
 
         MemoryStack {
             val ptr = malloc(4).ptr
-            ptr.setInt(Int.MAX_VALUE)
+            ptr.setFloat(Float.POSITIVE_INFINITY)
             bufferRender.clear(GL_R32UI, GL_RED_INTEGER, GL_UNSIGNED_INT, ptr)
         }
 

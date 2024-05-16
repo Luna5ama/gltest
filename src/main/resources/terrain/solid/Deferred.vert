@@ -28,7 +28,7 @@ void main() {
     gl_Position = ubo_cameraDefault.combined * vec4(worldCoord, 1.0);
 
     fragData.worldCoord = worldCoord;
-    fragData.colorMul = vec4(srgb2linear(vColorMul), 1.0);
+    fragData.colorMul = vec4(vColorMul, 1.0);
     fragData.texCoord = vTexCoord;
     fragData.lightCoord = (vLightCoord + 8.0) * 0.00390625;
     fragData.worldNormal = vNormal;

@@ -27,14 +27,14 @@ class MainFbo(private val scene: AbstractScene, private val name: String) : IGLO
             }
             depthStencilTex.apply {
                 label("MainFBO.$name.Depth")
-                allocate(1, ImageFormat.Depth32FNV, screenWidth, screenHeight)
+                allocate(1, ImageFormat.Depth32FStencil8NV, screenWidth, screenHeight)
                 linearClampEdge()
             }
 
             fbo.apply {
                 clearAttachments()
                 attachNonLayered(colorTex, GL_COLOR_ATTACHMENT0) // Regular color
-                attachNonLayered(depthStencilTex, GL_DEPTH_ATTACHMENT) // Depth & Stencil
+                attachNonLayered(depthStencilTex, GL_DEPTH_STENCIL_ATTACHMENT) // Depth & Stencil
                 check()
                 label("MainFBO.$name.FBO")
             }

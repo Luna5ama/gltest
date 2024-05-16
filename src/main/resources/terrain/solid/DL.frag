@@ -92,12 +92,12 @@ float calcShadow(vec3 lightViewNormal) {
 
     float blockerDepth = searchBlocker(shadowCoord.xy, texelSize);
     float blockerDistance = rtwsm_linearDepth(shadowCoord.z) - rtwsm_linearDepth(blockerDepth);
-    float penumbraMult = 128.0 * blockerDistance;
+    float penumbraMult = 64.0 * blockerDistance;
 
     #define SAMPLE_N 128
 
     vec2 ssRange = mix(
-        texelSize * 64.0 + texelSize * penumbraMult,
+        texelSize * 32.0 + texelSize * penumbraMult,
         texelSize * 2048.0 / max(length(gs_data.worldCoord), 1.0),
         tFactor
     );

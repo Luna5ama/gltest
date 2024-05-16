@@ -177,7 +177,7 @@ class Camera(val scene: AbstractScene) {
                 setFloatInc(viewDir.x)
                     .setFloatInc(viewDir.y)
                     .setFloatInc(viewDir.z)
-                    .inc()
+                    .setFloatInc(0.0f)
                     .setFloatInc(0.05f)
                     .setFloatInc(viewDistance * 1.5f)
                     .setIntInc(frameIndex)

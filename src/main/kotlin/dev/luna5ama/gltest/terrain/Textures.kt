@@ -38,9 +38,9 @@ class Textures(val scene: AbstractScene) : IGLObjContainer by IGLObjContainer.Im
         runBlocking {
             launch { initLightMap(File("tex")) }
             launch { initBlocks(File("tex")) }
-//            launch { initBlockNormal(File("tex")) }
-//            launch { initBlockSpecular(File("tex")) }
-//            launch { initNoiseTexture() }
+            launch { initBlockNormal(File("tex")) }
+            launch { initBlockSpecular(File("tex")) }
+            launch { initNoiseTexture() }
         }
     }
 

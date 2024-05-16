@@ -54,9 +54,9 @@ class TAA(private val scene: TerrainScene, samples: Int, private val radius: Flo
         val clampWorldMin = 0.0f
         val clampWorldMax = 0.97f
 
-        val baseMix = 0.9f
+        val baseMix = 0.99f
         val minMax = 0.5f
-        val maxMix = 0.9f
+        val maxMix = 0.95f
 
         val worldVelDiff = 1.0f
         val worldVelDiffMin = 0.1f
