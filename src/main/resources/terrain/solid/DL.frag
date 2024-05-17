@@ -17,7 +17,6 @@ layout(early_fragment_tests) in;
 uniform sampler2D usam_blockNormalAtlas;
 uniform sampler2D usam_blockSpecularAtlas;
 uniform sampler2D usam_lightMap;
-uniform sampler2D usam_hbao;
 
 uniform vec3 originOffset;
 

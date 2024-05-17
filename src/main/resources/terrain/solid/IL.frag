@@ -17,7 +17,7 @@ uniform sampler2D usam_lightMap;
 uniform sampler2D usam_hbao;
 
 uniform vec3 originOffset;
-uniform vec2 uval_aoParams;
+uniform vec4 uval_aoParams;
 
 in vec2 fClipCoord;
 in vec2 fTexCoord;
@@ -105,12 +105,12 @@ void doStuff() {
     ambientLdotN += max(dot(AMBIENT_DIFFUSE_1, mappedNormal), 0.0);
     ambientLdotN += max(dot(AMBIENT_DIFFUSE_2, mappedNormal), 0.0);
 
-    v += aoSample.a * ambientLdotN * gs_data.albedo.rgb * aoSample.rgb * ambientLight1;
+    v += pow(aoSample.a, uval_aoParams.z) * ambientLdotN * gs_data.albedo.rgb * aoSample.rgb * ambientLight1;
 
     vec3 ambientLight2 = AMBIENT_DIFFUSE_BASE_INTENSITY_2 * AMBIENT_DIFFUSE_BASE_COLOR;
     ambientLight2 += AMBIENT_DIFFUSE_INTENSITY_2 * gs_lightMapColor;
 
-    v += aoSample.a * ambientLdotN * gs_data.albedo.rgb * ambientLight2;
+    v += pow(aoSample.a, uval_aoParams.w) * ambientLdotN * gs_data.albedo.rgb * ambientLight2;
 
     out1.rgb = v;
     out1.a = 1.0;

@@ -75,10 +75,10 @@ class HBAO(private val scene: TerrainScene, private val solidLighting: SolidLigh
             buffer(scene.camera.uboBinding)
         }
 //        val invTanRad = 1.0f / tan(scene.camera.fov.toRadians() * 0.5f)
-        shader.uniform1f("uval_tangentBias", 20.0f.toRadians())
+        shader.uniform1f("uval_tangentBias", 15.0f.toRadians())
         shader.uniform1f("uval_radius", 4.0f)
-        shader.uniform2f("uval_aoStrength", 8.0f, 2.0f)
-        shader.uniform1f("uval_giStrength",  0.0f)
+        shader.uniform2f("uval_aoStrength", 8.0f, 1.0f)
+        shader.uniform1f("uval_giStrength",  4.0f)
         shader.uniform1ui("uval_idk", 1)
         shader.uniform1i("uval_randR", 2)
 //        shader.uniform4f(

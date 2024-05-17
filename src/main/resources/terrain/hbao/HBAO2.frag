@@ -84,7 +84,7 @@ void main() {
         for (int j = 0; j < HBAO_STEP_SAMPLES; j++) {
             uint idx2 = j;
             idx2 += worldCoordRand1;
-//            idx2 += texCoordRand;
+            //            idx2 += texCoordRand;
             idx2 += i * HBAO_STEP_SAMPLES;
             idx2 += ubo_cameraDefault.gFrameIndex * HBAO_STEP_SAMPLES * HBAO_DIR_SAMPLES;
             float stepSize = (float(j) + r2Seq1(idx2) * 2.0);
@@ -136,16 +136,14 @@ void main() {
         float occlusion = clamp(attenuation * (sin(horizonAngle) - sinTan) * uval_aoStrength.x, 0.0, 1.0);
         sum.a += 1.0 - occlusion;
 
-        sum.rgb += colorSum / float(samples + 0.0001);
+        if (samples > 0){
+            sum.rgb += colorSum / float(samples);
+        }
     }
-
-//    float shadow = abs(slThis2.g) - 0.1;
-//    sum.rgb *= 1.0 - shadow * 0.5;
 
     sum /= HBAO_DIR_SAMPLES;
 
     sum.a = pow(sum.a, uval_aoStrength.y);
-//    sum.rgb = vec3(float(texCoordRand) / 256.0);
 
     outValue = sum;
 }
