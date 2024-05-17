@@ -11,6 +11,7 @@ import dev.luna5ama.gltest.terrain.post.*
 import dev.luna5ama.glwrapper.ShaderSource
 import dev.luna5ama.glwrapper.api.*
 import dev.luna5ama.glwrapper.enums.FilterMode
+import dev.luna5ama.glwrapper.enums.ShaderStage
 import dev.luna5ama.glwrapper.enums.WrapMode
 import dev.luna5ama.kmogus.*
 import kotlinx.coroutines.Dispatchers
@@ -28,9 +29,9 @@ import kotlin.math.pow
 
 class TerrainScene(gameInstance: GameInstance) : AbstractScene(gameInstance) {
 //    val terrainMesh = register(TerrainMesh(this, File("dumpMountain")))
-//    val terrainMesh = register(TerrainMesh(this, File("dumpMountainV")))
+    val terrainMesh = register(TerrainMesh(this, File("dumpMountainV")))
 //    val terrainMesh = register(TerrainMesh(this, File("dumpBadlands")))
-    val terrainMesh = register(TerrainMesh(this, File("dumpForest")))
+//    val terrainMesh = register(TerrainMesh(this, File("dumpForest")))
 //    val terrainMesh = register(TerrainMesh(this, File("dumpTest")))
 //    val terrainMesh = register(TerrainMesh(this, File("dumpJungle")))
 //        val terrainMesh = register(TerrainMesh(this,File("dumpTaiga")))
@@ -451,9 +452,13 @@ class TerrainScene(gameInstance: GameInstance) : AbstractScene(gameInstance) {
 
 //        samplers.clearBinding()
 //        glViewport(0, 0, camera.screenWidth, camera.screenHeight)
-//        solidLighting.hbao.finalTex.bindTextureUnit(0)
 //        basic.blitShader.bind()
-//        basic.blitShader.uniformSubroutines(ShaderStage.FragmentShader, "sampleRGBPA")
+//        basic.blitShader.applyBinding {
+////            sampler("usam_input", solidLighting.tex1)
+//            sampler("usam_input", solidLighting.hbao.finalTex)
+//            subroutine("usubroutine_SampleChannel", ShaderStage.FragmentShader, "sampleRGBPA")
+//            buffer(camera.uboBinding)
+//        }
 //        basic.blitShader.uniform1f("uMul", 1.0f)
 //        basic.blitShader.uniform1f("uAdd", 0.0f)
 //        basic.blitShader.uniform1f("uPower", 1.0f)

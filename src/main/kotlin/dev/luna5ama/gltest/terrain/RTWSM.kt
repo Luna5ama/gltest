@@ -297,9 +297,9 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
             timer.begin()
             glDispatchCompute(workGroupX, workGroupY, 1)
             timer.end()
-            if (printTimer.tickAndReset(3000)) {
-                println("Backward compute time: %.4f ms".format(timer.averageMS()))
-            }
+//            if (printTimer.tickAndReset(3000)) {
+//                println("Backward compute time: %.4f ms".format(timer.averageMS()))
+//            }
             glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
         }
 

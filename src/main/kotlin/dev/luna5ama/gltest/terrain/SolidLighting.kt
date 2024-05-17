@@ -3,6 +3,7 @@ package dev.luna5ama.gltest.terrain
 import dev.luna5ama.gltest.FboGroup
 import dev.luna5ama.gltest.glDebugGroup
 import dev.luna5ama.gltest.linearClampEdge
+import dev.luna5ama.gltest.uniform2f
 import dev.luna5ama.glwrapper.ShaderBindingSpecs
 import dev.luna5ama.glwrapper.ShaderProgram
 import dev.luna5ama.glwrapper.ShaderSource
@@ -110,6 +111,7 @@ class SolidLighting(private val scene: TerrainScene) : IGLObjContainer by IGLObj
         glBlendFunc(GL_ONE, GL_ZERO)
         glDebugGroup("Composite") {
             indirectShader.bind()
+            indirectShader.uniform2f("uval_aoParams", 0.8f, 1.0f)
             indirectShader.applyBinding {
                 sampler(texBingings)
                 sampler(hbao.texBinding)

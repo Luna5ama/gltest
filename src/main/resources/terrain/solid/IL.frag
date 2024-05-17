@@ -17,6 +17,7 @@ uniform sampler2D usam_lightMap;
 uniform sampler2D usam_hbao;
 
 uniform vec3 originOffset;
+uniform vec2 uval_aoParams;
 
 in vec2 fClipCoord;
 in vec2 fTexCoord;
@@ -96,7 +97,7 @@ void doStuff() {
 
     vec3 v = vec3(0.0);
 
-    v += pow(aoSample.a, 2.0) * dlV;
+    v += mix(1.0, pow(aoSample.a, uval_aoParams.y), uval_aoParams.x) * dlV;
 
     vec3 ambientLight1 = AMBIENT_DIFFUSE_BASE_INTENSITY * AMBIENT_DIFFUSE_BASE_COLOR;
     ambientLight1 += AMBIENT_DIFFUSE_INTENSITY * gs_lightMapColor;

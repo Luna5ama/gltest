@@ -139,8 +139,8 @@ void main() {
         sum.rgb += colorSum / float(samples + 0.0001);
     }
 
-    float shadow = abs(slThis2.g) - 0.1;
-    sum.rgb *= 1.0 - shadow * 0.5;
+//    float shadow = abs(slThis2.g) - 0.1;
+//    sum.rgb *= 1.0 - shadow * 0.5;
 
     sum /= HBAO_DIR_SAMPLES;
 

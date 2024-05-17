@@ -43,28 +43,33 @@ uint worldCoordRand[6];
 
 float tFactor;
 
-float searchBlocker(vec2 shadowCoord, vec2 texelSize) {
-    const float BLOCKER_SEARCH_LOD = 6.0;
+float searchBlocker(vec3 shadowCoord, vec2 texelSize) {
+    const float BLOCKER_SEARCH_LOD = 4.0;
 
     #define BLOCKER_SEARCH_N 4
 
-    vec2 blockerSearchRange = texelSize * 4096.0;
+    vec2 blockerSearchRange = texelSize * 2048.0;
     uint idxB = ubo_cameraDefault.gFrameIndex * BLOCKER_SEARCH_N + worldCoordRand[1];
+
+    float blockerDepth = 0.0f;
 
     #if BLOCKER_SEARCH_N == 1
     vec2 offset = r2Seq2(idxB) * blockerSearchRange - blockerSearchRange * 0.5;
-    float blockerDepth = rtwsm_sampleShadowDepthOffset(usam_shadowDepth, shadowCoord, BLOCKER_SEARCH_LOD, offset).r;
+    float depth = rtwsm_sampleShadowDepthOffset(usam_shadowDepth, shadowCoord.xy, BLOCKER_SEARCH_LOD, offset).r;
+    blockerDepth += step(depth, shadowCoord.z) * depth;
     #else
-    float blockerDepth = 0.0;
+    int n = 0;
     for (int i = 0; i < BLOCKER_SEARCH_N; i++) {
         vec2 offset = r2Seq2(idxB) * blockerSearchRange - blockerSearchRange * 0.5;
-        blockerDepth += rtwsm_sampleShadowDepthOffset(usam_shadowDepth, shadowCoord, BLOCKER_SEARCH_LOD, offset).r;
+        float depth = rtwsm_sampleShadowDepthOffset(usam_shadowDepth, shadowCoord.xy, BLOCKER_SEARCH_LOD, offset).r;
+        blockerDepth += step(depth, shadowCoord.z) * depth;
+        n += int(shadowCoord.z > depth);
         idxB++;
     }
-    blockerDepth /= float(BLOCKER_SEARCH_N);
+    blockerDepth /= float(n);
     #endif
 
-    return blockerDepth;
+    return rtwsm_linearDepth(shadowCoord.z) - rtwsm_linearDepth(blockerDepth);
 }
 
 float calcShadow(vec3 lightViewNormal) {
@@ -90,14 +95,13 @@ float calcShadow(vec3 lightViewNormal) {
     vec2 texelSize;
     shadowCoord.xy = rtwsm_warpTexCoordTexelSize(usam_warpingMap, shadowCoord.xy, texelSize);
 
-    float blockerDepth = searchBlocker(shadowCoord.xy, texelSize);
-    float blockerDistance = rtwsm_linearDepth(shadowCoord.z) - rtwsm_linearDepth(blockerDepth);
+    float blockerDistance = searchBlocker(shadowCoord, texelSize);
     float penumbraMult = 64.0 * blockerDistance;
 
     #define SAMPLE_N 128
 
     vec2 ssRange = mix(
-        texelSize * 32.0 + texelSize * penumbraMult,
+        texelSize * 16.0 + texelSize * penumbraMult,
         texelSize * 2048.0 / max(length(gs_data.worldCoord), 1.0),
         tFactor
     );

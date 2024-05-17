@@ -7,7 +7,6 @@ uniform float uLod = 0.0;
 
 layout(binding = 0) uniform sampler2D usam_input;
 
-
 in vec2 fTexCoord;
 
 out vec4 fragColor;
