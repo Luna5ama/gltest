@@ -7,11 +7,11 @@ layout(location = 0) in vec2 vPos;
 
 out vec2 fTexCoord;
 out vec2 fTexCoordI;
-out float avgLum;
+out float fExpMul;
 
 void main() {
     gl_Position = vec4(vPos, 1.0, 1.0);
     fTexCoord = vPos * 0.5 + 0.5;
     fTexCoordI = fTexCoord * ubo_cameraDefault.screenSize.xy;
-    avgLum = texelFetch(usam_avgLum, ivec2(0, 0), 0).r;
+    fExpMul = texelFetch(usam_avgLum, ivec2(0, 0), 0).r;
 }

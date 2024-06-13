@@ -15,25 +15,25 @@ import dev.luna5ama.glwrapper.objects.TextureObject
 class Bloom(private val scene: TerrainScene) : IGLObjContainer by IGLObjContainer.Impl() {
     private val initPass = register(
         ShaderProgram(
-            ShaderSource.Vert("/terrain/Blit.vert.glsl"),
-            ShaderSource.Frag("/terrain/bloom/BloomInitPass.frag.glsl")
+            ShaderSource.Vert("terrain/Blit.vert.glsl"),
+            ShaderSource.Frag("terrain/bloom/BloomInitPass.frag.glsl")
         )
     )
     private val downPass = register(
         HalfTexelPass(
-            "/terrain/bloom/DualBlurDown.vert.glsl",
-            "/terrain/bloom/DualBlurDown.frag.glsl"
+            "terrain/bloom/DualBlurDown.vert.glsl",
+            "terrain/bloom/DualBlurDown.frag.glsl"
         )
     )
     private val upPass = register(
         HalfTexelPass(
-            "/terrain/bloom/DualBlurUp.vert.glsl",
-            "/terrain/bloom/DualBlurUp.frag.glsl"
+            "terrain/bloom/DualBlurUp.vert.glsl",
+            "terrain/bloom/DualBlurUp.frag.glsl"
         )
     )
     private val finalPass = register(object : HalfTexelPass(
-        "/terrain/bloom/DualBlurUp.vert.glsl",
-        "/terrain/bloom/BloomFinalPass.frag.glsl"
+        "terrain/bloom/DualBlurUp.vert.glsl",
+        "terrain/bloom/BloomFinalPass.frag.glsl"
     ) {
         fun setBloom(amount: Float, power: Float, subtract: Float) {
             uniform1f("bloomAmount", amount)

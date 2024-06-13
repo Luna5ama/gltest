@@ -50,7 +50,6 @@ fun main() {
             if (!gameInstance.rerun) break
         } finally {
             glfwTerminate()
-            ShaderSource.clearAllCache()
         }
     } while (gameInstance.rerun)
 }

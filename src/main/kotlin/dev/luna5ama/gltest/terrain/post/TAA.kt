@@ -25,8 +25,8 @@ class TAA(private val scene: TerrainScene, samples: Int, private val radius: Flo
 
     private val shader = register(
         ShaderProgram(
-            ShaderSource.Vert("/terrain/TAA.vert.glsl"),
-            ShaderSource.Frag("/terrain/TAA.frag.glsl")
+            ShaderSource.Vert("terrain/TAA.vert.glsl"),
+            ShaderSource.Frag("terrain/TAA.frag.glsl")
         )
     )
 
@@ -54,9 +54,9 @@ class TAA(private val scene: TerrainScene, samples: Int, private val radius: Flo
         val clampWorldMin = 0.0f
         val clampWorldMax = 0.97f
 
-        val baseMix = 0.99f
+        val baseMix = if (scene.gameInstance.toggle3) 0.99f else 0.9f
         val minMax = 0.5f
-        val maxMix = 0.95f
+        val maxMix = 0.99f
 
         val worldVelDiff = 1.0f
         val worldVelDiffMin = 0.1f

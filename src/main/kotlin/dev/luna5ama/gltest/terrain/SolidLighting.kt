@@ -3,12 +3,12 @@ package dev.luna5ama.gltest.terrain
 import dev.luna5ama.gltest.FboGroup
 import dev.luna5ama.gltest.glDebugGroup
 import dev.luna5ama.gltest.linearClampEdge
-import dev.luna5ama.gltest.uniform2f
 import dev.luna5ama.glwrapper.ShaderBindingSpecs
 import dev.luna5ama.glwrapper.ShaderProgram
 import dev.luna5ama.glwrapper.ShaderSource
 import dev.luna5ama.glwrapper.api.*
 import dev.luna5ama.glwrapper.enums.ImageFormat
+import dev.luna5ama.glwrapper.enums.ShaderStage
 import dev.luna5ama.glwrapper.objects.FramebufferObject
 import dev.luna5ama.glwrapper.objects.TextureObject
 
@@ -34,14 +34,14 @@ class SolidLighting(private val scene: TerrainScene) : IGLObjContainer by IGLObj
 
     private val directShader = register(
         ShaderProgram(
-            ShaderSource.Vert("/terrain/Blit.vert.glsl"),
-            ShaderSource.Frag("/terrain/solid/DL.frag")
+            ShaderSource.Vert("terrain/Blit.vert.glsl"),
+            ShaderSource.Frag("terrain/solid/DL.frag")
         )
     )
     private val indirectShader = register(
         ShaderProgram(
-            ShaderSource.Vert("/terrain/Blit.vert.glsl"),
-            ShaderSource.Frag("/terrain/solid/IL.frag")
+            ShaderSource.Vert("terrain/Blit.vert.glsl"),
+            ShaderSource.Frag("terrain/solid/IL.frag")
         )
     )
 
@@ -82,8 +82,7 @@ class SolidLighting(private val scene: TerrainScene) : IGLObjContainer by IGLObj
         glStencilFunc(GL_EQUAL, 1, 0xFF)
         glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP)
 
-        glEnable(GL_BLEND)
-        glBlendFunc(GL_ONE, GL_ONE)
+        glDisable(GL_BLEND)
 
         glDebugGroup("Direct lighting") {
             directShader.bind()
@@ -104,27 +103,35 @@ class SolidLighting(private val scene: TerrainScene) : IGLObjContainer by IGLObj
             scene.basic.drawQuad()
         }
 
+        glBlendFunc(GL_ONE, GL_ONE)
         glDebugGroup("HBAO") {
             hbao.render(scene.solidGBuffer)
         }
 
-        glBlendFunc(GL_ONE, GL_ZERO)
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_ONE, GL_ONE)
+
         glDebugGroup("Composite") {
             indirectShader.bind()
-            indirectShader.uniform4f("uval_aoParams", 1.0f, 2.0f, 4.0f, 8.0f)
+            indirectShader.uniform4f("uval_aoParams", 0.5f, 4.0f, 2.0f, if (scene.gameInstance.toggle1) 0.0f else 2.0f)
             indirectShader.applyBinding {
                 sampler(texBingings)
                 sampler(hbao.texBinding)
                 sampler(scene.solidGBuffer.texBindings)
+                sampler(scene.textures.blockNormal)
+                sampler(scene.textures.blockSpecular)
                 sampler(scene.textures.lightMap)
 
                 buffer(scene.camera.uboBinding)
             }
 
-            fboGroup.combined.bind()
+            fboGroup.output.fbo.bind()
 
             scene.basic.drawQuad()
+
+            fboGroup.output.fbo.blitTo(fboGroup.input.fbo, GL_COLOR_BUFFER_BIT, GL_LINEAR)
         }
+
 
         glDisable(GL_STENCIL_TEST)
     }
@@ -147,6 +154,7 @@ class SolidLighting(private val scene: TerrainScene) : IGLObjContainer by IGLObj
                 clearAttachments()
                 attachNonLayered(tex1, GL_COLOR_ATTACHMENT0)
                 attachNonLayered(tex2, GL_COLOR_ATTACHMENT1)
+                attachNonLayered(fboGroup.output.colorTex, GL_COLOR_ATTACHMENT2)
                 attachNonLayered(fboGroup.input.depthStencilTex, GL_DEPTH_STENCIL_ATTACHMENT)
                 setDrawBufferAll()
                 check()

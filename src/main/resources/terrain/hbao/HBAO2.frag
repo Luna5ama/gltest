@@ -1,5 +1,6 @@
 #version 460 core
-//#pragma optionNV (unroll all)
+#pragma optionNV (unroll all)
+#define NO_NORMALS
 
 #include "../utils/Rand.glsl"
 #include "../utils/R2Seqs.glsl"
@@ -7,19 +8,22 @@
 #include "../GBuffers.glsl"
 #include "../GenericGBuffer.glsl"
 #include "../GlobalCamera.glsl"
+#include "../utils/FastMath.glsl"
 
+uniform sampler2D usam_lightMap;
 uniform float uval_tangentBias;
-uniform float uval_radius;
+uniform vec4 uval_radius;
 uniform vec2 uval_aoStrength;
-uniform float uval_giStrength;
+uniform vec2 uval_giStrength;
+uniform vec3 uval_projectParams;
 uniform int uval_randR;
 uniform uint uval_idk;
 
 #include "../solid/Texs.glsl"
+#include "../solid/Utils.glsl"
 
 in vec2 fTexCoordI;
 in vec2 fTexCoord;
-in mat3 fNormalMatrix;
 
 layout(location = 0) out vec4 outValue;
 layout(location = 1) out vec4 outIDK;
@@ -33,117 +37,126 @@ vec3 gtaoMultiBounce(vec3 albedo, float ao) {
     return a * ao3 + b * ao2 + c * ao;
 }
 
+float blinnPhong(vec3 lightDir, vec3 viewDir, vec3 normal, float roughness) {
+    vec3 halfDir = normalize(lightDir + viewDir);
+    float NdotH = max(dot(normal, halfDir), 0.0);
+    float roughness2 = roughness * roughness;
+
+    const float PI_CONST = 3.14159265359;
+    return (1.0 / (PI_CONST * roughness2)) * pow(NdotH, 2.0 / roughness2 - 2.0);
+}
+
+#define F_INDEX ubo_cameraDefault.gFrameIndex
+//#define F_INDEX 0
+
 void main() {
     GBufferData gs_data;
     gbuffer_unpack1(texture(usam_gData1, fTexCoord), gs_data);
 
-    vec4 slThis1 = texture(usam_solidLighting1, fTexCoord);
     vec4 slThis2 = texture(usam_solidLighting2, fTexCoord);
 
     vec3 gs_viewCoord = (ubo_cameraDefault.modelView * vec4(gs_data.worldCoord, 1.0)).xyz;
+    vec3 viewDirThis = normalize(-gs_data.worldCoord);
 
-    vec3 worldNormalThis = sl_unpackNormal(slThis2);
+//        vec3 worldNormalThis = slThis2.rgb;
+//    vec3 worldNormalThis = gs_data.worldNormal;
+    vec3 worldNormalThis = normalize(gs_data.worldNormal + slThis2.rgb);
 
-    vec3 gs_viewNormal = fNormalMatrix * worldNormalThis;
-
-    float roughnessThis = texture(usam_solidLighting1, fTexCoord).a;
-    float sThis = 0.25 + (1.0 - roughnessThis) * 4.0;
+    vec3 gs_viewNormal = mat3(ubo_cameraDefault.modelView) * worldNormalThis;
+    float roughnessThis = slThis2.a;
+    roughnessThis *= roughnessThis;
 
     uint worldCoordRand0 = uint(rand(gs_data.worldCoord.xyz) * 1024.0);
     uint worldCoordRand1 = uint(rand(gs_data.worldCoord.zxy) * 1024.0);
 
     ivec2 intTexCoord = ivec2(fTexCoordI);
-    uint texCoordRand = uint((intTexCoord.x % uval_randR) + ((intTexCoord.y % uval_randR) * uval_randR)) ;
+    uint texCoordRand = uint((intTexCoord.x % uval_randR) + ((intTexCoord.y % uval_randR) * uval_randR));
 
     float sampleAngleDelta = 2.0 * PI_CONST / HBAO_DIR_SAMPLES;
-//    float initialAngle = r2Seq1(ubo_cameraDefault.gFrameIndex) * sampleAngleDelta - sampleAngleDelta * 0.5;
-    float initialAngle = r2Seq1(ubo_cameraDefault.gFrameIndex + worldCoordRand0) * sampleAngleDelta - sampleAngleDelta * 0.5;
-//    float initialAngle = r2Seq1((ubo_cameraDefault.gFrameIndex + texCoordRand) * uval_idk) * sampleAngleDelta - sampleAngleDelta * 0.5;
-//    float initialAngle = r2Seq1(texCoordRand * uval_idk) * sampleAngleDelta - sampleAngleDelta * 0.5;
+    float initialAngle = r2Seq1(F_INDEX + worldCoordRand0) * sampleAngleDelta - sampleAngleDelta * 0.5;
+    vec2 sphereRadius = (max(uval_radius.x, uval_radius.z) / -gs_viewCoord.z) * uval_projectParams.xy;
 
     vec4 sum = vec4(0.0);
-
-    vec2 texelSize = clamp(vec2(uval_radius * (512.0 / HBAO_STEP_SAMPLES)) / length(gs_data.worldCoord), 1.0, 64.0) / textureSize(usam_gData1, 0);
 
     for (int i = 0; i < HBAO_DIR_SAMPLES; i++) {
         float sampleAngle = initialAngle + sampleAngleDelta * float(i);
         vec2 sampleDir = vec2(cos(sampleAngle), sin(sampleAngle));
-        vec3 sampleDir3 = vec3(sampleDir, 0.0);
-        vec2 sampleDirUV = sampleDir * texelSize;
+        vec2 sampleDirUVUnit = sampleDir * vec2(uval_projectParams.z, 1.0) * ubo_cameraDefault.screenSize.zw;
+        vec2 sampleDirUV = sampleDir * sphereRadius / HBAO_STEP_SAMPLES;
 
-        float tangentAngle = (acos(dot(sampleDir3, gs_viewNormal)) - (0.5 * PI_CONST)) + uval_tangentBias;
-        float sinTan = sin(tangentAngle);
-        float horizonAngle = tangentAngle;
+        vec2 localSpaceNormal = vec2(dot(gs_viewNormal.xy, sampleDir), dot(gs_viewNormal.xy, sampleDir));
+        float tangentAngle = asinFast4(-dot(sampleDir, gs_viewNormal.xy)) + uval_tangentBias;
 
-        vec3 lastDiff = vec3(0.0);
         vec3 colorSum = vec3(0.0);
-        int samples = 0;
+        float giSample = 0.0;
 
-        float lastStep = 0.0;
+        uint dirStepBaseIdx = worldCoordRand1;
+        dirStepBaseIdx += F_INDEX;
+        dirStepBaseIdx += i;
+        dirStepBaseIdx *= HBAO_STEP_SAMPLES;
 
-        for (int j = 0; j < HBAO_STEP_SAMPLES; j++) {
-            uint idx2 = j;
-            idx2 += worldCoordRand1;
-            //            idx2 += texCoordRand;
-            idx2 += i * HBAO_STEP_SAMPLES;
-            idx2 += ubo_cameraDefault.gFrameIndex * HBAO_STEP_SAMPLES * HBAO_DIR_SAMPLES;
-            float stepSize = (float(j) + r2Seq1(idx2) * 2.0);
+        float sinTan = sin(tangentAngle);
+        float maxOcclusion = 0.0;
+        vec2 baseCoord = fTexCoord + sampleDirUVUnit;
+
+        for (int stepIdx = 0; stepIdx < HBAO_STEP_SAMPLES; stepIdx++) {
+            float stepSize = float(stepIdx) + r2Seq1(dirStepBaseIdx + stepIdx);
             vec2 sampleStep = stepSize * sampleDirUV;
-            vec2 sampleTexCoord = fTexCoord + sampleStep;
+            vec2 sampleTexCoord = baseCoord + sampleStep;
+            vec2 sampleClipCoord = sampleTexCoord * 2.0 - 1.0;
+            if (any(greaterThanEqual(abs(sampleClipCoord), vec2(1.0)))) {
+                break;
+            }
 
             GBufferData gSampleData;
             gbuffer_unpack1(texture(usam_gData1, sampleTexCoord), gSampleData);
 
-            vec3 sampleViewCoord = (ubo_cameraDefault.modelView * vec4(gSampleData.worldCoord, 1.0)).xyz;
+            vec3 diff = gSampleData.worldCoord - gs_data.worldCoord;
+            float dist = length(diff);
+            if (dist > uval_radius.x) break;
 
-            vec3 diff = sampleViewCoord.xyz - gs_viewCoord;
-            float sampleDist = length(diff);
-            if (length(diff) <= uval_radius) {
-                float samplerElevationAngle = atan(diff.z / length(diff.xy));
-                horizonAngle = max(horizonAngle, samplerElevationAngle);
-                lastDiff = diff;
+                vec3 diffView = mat3(ubo_cameraDefault.modelView) * diff;
+                float normLastDist = dist * uval_radius.y;
+                float aoAttenuation = 1.0 - normLastDist;
+                float xSample = diffView.z * fastRcpSqrtNR0(dot(diffView.xy, diffView.xy));
+                float sinSample = xSample * fastRcpSqrtNR0(1.0 + xSample * xSample);
+                maxOcclusion = clamp(aoAttenuation * (sinSample - sinTan) * uval_aoStrength.x, maxOcclusion, 1.0);
 
-                vec3 worldDir = normalize(gs_data.worldCoord - gSampleData.worldCoord);
 
                 vec4 sample1 = texture(usam_solidLighting1, sampleTexCoord);
                 vec4 sample2 = texture(usam_solidLighting2, sampleTexCoord);
 
-                vec3 worldNormalThat = gSampleData.worldNormal;
+                vec3 dirToThat = normalize(gSampleData.worldCoord - gs_data.worldCoord);
+                vec3 worldNormalThat = sample2.rgb;
 
-                vec3 color = sample1.rgb;
-                float roughnessThat = sample1.a;
-                float reflectance = max(sample2.r, 0.01);
+                vec3 emissiveLightThat = sample1.a * EMISSIVE_INTENSITY * EMISSIVE_INTENSITY * gSampleData.albedo.rgb;
+                vec3 diffuseLightThat = uval_giStrength.x * sample1.rgb * gSampleData.albedo.rgb + emissiveLightThat;
+                vec3 specLightThat = uval_giStrength.y * (sample1.rgb + emissiveLightThat);
 
-                float normDist = sampleDist / uval_radius;
+                vec3 incomingLight = specLightThat + diffuseLightThat;
 
-                float sThat = 0.25 + (1.0 - roughnessThat) * 4.0;
-                float s = mix(sThis, sThat, 0.9);
-                float f = pow(smoothstep(-0.5, 1.0, dot(worldDir, worldNormalThat)), s);
-                f *= pow(max(dot(-worldDir, worldNormalThis), 0.0), s * 0.5);
-                f *= 1.0 - normDist * normDist;
+                float diffuseThis = brdf_diffuse_orenNayar(dirToThat, viewDirThis, worldNormalThis, roughnessThis);
+//                float diffuseThis = max(dot(worldNormalThis, dirToThat), 0.0);
+                float angle = dot(-dirToThat, worldNormalThat);
+//                angle = angle * angle * angle * (angle * (6.0 * angle - 15.0) + 10.0);
+                angle = max(angle, 0.0);
 
-                float colorAtt = uval_giStrength;
-                colorAtt *= 1.0 + (reflectance * reflectance * reflectance) * 64.0;
-                colorSum += gtaoMultiBounce(color, f) * colorAtt;
+                float attenuation = 1.0 / (1.0 + dist * dist);
+//                attenuation *= 1.0 - smoothstep(uval_radius.z * 0.1, uval_radius.z, dist);
 
-                samples++;
-            }
+                colorSum += angle * diffuseThis * attenuation * incomingLight;
+
+                giSample++;
         }
 
-        float norm = length(lastDiff) / uval_radius;
-        float attenuation = 1.0 - norm * norm;
-
-        float occlusion = clamp(attenuation * (sin(horizonAngle) - sinTan) * uval_aoStrength.x, 0.0, 1.0);
-        sum.a += 1.0 - occlusion;
-
-        if (samples > 0){
-            sum.rgb += colorSum / float(samples);
-        }
+        sum.a += maxOcclusion;
+//        sum.a += 1.0 - maxOcclusion;
+        sum.rgb += step(1.0, giSample) * (colorSum / float(max(giSample, 1)));
     }
 
     sum /= HBAO_DIR_SAMPLES;
-
-    sum.a = pow(sum.a, uval_aoStrength.y);
+//    sum.a = min(sum.a * uval_aoStrength.x, 1.0);
+    sum.a = 1.0 - sum.a;
 
     outValue = sum;
 }

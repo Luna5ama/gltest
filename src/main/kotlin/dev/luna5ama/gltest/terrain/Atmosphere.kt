@@ -10,8 +10,8 @@ import org.joml.Vector3d
 class Atmosphere(private val scene: TerrainScene) : IGLObjContainer by IGLObjContainer.Impl() {
     private val aerialShader = register(
         ShaderProgram(
-            ShaderSource.Vert("/terrain/atmosphere/Aerial.vert.glsl"),
-            ShaderSource.Frag("/terrain/atmosphere/Aerial.frag.glsl")
+            ShaderSource.Vert("terrain/atmosphere/Aerial.vert.glsl"),
+            ShaderSource.Frag("terrain/atmosphere/Aerial.frag.glsl")
         )
     ).apply {
         label("AtmoSphere.Aerial")

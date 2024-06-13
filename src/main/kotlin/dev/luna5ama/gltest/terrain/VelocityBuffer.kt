@@ -36,8 +36,8 @@ class VelocityBuffer(private val scene: TerrainScene) : IGLObjContainer by IGLOb
 
     private val velocityBufferShader = register(
         ShaderProgram(
-            ShaderSource.Vert("/terrain/Blit.vert.glsl"),
-            ShaderSource.Frag("/terrain/vbuffer/VelocityBuffer.frag.glsl")
+            ShaderSource.Vert("terrain/Blit.vert.glsl"),
+            ShaderSource.Frag("terrain/vbuffer/VelocityBuffer.frag.glsl")
         )
     )
 

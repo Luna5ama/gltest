@@ -18,26 +18,26 @@ class Skybox(private val scene: TerrainScene) : IGLObjContainer by IGLObjContain
 //    private val time = 50.0f * 3.14f
 //
 //    private val shader = TerrainDrawShader(
-//        ShaderSource.Vert("/terrain/sky/Sky.vert.glsl") {
+//        ShaderSource.Vert("terrain/sky/Sky.vert.glsl") {
 //            define("uTime", time)
 //        },
-//        ShaderSource.Frag("/terrain/sky/Sky.frag.glsl") {
+//        ShaderSource.Frag("terrain/sky/Sky.frag.glsl") {
 //            define("uTime", time)
 //        }
 //    )
 
     private val skyboxShader = register(
         TerrainDrawShader(
-            ShaderSource.Vert("/terrain/sky/Skybox.vert.glsl"),
-            ShaderSource.Geom("/terrain/sky/Skybox.geom.glsl"),
-            ShaderSource.Frag("/terrain/sky/Skybox.frag.glsl")
+            ShaderSource.Vert("terrain/sky/Skybox.vert.glsl"),
+            ShaderSource.Geom("terrain/sky/Skybox.geom.glsl"),
+            ShaderSource.Frag("terrain/sky/Skybox.frag.glsl")
         )
     )
 
     private val drawShader = register(
         ShaderProgram(
-            ShaderSource.Vert("/terrain/sky/SkyboxDraw.vert.glsl"),
-            ShaderSource.Frag("/terrain/sky/SkyboxDraw.frag.glsl")
+            ShaderSource.Vert("terrain/sky/SkyboxDraw.vert.glsl"),
+            ShaderSource.Frag("terrain/sky/SkyboxDraw.frag.glsl")
         )
     ).apply {
         MemoryStack {

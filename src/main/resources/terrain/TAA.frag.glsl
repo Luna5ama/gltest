@@ -63,10 +63,10 @@ void main() {
     float vDiffWeight = smoothstep(0.0, 1.0, sqrt(abs(vCurr - vPrev)));
 
     float clampRatio = 0.0;
-//    clampRatio += vDiffWeight * 0.8;
-//    clampRatio += smoothstep(0.5, 1.0, newPixel) * 1.0;
-//    clampRatio += smoothstep(0.0, 0.1, vCurr) * 0.6;
-//    clampRatio = clamp(clampRatio, 0.05, 1.0);
+    clampRatio += vDiffWeight * 0.8;
+//    clampRatio += smoothstep(0.5, 1.0, newPixel) * 0.5;
+    clampRatio += smoothstep(0.0, 0.1, vCurr) * 0.6;
+    clampRatio = clamp(clampRatio, 0.0, 1.0);
 
     lastColor = mix(lastColor, clamp(lastColor, nearMin, nearMax), clampRatio);
 

@@ -443,7 +443,7 @@ class TerrainMesh(private val scene: TerrainScene, dir: File) : IGLObjContainer 
     }
 
     private val indirectSetupCompShader = ShaderProgram(
-        ShaderSource.Comp("/terrain/culling/IndirectSetup.comp.glsl")
+        ShaderSource.Comp("terrain/culling/IndirectSetup.comp.glsl")
     )
 
     class ChunkInfo(

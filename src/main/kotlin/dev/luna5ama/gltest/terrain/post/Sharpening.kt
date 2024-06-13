@@ -9,8 +9,8 @@ import dev.luna5ama.gltest.terrain.TerrainScene
 
 class Sharpening(private val scene: TerrainScene) : IGLObjContainer by IGLObjContainer.Impl() {
     private val shader = register(ShaderProgram(
-        ShaderSource.Vert("/terrain/Blit.vert.glsl"),
-        ShaderSource.Frag("/terrain/post/Sharpening.frag.glsl")
+        ShaderSource.Vert("terrain/Blit.vert.glsl"),
+        ShaderSource.Frag("terrain/post/Sharpening.frag.glsl")
     )
 )
     fun  render(fboGroup: FboGroup) {

@@ -13,38 +13,38 @@ import dev.luna5ama.glwrapper.objects.VertexArrayObject
 
 class Basic : IGLObjContainer by IGLObjContainer.Impl() {
     val blitShader = register(ShaderProgram(
-        ShaderSource.Vert("/terrain/Blit.vert.glsl"),
-        ShaderSource.Frag("/terrain/Blit.frag.glsl")
+        ShaderSource.Vert("terrain/Blit.vert.glsl"),
+        ShaderSource.Frag("terrain/Blit.frag.glsl")
     ))
     val blitDepthOutputShader = register(ShaderProgram(
-        ShaderSource.Vert("/terrain/Blit.vert.glsl"),
-        ShaderSource.Frag("/terrain/Blit.frag.glsl") {
+        ShaderSource.Vert("terrain/Blit.vert.glsl"),
+        ShaderSource.Frag("terrain/Blit.frag.glsl") {
             define("DEPTH_OUTPUT")
         }
     ))
     val blitDepthShader = register(ShaderProgram(
-        ShaderSource.Vert("/terrain/Blit.vert.glsl"),
-        ShaderSource.Frag("/terrain/BlitDepth.frag.glsl")
+        ShaderSource.Vert("terrain/Blit.vert.glsl"),
+        ShaderSource.Frag("terrain/BlitDepth.frag.glsl")
     ))
     val blit1DV = register(ShaderProgram(
-        ShaderSource.Vert("/terrain/Blit.vert.glsl"),
-        ShaderSource.Frag("/terrain/Blit1D.frag.glsl") {
+        ShaderSource.Vert("terrain/Blit.vert.glsl"),
+        ShaderSource.Frag("terrain/Blit1D.frag.glsl") {
             define("VERTICAL")
         }
     ))
     val blit1DH = register(ShaderProgram(
-        ShaderSource.Vert("/terrain/Blit.vert.glsl"),
-        ShaderSource.Frag("/terrain/Blit1D.frag.glsl")
+        ShaderSource.Vert("terrain/Blit.vert.glsl"),
+        ShaderSource.Frag("terrain/Blit1D.frag.glsl")
     ))
     val blit1DArrayV = register(ShaderProgram(
-        ShaderSource.Vert("/terrain/Blit.vert.glsl"),
-        ShaderSource.Frag("/terrain/Blit1DArray.frag.glsl") {
+        ShaderSource.Vert("terrain/Blit.vert.glsl"),
+        ShaderSource.Frag("terrain/Blit1DArray.frag.glsl") {
             define("VERTICAL")
         }
     ))
     val blit1DArrayH = register(ShaderProgram(
-        ShaderSource.Vert("/terrain/Blit.vert.glsl"),
-        ShaderSource.Frag("/terrain/Blit1DArray.frag.glsl")
+        ShaderSource.Vert("terrain/Blit.vert.glsl"),
+        ShaderSource.Frag("terrain/Blit1DArray.frag.glsl")
     ))
     val blitVao = register(VertexArrayObject()).apply {
         val vbo = register(BufferObject.Immutable())

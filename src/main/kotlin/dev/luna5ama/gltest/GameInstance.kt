@@ -6,6 +6,7 @@ import dev.luna5ama.gltest.pc.PointCloudScene
 import dev.luna5ama.gltest.structs.Vec2i32
 import dev.luna5ama.gltest.structs.sizeof
 import dev.luna5ama.gltest.terrain.TerrainScene
+import dev.luna5ama.glwrapper.ShaderSource
 import dev.luna5ama.glwrapper.api.*
 import dev.luna5ama.kmogus.*
 import kotlinx.coroutines.runBlocking
@@ -14,6 +15,7 @@ import org.lwjgl.glfw.GLFW.*
 import org.lwjgl.opengl.GL
 import org.lwjgl.opengl.GL43C.glDebugMessageCallback
 import org.lwjgl.opengl.GLDebugMessageCallback
+import java.io.File
 import kotlin.coroutines.CoroutineContext
 
 class GameInstance(val window: Long) {
@@ -27,6 +29,9 @@ class GameInstance(val window: Long) {
     var fullScreen = false
 
     var rerun = false; private set
+    var toggle1 = false; private set
+    var toggle2 = false; private set
+    var toggle3 = false; private set
 
     lateinit var mainContext: CoroutineContext
 
@@ -45,9 +50,20 @@ class GameInstance(val window: Long) {
     private val prevPos = Vec2i32(prevPosX)
     private val prevSize = Vec2i32(prevSizeX)
 
+    private val pathResolver = object : ShaderSource.PathResolver {
+        private val root = File("C:\\CodeShit\\gltest\\src\\main\\resources").toURI()
+
+        override fun resolve(path: String): ShaderSource.SourceKey.Path {
+            return ShaderSource.SourceKey.Path(root, root.resolve("./$path"))
+        }
+    }
+
     fun run() {
         glfwMakeContextCurrent(window)
         glfwSwapInterval(SWAP_INTERVAL)
+        GLWrapper.init {
+            GLWrapper(it, pathResolver)
+        }
 
         runCatching { GL.create() }
         GL.createCapabilities()
@@ -252,10 +268,34 @@ class GameInstance(val window: Long) {
             }
         }
 
+        keyboard.register(GLFW_KEY_F2) {
+            if (it == GLFW_RELEASE) {
+                toggle1 = !toggle1
+            }
+        }
+
+        keyboard.register(GLFW_KEY_F3) {
+            if (it == GLFW_RELEASE) {
+                toggle2 = !toggle2
+            }
+        }
+
+        keyboard.register(GLFW_KEY_F4) {
+            if (it == GLFW_RELEASE) {
+                toggle3 = !toggle3
+            }
+        }
+
         keyboard.register(GLFW_KEY_F5) {
             if (it == GLFW_RELEASE) {
                 glfwSetWindowShouldClose(window, true)
                 rerun = true
+            }
+        }
+
+        keyboard.register(GLFW_KEY_F6) {
+            if (it == GLFW_RELEASE) {
+                scene.reloadShaders()
             }
         }
 

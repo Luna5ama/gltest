@@ -6,6 +6,7 @@
 #include "vbuffer/VBuffers.glsl"
 #include "GlobalCamera.glsl"
 #include "SWRUtils.glsl"
+#include "FastMath.glsl"
 
 layout(local_size_x = BATCH_SIZE, local_size_y = 1, local_size_z = 1) in;
 
@@ -130,6 +131,7 @@ void main() {
     vec4 pos34 = vec4(pos3.xy, pos4.xy);
 
     vec4 posZInv = 1.0 / vec4(pos1.z, pos2.z, pos3.z, pos4.z);
+//    vec4 posZInv = fastRcpNR2(vec4(pos1.z, pos2.z, pos3.z, pos4.z));
 
     pos12 = pos12 * posZInv.xxyy;
     pos34 = pos34 * posZInv.zzww;
@@ -153,23 +155,21 @@ void main() {
 
     if (all(bvec2(all(clipping1), all(clipping2)))) return;
 
+    vec4 screenBound = clamp(vec4(min(min(pos1.xy, pos2.xy), min(pos3.xy, pos4.xy)), max(max(pos1.xy, pos2.xy), max(pos3.xy, pos4.xy))), 0.0, 1.0);
+    screenBound *= uval_viewportSize.xyxy;
+    vec4 boundRounded = vec4(floor(screenBound.xy), ceil(screenBound.zw));
+    screenBound = boundRounded * uval_viewportSize.zwzw;
 
-    vec2 minScreen = clamp(min(min(pos1.xy, pos2.xy), min(pos3.xy, pos4.xy)), 0.0, 1.0);
-    vec2 maxScreen = clamp(max(max(pos1.xy, pos2.xy), max(pos3.xy, pos4.xy)), 0.0, 1.0);
-    ivec2 minTexel = ivec2(floor(minScreen * uval_viewportSize.xy));
-    ivec2 maxTexel = ivec2(ceil(maxScreen * uval_viewportSize.xy));
-
-    minScreen = vec2(minTexel) * uval_viewportSize.zw;
-    maxScreen = vec2(maxTexel) * uval_viewportSize.zw;
-
-    ivec2 texelN = maxTexel - minTexel;
-    vec2 invTexelN = 1.0 / vec2(texelN);
+    vec2 texelNF = boundRounded.zw - boundRounded.xy;
+    vec2 invTexelN = 1.0 / texelNF;
+    ivec4 boundRoundedInt = ivec4(boundRounded);
+    ivec2 texelNI = boundRoundedInt.zw - boundRoundedInt.xy;
 
     vec3 t1bBase, t1bMx, t1bMy, t1bDx, t1bDy;
-    swr_calcBarycentricGrad(minScreen, maxScreen, invTexelN, pos1.xy, pos2.xy, pos3.xy, t1bBase, t1bMx, t1bMy, t1bDx, t1bDy);
+    swr_calcBarycentricGrad(screenBound, invTexelN, pos1.xy, pos2.xy, pos3.xy, t1bBase, t1bMx, t1bMy, t1bDx, t1bDy);
 
     vec3 t2bBase, t2bMx, t2bMy, t2bDx, t2bDy;
-    swr_calcBarycentricGrad(minScreen, maxScreen, invTexelN, pos3.xy, pos4.xy, pos1.xy, t2bBase, t2bMx, t2bMy, t2bDx, t2bDy);
+    swr_calcBarycentricGrad(screenBound, invTexelN, pos3.xy, pos4.xy, pos1.xy, t2bBase, t2bMx, t2bMy, t2bDx, t2bDy);
 
     #ifdef CUTOUT
     uint texCoordIdx = ssbo_quadAttribIndexBuffer[quadIndex] * 4u;
@@ -186,15 +186,15 @@ void main() {
 
     vec3 t1bYStart = t1bBase;
     vec3 t2bYStart = t2bBase;
-    ivec2 outputCoord = minTexel;
+    ivec2 outputCoord = boundRoundedInt.xy;
     vec3 t1b;
     vec3 t2b;
 
-    for (int y = 0; y < texelN.y; y++) {
+    for (int y = 0; y < texelNI.y; y++) {
         t1b = t1bYStart;
         t2b = t2bYStart;
 
-        for (int x = 0; x < texelN.x; x++) {
+        for (int x = 0; x < texelNI.x; x++) {
             if (min3(t1b) >= 0.0) {
                 #ifdef CUTOUT
                 if (textureLod(usam_blockAlbedoAtlas, vec2(dot(texCoordX.xyz, t1b), dot(texCoordY.xyz, t1b)), 0.0).a > 0.5) {
@@ -240,6 +240,6 @@ void main() {
 
         t1bYStart += t1bDy;
         t2bYStart += t2bDy;
-        outputCoord = ivec2(minTexel.x, outputCoord.y + 1);
+        outputCoord = ivec2(boundRoundedInt.x, outputCoord.y + 1);
     }
 }

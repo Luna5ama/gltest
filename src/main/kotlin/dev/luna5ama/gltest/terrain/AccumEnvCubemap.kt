@@ -18,16 +18,16 @@ import org.lwjgl.glfw.GLFW
 class AccumEnvCubemap(private val scene: TerrainScene) : IGLObjContainer by IGLObjContainer.Impl() {
     private val skyboxShader = register(
         TerrainDrawShader(
-            ShaderSource.Vert("/terrain/sky/Skybox.vert.glsl"),
-            ShaderSource.Geom("/terrain/sky/Skybox.geom.glsl"),
-            ShaderSource.Frag("/terrain/sky/Skybox.frag.glsl")
+            ShaderSource.Vert("terrain/sky/Skybox.vert.glsl"),
+            ShaderSource.Geom("terrain/sky/Skybox.geom.glsl"),
+            ShaderSource.Frag("terrain/sky/Skybox.frag.glsl")
         )
     )
 
     private val drawShader = register(
         ShaderProgram(
-            ShaderSource.Vert("/terrain/sky/SkyboxDraw.vert.glsl"),
-            ShaderSource.Frag("/terrain/sky/SkyboxDraw.frag.glsl")
+            ShaderSource.Vert("terrain/sky/SkyboxDraw.vert.glsl"),
+            ShaderSource.Frag("terrain/sky/SkyboxDraw.frag.glsl")
         )
     ).apply {
         MemoryStack {

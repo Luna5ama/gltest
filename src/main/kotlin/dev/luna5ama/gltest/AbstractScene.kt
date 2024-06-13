@@ -2,6 +2,11 @@ package dev.luna5ama.gltest
 
 import dev.luna5ama.gltest.terrain.IGLObjContainer
 import dev.luna5ama.gltest.terrain.register
+import dev.luna5ama.glwrapper.ShaderProgram
+import dev.luna5ama.glwrapper.ShaderSource
+import dev.luna5ama.glwrapper.api.GLWrapper
+import dev.luna5ama.glwrapper.enums.GLObjectType
+import dev.luna5ama.glwrapper.objects.IGLObject
 
 abstract class AbstractScene(val gameInstance: GameInstance) : IGLObjContainer by IGLObjContainer.Impl() {
     val camera = Camera(this)
@@ -32,4 +37,15 @@ abstract class AbstractScene(val gameInstance: GameInstance) : IGLObjContainer b
     }
 
     abstract suspend fun renderFrame()
+
+    open fun reloadShaders() {
+        GLWrapper.instance.shaderSrcProviders.clearCache()
+        val objs = mutableMapOf<GLObjectType, MutableSet<IGLObject>>()
+        collectObjs(objs)
+        objs[GLObjectType.Program]?.forEach {
+            if (it is ShaderProgram) {
+                it.reload()
+            }
+        }
+    }
 }

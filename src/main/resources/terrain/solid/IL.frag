@@ -12,7 +12,10 @@ layout(early_fragment_tests) in;
 
 #include "Texs.glsl"
 #include "../SolidGBuffer.glsl"
+#include "Utils.glsl"
 
+uniform sampler2D usam_blockNormalAtlas;
+uniform sampler2D usam_blockSpecularAtlas;
 uniform sampler2D usam_lightMap;
 uniform sampler2D usam_hbao;
 
@@ -25,7 +28,6 @@ in vec2 fTexCoordI;
 in mat3 fNormalMatrix;
 
 layout(location = 0) out vec4 out1;
-layout(location = 1) out vec4 out2;
 
 ivec2 intTexCoord = ivec2(fTexCoordI);
 
@@ -38,83 +40,46 @@ float gs_aoMul;
 
 uint worldCoordRand[6];
 
-//float ggxDistribution(float NdotH, float roughness) {
-//    float a2 = roughness * roughness;
-//    float NdotH2 = NdotH * NdotH;
-//    float d = (NdotH2 * (a2 - 1.0) + 1.0);
-//    return a2 / (d * d * M_PI);
-//}
-//
-//float geometrySmith(float NdotL, float NdotV, float roughness) {
-//    float r = (roughness + 1.0);
-//    float k = (r * r) / 8.0;
-//    float ggx2  = NdotV / (NdotV * (1.0 - k) + k);
-//    float ggx1  = NdotL / (NdotL * (1.0 - k) + k);
-//    return ggx1 * ggx2;
-//}
-//
-//vec3 fresnelSchlick(vec3 f0, float lDotH) {
-//    return f0 + (vec3(1.0f) - f0) * pow(1.0f - lDotH, 5.0f);
-//}
 
-//vec3 ggxDirect(vec3 N, vec3 V, vec3 albedo, vec3 spec, float reflectance, float rough, vec3 lightIntensity, vec3 L, float shadowMult) {
-//    float NdotL = max(dot(N, L), 0.00001);
-//
-//    vec3 H = normalize(V + L);
-//    float NdotH = max(dot(N, H), 0.00001);
-//    float LdotH = max(dot(L, H), 0.00001);
-//    float NdotV = max(dot(N, V), 0.00001);
-//
-//    float D = ggxDistribution(NdotH, rough);
-//    float G = geometrySmith(NdotL, NdotV, rough);
-//    vec3 F = fresnelSchlick(spec, LdotH);
-//
-//    vec3 Ks = F;
-//    vec3 Kd = vec3(1.0) - Ks;
-//    Kd *= 1.0 - reflectance;
-//
-//    vec3 ggxTerm = D * G * F / (4 * NdotV * NdotL);
-//
-//    return shadowMult * lightIntensity * (ggxTerm * NdotL + Kd * albedo * NdotL / M_PI);
-//}
+vec3 gtaoMultiBounce(vec3 albedo, float ao) {
+    vec3 a = 2.0404 * albedo - 0.3324;
+    vec3 b = 0.0091 * albedo + 0.0151;
+    vec3 c = 0.0071 * albedo + 0.0001;
+    float ao2 = ao * ao;
+    float ao3 = ao2 * ao;
+    return a * ao3 + b * ao2 + c * ao;
+}
 
-const vec3 AMBIENT_DIFFUSE_1 = vec3(0.16169041, 0.80845207, -0.5659165);
-const vec3 AMBIENT_DIFFUSE_2 = vec3(-0.16169041, 0.80845207, 0.5659165);
-const vec3 AMBIENT_DIFFUSE_BASE_COLOR = vec3(1.0, 0.95, 0.8);
-const float AMBIENT_DIFFUSE_BASE_INTENSITY = 1.0;
-const float AMBIENT_DIFFUSE_INTENSITY = 12.0;
-
-const float AMBIENT_DIFFUSE_BASE_INTENSITY_2 = 0.01;
-const float AMBIENT_DIFFUSE_INTENSITY_2 = 0.1;
 
 void doStuff() {
-    vec4 aoSample = texture(usam_hbao, fTexCoord, 0);
+    vec4 aoSample = texture(usam_hbao, fTexCoord);
     vec4 sl1 = texelFetch(usam_solidLighting1, intTexCoord, 0);
     vec4 sl2 = texelFetch(usam_solidLighting2, intTexCoord, 0);
 
-    vec3 dlV = sl1.rgb;
-    vec3 mappedNormal = sl_unpackNormal(sl2);
+    float emissive = sl1.a;
+    float roughness = sl2.a;
+    roughness *= roughness;
+
+    vec3 mappedNormal = sl2.rgb;
+
+    vec4 normalMap = textureLod(usam_blockNormalAtlas, gs_data.texCoord, 0.0);
+    float materialAo = normalMap.b;
+
+    vec3 viewDir = normalize(-gs_data.worldCoord);
+
+    float blockLightMul = 64.0 * pow(aoSample.a, uval_aoParams.x);
+    float skyLightMul = 32.0 * pow(aoSample.a, uval_aoParams.y);
+    vec3 ambientLight = materialAo * calcAmbient(usam_lightMap, viewDir, mappedNormal, roughness, gs_data.lightCoord, blockLightMul, skyLightMul);
 
     vec3 v = vec3(0.0);
-
-    v += mix(1.0, pow(aoSample.a, uval_aoParams.y), uval_aoParams.x) * dlV;
-
-    vec3 ambientLight1 = AMBIENT_DIFFUSE_BASE_INTENSITY * AMBIENT_DIFFUSE_BASE_COLOR;
-    ambientLight1 += AMBIENT_DIFFUSE_INTENSITY * gs_lightMapColor;
-    float ambientLdotN = 0.5;
-    ambientLdotN += max(dot(AMBIENT_DIFFUSE_1, mappedNormal), 0.0);
-    ambientLdotN += max(dot(AMBIENT_DIFFUSE_2, mappedNormal), 0.0);
-
-    v += pow(aoSample.a, uval_aoParams.z) * ambientLdotN * gs_data.albedo.rgb * aoSample.rgb * ambientLight1;
-
-    vec3 ambientLight2 = AMBIENT_DIFFUSE_BASE_INTENSITY_2 * AMBIENT_DIFFUSE_BASE_COLOR;
-    ambientLight2 += AMBIENT_DIFFUSE_INTENSITY_2 * gs_lightMapColor;
-
-    v += pow(aoSample.a, uval_aoParams.w) * ambientLdotN * gs_data.albedo.rgb * ambientLight2;
+    v += ambientLight;
+    v += pow(aoSample.a, uval_aoParams.z) * aoSample.rgb * uval_aoParams.w;
+//    v += max(gtaoMultiBounce(aoSample.rgb, aoSample.a), vec3(0.0)) * uval_aoParams.w;
+    v *= gs_data.albedo.rgb;
+//    v += vec3(aoSample.a);
 
     out1.rgb = v;
     out1.a = 1.0;
-    out2 = out1;
 }
 
 void main() {

@@ -4,29 +4,31 @@ import dev.fastmc.common.TickTimer
 import dev.luna5ama.gltest.FboGroup
 import dev.luna5ama.gltest.terrain.IGLObjContainer
 import dev.luna5ama.gltest.terrain.TerrainScene
+import dev.luna5ama.gltest.terrain.register
 import dev.luna5ama.glwrapper.*
 import dev.luna5ama.glwrapper.api.*
 import dev.luna5ama.glwrapper.enums.*
 import dev.luna5ama.glwrapper.objects.*
 import dev.luna5ama.kmogus.MemoryStack
+import dev.luna5ama.kmogus.Ptr
 
 class AutoExposure(private val scene: TerrainScene) : IGLObjContainer by IGLObjContainer.Impl() {
-    private val autoExposureShader = ShaderProgram(
-        ShaderSource.Vert("/terrain/post/AutoExposure.vert.glsl"),
-        ShaderSource.Frag("/terrain/post/AutoExposure.frag.glsl")
+    private val autoExposureShader = register(ShaderProgram(
+        ShaderSource.Vert("terrain/post/AutoExposure.vert.glsl"),
+        ShaderSource.Frag("terrain/post/AutoExposure.frag.glsl")
     )
-
-    private val lumHisto = ShaderProgram(ShaderSource.Comp("/terrain/post/LumHisto.comp.glsl"))
-    private val lumAvg = ShaderProgram(ShaderSource.Comp("/terrain/post/LumAvg.comp.glsl"))
-    private val buffer = BufferObject.Immutable().apply {
+)
+    private val lumHisto = register(ShaderProgram(ShaderSource.Comp("terrain/post/LumHisto.comp.glsl")))
+    private val lumAvg = register(ShaderProgram(ShaderSource.Comp("terrain/post/LumAvg.comp.glsl")))
+    private val buffer = register(BufferObject.Immutable()).apply {
         allocate(256 * 4, 0)
     }
-    private val avgLumTex = TextureObject.Texture2D().apply {
+    private val avgLumTex = register(TextureObject.Texture2D()).apply {
         allocate(1, ImageFormat.R32_F, 1, 1)
     }
 
-    private val readBuffer = BufferObject.Immutable().apply {
-        allocate(4L, GL_MAP_READ_BIT or GL_MAP_PERSISTENT_BIT or GL_MAP_COHERENT_BIT)
+    private val readBuffer = register(BufferObject.Immutable()).apply {
+        allocate(8L, GL_MAP_READ_BIT or GL_MAP_PERSISTENT_BIT or GL_MAP_COHERENT_BIT)
         label("AutoExposureReadBuffer")
     }
     private val mapped = readBuffer.map(GL_MAP_READ_BIT or GL_MAP_PERSISTENT_BIT or GL_MAP_COHERENT_BIT)
@@ -35,7 +37,7 @@ class AutoExposure(private val scene: TerrainScene) : IGLObjContainer by IGLObjC
     init {
         MemoryStack {
             val arr = malloc(4L)
-            arr.ptr.setFloat(0.03f)
+            arr.ptr.setFloat(1.0f)
             glClearTexImage(avgLumTex.id, 0, GL_RED, GL_FLOAT, arr.ptr)
         }
     }
@@ -45,19 +47,15 @@ class AutoExposure(private val scene: TerrainScene) : IGLObjContainer by IGLObjC
 
     val avgLumSamplerBinding = ShaderBindingSpecs.Sampler("usam_avgLum", avgLumTex)
 
-    fun render(fboGroup: FboGroup) {
-        val input = fboGroup.input
-        val output = fboGroup.output
+    fun update(fboGroup: FboGroup){
+        val pRangePower = 64.0f
+        val pLumRange = 1.0f
+        val timeCoeff = 0.01f
+        val minInc = 0.01f
+        val maxInc = 8.0f
+        val pixelTotal = (fboGroup.input.fbo.width * fboGroup.input.fbo.height).toFloat()
 
-        val pRangePower = 4.0f
-        val pLumRange = 4.0f
-        val timeCoeff = 0.05f
-        val pixelTotal = (input.fbo.width * input.fbo.height).toFloat()
-
-        val targetLuma = 0.08f
-        val minInc = 0.2f
-        val maxInc = 1.0f
-        val exposureMul = 1.0f
+        buffer.clear(GL_R32UI, GL_RED_INTEGER, GL_UNSIGNED_INT, Ptr.NULL)
 
         lumHisto.bind()
         lumHisto.applyBinding {
@@ -68,7 +66,7 @@ class AutoExposure(private val scene: TerrainScene) : IGLObjContainer by IGLObjC
             "uParams",
             pRangePower, 1.0f / pLumRange, timeCoeff, pixelTotal
         )
-        glDispatchCompute((input.fbo.width + 15) / 16, (input.fbo.height + 15) / 16, 1)
+        glDispatchCompute((fboGroup.input.fbo.width + 15) / 16, (fboGroup.input.fbo.height + 15) / 16, 1)
 
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT or GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
 
@@ -77,13 +75,25 @@ class AutoExposure(private val scene: TerrainScene) : IGLObjContainer by IGLObjC
             image(lumOutputBinding)
             buffer(histogramBinding)
         }
+        val topTargetPercent = fboGroup.input.fbo.width * fboGroup.input.fbo.height / 50.0
         lumAvg.uniform4f(
             "uParams",
-            1.0f / pRangePower, pLumRange, timeCoeff, pixelTotal
+            1.0f / pRangePower, pLumRange, timeCoeff, topTargetPercent.toFloat()
+        )
+        lumAvg.uniform2f(
+            "uRange",
+            minInc, maxInc
         )
         glDispatchCompute(1, 1, 1)
 
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT or GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
+    }
+
+    fun render(fboGroup: FboGroup) {
+        val targetLuma = 0.1f
+        val minInc = 0.05f
+        val maxInc = 8.0f
+        val exposureMul = 1.0f
 
         autoExposureShader.bind()
         autoExposureShader.uniform4f("uParams", targetLuma, minInc, maxInc, exposureMul)
@@ -93,7 +103,7 @@ class AutoExposure(private val scene: TerrainScene) : IGLObjContainer by IGLObjC
 
             buffer(scene.camera.noJitterUboBinding)
         }
-        output.fbo.bind()
+        fboGroup.output.fbo.bind()
 
         glDisable(GL_DEPTH_TEST)
         glDisable(GL_BLEND)
@@ -102,12 +112,16 @@ class AutoExposure(private val scene: TerrainScene) : IGLObjContainer by IGLObjC
 
         fboGroup.swap()
 
-//        if (timer.tickAndReset(1000)) {
-//            readBuffer.bind(GL_PIXEL_PACK_BUFFER)
-//            glGetTextureImage(lumOutput.id, 0, GL_RED, GL_FLOAT, 4, 0L)
-//            readBuffer.unbind(GL_PIXEL_PACK_BUFFER)
-//
-//            println(mapped.ptr.getFloat())
-//        }
+        if (timer.tickAndReset(1000)) {
+            readBuffer.bind(GL_PIXEL_PACK_BUFFER)
+            glGetTextureImage(avgLumTex.id, 0, GL_RED, GL_FLOAT, 4, 0L)
+            readBuffer.unbind(GL_PIXEL_PACK_BUFFER)
+
+            println(mapped.ptr.getFloat())
+
+            buffer.copyTo(readBuffer, 255 * 4L, 4L, 4L)
+            println(mapped.ptr.getInt(4).toDouble() / (fboGroup.input.fbo.width * fboGroup.input.fbo.height).toDouble())
+            println()
+        }
     }
 }

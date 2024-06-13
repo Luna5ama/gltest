@@ -2,6 +2,7 @@ package dev.luna5ama.gltest.terrain
 
 import dev.fastmc.common.MathUtil
 import dev.fastmc.common.TickTimer
+import dev.fastmc.common.toRadians
 import dev.luna5ama.gltest.*
 import dev.luna5ama.gltest.Frustum
 import dev.luna5ama.glwrapper.ShaderBindingSpecs
@@ -15,8 +16,8 @@ import dev.luna5ama.kmogus.asMutable
 import dev.luna5ama.kmogus.copyToMutableArr
 import dev.luna5ama.kmogus.usePtr
 import org.joml.*
-import kotlin.math.max
-import kotlin.math.min
+import org.lwjgl.glfw.GLFW.glfwGetTime
+import kotlin.math.*
 
 /**
  * Based on "Rectilinear Texture Warping for Fast Adaptive Shadow Mapping" by Paul Rosen from Unversity of Utah
@@ -26,24 +27,24 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
     private val imapSize = 1024
 
     private val backwardCompShader = register(
-        ShaderProgram(ShaderSource.Comp("/terrain/rtwsm/Backward.comp"))
+        ShaderProgram(ShaderSource.Comp("terrain/rtwsm/Backward.comp"))
     ).apply {
         label("RTWSM.Importance.BackwardComp")
     }
 
     private val backwardCopyShader = register(
-        ShaderProgram(ShaderSource.Comp("/terrain/rtwsm/BackwardCopy.comp"))
+        ShaderProgram(ShaderSource.Comp("terrain/rtwsm/BackwardCopy.comp"))
     ).apply {
         label("RTWSM.Importance.BackwardCopy")
     }
 
     private val forwardShader = register(
         TerrainDrawShader(
-            ShaderSource.Vert("/terrain/rtwsm/Forward.vert.glsl") {
+            ShaderSource.Vert("terrain/rtwsm/Forward.vert.glsl") {
                 define("IMPORTANCE_MAP_SIZE", imapSize)
                 define("IMPORTANCE_MAP_SIZE_INV", 1.0f / imapSize)
             },
-            ShaderSource.Frag("/terrain/rtwsm/Importance.frag.glsl")
+            ShaderSource.Frag("terrain/rtwsm/Importance.frag.glsl")
         )
     ).apply {
         label("RTWSM.Importance.Forward")
@@ -51,7 +52,7 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
 
     private val collapseShader = register(
         ShaderProgram(
-            ShaderSource.Comp("/terrain/rtwsm/IMapCollapse.comp") {
+            ShaderSource.Comp("terrain/rtwsm/IMapCollapse.comp") {
                 val groupSize = min(imapSize / 2, 512)
                 val sampleCount = (imapSize / 2) / groupSize
                 val warpSize = glGetInteger(GL_SUBGROUP_SIZE_KHR)
@@ -67,7 +68,7 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
 
     private val warpingShader = register(
         ShaderProgram(
-            ShaderSource.Comp("/terrain/rtwsm/GetWarp.comp") {
+            ShaderSource.Comp("terrain/rtwsm/GetWarp.comp") {
                 define("IMAP_SIZE", imapSize)
                 define("RTWSM_SIZE", texSize)
             }
@@ -78,10 +79,10 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
 
     private val mapGenSolid = register(
         TerrainDrawShader(
-            ShaderSource.Vert("/terrain/rtwsm/MapGen.vert.glsl") {
+            ShaderSource.Vert("terrain/rtwsm/MapGen.vert.glsl") {
                 define("DATA_NAME", "fragData")
             },
-            ShaderSource.Frag("/terrain/rtwsm/MapGen.frag.glsl")
+            ShaderSource.Frag("terrain/rtwsm/MapGen.frag.glsl")
         )
     ).apply {
         label("RTWSM.MapGen")
@@ -89,10 +90,10 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
 
     private val mapGenCutout = register(
         TerrainDrawShader(
-            ShaderSource.Vert("/terrain/rtwsm/MapGen.vert.glsl") {
+            ShaderSource.Vert("terrain/rtwsm/MapGen.vert.glsl") {
                 define("CUTOUT")
             },
-            ShaderSource.Frag("/terrain/rtwsm/MapGen.frag.glsl") {
+            ShaderSource.Frag("terrain/rtwsm/MapGen.frag.glsl") {
                 define("CUTOUT")
             }
         )
@@ -169,7 +170,15 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
     val lightDir = Vector3f(0.5f, 1.0f, 0.5f).normalize()
 
     suspend fun render() {
-        lightDir.set(0.5f, 0.6f, 0.5f).normalize() // badlands
+//        lightDir.set(0.2f, 1.0f, 0.8f).normalize() // HAllway
+
+
+//        lightDir.set(0.1f, 0.5f, 0.8f).normalize() // brickhouse
+//        lightDir.set(0.5f, 0.6f, 0.5f).normalize() // brickhousse
+
+//        lightDir.set(0.9f, 0.8f, 0.1f).normalize() // woodhouse
+
+//        lightDir.set(0.5f, 0.6f, 0.5f).normalize() // badlands
 
 //        lightDir.set(1.0f, 1.5f, 0.3f).normalize() // badlands
 //        lightDir.set(0.7f, 0.8f, 0.5f).normalize() // badlands
@@ -178,24 +187,42 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
 //        lightDir.set(0.5f, 0.8f, 0.7f).normalize() // mountains
 //        lightDir.set(0.4f, 1.0f, 0.8f).normalize() // mountains
 //        lightDir.set(0.1f, 1.2f, -0.6f).normalize() // mountains
+//        lightDir.set(-0.4f, 1.5f, -0.4f).normalize() // mountains
+//        lightDir.set(-0.4f, 2.0f, 0.2f).normalize() // mountains
+
+//        lightDir.set(0.6f, 2.0f, -0.3f).normalize() // jungle
+
 
 //        lightDir.set(0.6f, 1.0f, 0.4f).normalize() // romm
 //        lightDir.set(-0.4f, 1.0f, 0.5f).normalize() // street
+//        lightDir.set(0.5f, 1.8f, 0.4f).normalize() // street
+        lightDir.set(0.4f, 0.5f, -0.8f).normalize() // street
 
 //        lightDir.set(0.6f, 1.2f, -0.8f).normalize() // Sponza
 //        lightDir.set(0.1f, 1.2f, -0.6f).normalize() // Sponza
 //        lightDir.set(0.2f, 1.2f, -0.85f).normalize() // Sponza
+//        lightDir.set(0.15f, 1.5f, -0.6f).normalize() // Sponza
+//        lightDir.set(0.4f, 1.2f, -0.5f).normalize() // Sponza
+//        lightDir.set(0.0f, 1.2f, -0.9f).normalize() // Sponza.
+//        lightDir.set(0.1f, 1.6f, -0.9f).normalize() // Sponza.
 
 //        lightDir.set(0.5f, 0.8f, -0.5f).normalize() // Blocks
 
 //        lightDir.set(0.6f, 0.8f, -0.4f).normalize() // HAllway
+
 //        lightDir.set(-0.0f, 0.2f, -0.8f).normalize() // Glass dome
-//        val time = (maxOf(glfwGetTime() - 3.0, 0.0) * 0.05f) % PI
+//        lightDir.set(-0.4f, 0.3f, -0.8f).normalize() // Glass dome
+//        lightDir.set(0.8f, 0.8f, -0.8f).normalize() // Glass dome
+
+
+//        lightDir.set(1.0f, 1.0f, 1.0f).normalize()
+
+        val time = (maxOf(glfwGetTime() - 3.0, 0.0) * 0.01f + 0.5f) % PI
 //        val time = 0.4 * PI
 //        lightDir.set(
 //            cos(time),
-//            sin(time) * 0.4,
-//            sin(time)
+//            sin(time) * 0.8,
+//            -sin(time)
 //        ).normalize()
 
         glDebugGroup("setup") {
@@ -354,10 +381,11 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
     private val warpingPassImagesBinding2 = ShaderBindingSpecs.of {
         image("uimg_imap1D", imap1D)
         image("uimg_warpingMap", warpingMap)
+        buffer(uboBinding)
     }
 
     private fun imapBlur() {
-        repeat(2) {
+        repeat(4) {
             scene.gaussianBlur.process(
                 GaussianBlur.Type.LINEAR,
                 8, 4, it * 1.0f + 1.0f,
@@ -387,8 +415,8 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
     }
 
     private val rtwsmCullBoxDrawShader = TerrainDrawShader(
-        ShaderSource.Vert("/terrain/culling/CullBoxDrawShadow.vert.glsl"),
-        ShaderSource.Frag("/terrain/culling/CullBoxDraw.frag.glsl")
+        ShaderSource.Vert("terrain/culling/CullBoxDrawShadow.vert.glsl"),
+        ShaderSource.Frag("terrain/culling/CullBoxDraw.frag.glsl")
     )
 
     private fun shadowMapRender() {

@@ -12,12 +12,13 @@ import dev.luna5ama.glwrapper.api.*
 import dev.luna5ama.glwrapper.enums.ImageFormat
 import dev.luna5ama.glwrapper.objects.FramebufferObject
 import dev.luna5ama.glwrapper.objects.TextureObject
+import kotlin.math.tan
 
 class HBAO(private val scene: TerrainScene, private val solidLighting: SolidLighting) : IGLObjContainer by IGLObjContainer.Impl() {
     private val shader = register(
         ShaderProgram(
-            ShaderSource.Vert("/terrain/Blit.vert.glsl"),
-            ShaderSource.Frag("/terrain/hbao/HBAO2.frag") {
+            ShaderSource.Vert("terrain/Blit.vert.glsl"),
+            ShaderSource.Frag("terrain/hbao/HBAO2.frag") {
                 define("HBAO_DIR_SAMPLES", 4)
                 define("HBAO_STEP_SAMPLES", 4)
             }
@@ -28,7 +29,7 @@ class HBAO(private val scene: TerrainScene, private val solidLighting: SolidLigh
 
     private var lastUpdateSizeBit = 0L
 
-    private val finalFbo = register(FramebufferObject())
+    val finalFbo = register(FramebufferObject())
 
     val texBinding = ShaderBindingSpecs.Sampler("usam_hbao", finalTex)
 
@@ -75,12 +76,17 @@ class HBAO(private val scene: TerrainScene, private val solidLighting: SolidLigh
             buffer(scene.camera.uboBinding)
         }
 //        val invTanRad = 1.0f / tan(scene.camera.fov.toRadians() * 0.5f)
-        shader.uniform1f("uval_tangentBias", 15.0f.toRadians())
-        shader.uniform1f("uval_radius", 4.0f)
-        shader.uniform2f("uval_aoStrength", 8.0f, 1.0f)
-        shader.uniform1f("uval_giStrength",  4.0f)
+        shader.uniform1f("uval_tangentBias", 30.0f.toRadians())
+        val aoRadius = 4.0f
+        val giRadius = aoRadius
+        shader.uniform4f("uval_radius", aoRadius, 1.0f / aoRadius, giRadius, 1.0f / giRadius)
+        shader.uniform2f("uval_aoStrength", if (scene.gameInstance.toggle2) 0.0f else 4.0f, 1.0f)
+        shader.uniform2f("uval_giStrength",  16.0f, 8.0f)
         shader.uniform1ui("uval_idk", 1)
         shader.uniform1i("uval_randR", 2)
+        val aspect = scene.camera.aspectRatio
+        val tanHalfFov = tan(scene.camera.fov.toRadians() / 2.0f)
+        shader.uniform3f("uval_projectParams", 1.0f / (aspect * tanHalfFov), 1.0f / tanHalfFov, aspect)
 //        shader.uniform4f(
 //            "uval_aoRes",
 //            scene.camera.screenWidth.toFloat(),
@@ -101,7 +107,7 @@ class HBAO(private val scene: TerrainScene, private val solidLighting: SolidLigh
         scene.basic.drawQuad()
         gpuTimer.end()
 
-//        if (timer.tickAndReset(3000)) {
+//        if (timer.tickAndReset(1000)) {
 //            println("HBAO: %.2f ms".format(gpuTimer.averageMS()))
 //        }
 

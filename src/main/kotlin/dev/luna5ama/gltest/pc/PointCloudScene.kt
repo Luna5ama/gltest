@@ -53,7 +53,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
     private val pointDrawShader: ShaderProgram
     private val quadDrawShader = register(
         ShaderProgram(
-            ShaderSource.Comp("/pc/QuadDraw.comp") {
+            ShaderSource.Comp("pc/QuadDraw.comp") {
                 define("BATCH_SIZE", PointCloudData.BATCH_SIZE)
                 if (overdrawDebug) {
                     define("OVERDRAW_DEBUG")
@@ -65,29 +65,29 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
     }
     private val holeFill = register(
         ShaderProgram(
-            ShaderSource.Comp("/pc/HoleFill.comp")
+            ShaderSource.Comp("pc/HoleFill.comp")
         )
     ).apply {
         label("bufferBlit")
     }
     private val depthBlit = register(
         ShaderProgram(
-            ShaderSource.Vert("/pc/Blit.vert"),
-            ShaderSource.Frag("/pc/DepthBlit.frag")
+            ShaderSource.Vert("pc/Blit.vert"),
+            ShaderSource.Frag("pc/DepthBlit.frag")
         )
     ).apply {
         label("depthBlit")
     }
     private val shadingShader = register(
         ShaderProgram(
-            ShaderSource.Comp("/pc/Shading.comp")
+            ShaderSource.Comp("pc/Shading.comp")
         )
     ).apply {
         label("shadingShader")
     }
     private val bufferBlit = register(
         ShaderProgram(
-            ShaderSource.Comp("/pc/BufferBlit.comp")
+            ShaderSource.Comp("pc/BufferBlit.comp")
         )
     ).apply {
         label("bufferBlit")
@@ -177,7 +177,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
         
         pointDrawShader = register(
             ShaderProgram(
-                ShaderSource.Comp("/pc/PointDraw.comp") {
+                ShaderSource.Comp("pc/PointDraw.comp") {
                     define("BATCH_SIZE", PointCloudData.BATCH_SIZE)
                     define("UNROLLED_CODE", xd)
                     if (overdrawDebug) {
@@ -208,7 +208,12 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
             saveCameraPos()
         })
 //        dumpShaderAsm(pointDrawShader, "PointDraw.txt")
-//        dumpShaderAsm(quadDrawShader, "QuadDraw.txt")
+        dumpShaderAsm(quadDrawShader, "QuadDraw.txt")
+    }
+
+    override fun reloadShaders() {
+        super.reloadShaders()
+        dumpShaderAsm(quadDrawShader, "QuadDraw.txt")
     }
 
     override fun destroy() {
@@ -251,7 +256,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
         }
     }
 
-    private val timer = GPUTimer(1000)
+    private val timer = GPUTimer(2000)
     private val timer2 = GPUTimer(1000)
     private val printTimer = TickTimer()
     private val printTimer2 = TickTimer()

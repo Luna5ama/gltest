@@ -2,10 +2,6 @@
 
 #include "../ColorUtils.glsl"
 
-#define THREADS_X 16
-#define THREADS_Y 16
-#define GROUP_SIZE THREADS_X * THREADS_Y
-
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 
 #define EPSILON 0.005
@@ -22,8 +18,7 @@ layout(std430, binding = 1) buffer ssbo_histogramBuffer {
 };
 
 // Shared histogram buffer used for storing intermediate sums for each work group
-shared uint histogramShared[GROUP_SIZE];
-
+shared uint histogramShared[256];
 
 // For a given color and luminance range, return the histogram bin index
 uint colorToBin(vec3 hdrColor, float inverseLumRange) {
@@ -35,8 +30,6 @@ uint colorToBin(vec3 hdrColor, float inverseLumRange) {
         return 0;
     }
 
-    // Calculate the log_2 luminance and express it as a value in [0.0, 1.0]
-    // where 0.0 represents the minimum luminance, and 1.0 represents the max.
     float lumMapped = clamp(lum * inverseLumRange, 0.0, 1.0);
     lumMapped = 1.0 - pow(1.0 - lumMapped, pRangePow);
 

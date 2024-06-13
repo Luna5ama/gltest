@@ -34,13 +34,13 @@ float rtwsm_sampleShadowDepth(sampler2D shadowMap, vec2 coord, float lod) {
 
 float rtwsm_sampleShadowDepthOffset(sampler2DShadow shadowMap, vec3 coord, float lod, vec2 offsetPixels) {
     vec3 offsetPos = coord;
-    offsetPos.xy += offsetPixels * uShadowMap.shadowMapSize.zw;
+    offsetPos.xy += offsetPixels;
     return textureLod(shadowMap, offsetPos, lod);
 }
 
 float rtwsm_sampleShadowDepthOffset(sampler2D shadowMap, vec2 coord, float lod, vec2 offsetPixels) {
     vec2 offsetPos = coord;
-    offsetPos += offsetPixels * uShadowMap.shadowMapSize.zw;
+    offsetPos += offsetPixels;
     return textureLod(shadowMap, offsetPos, lod).r;
 }
 

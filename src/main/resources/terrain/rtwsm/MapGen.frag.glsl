@@ -20,12 +20,14 @@ void main() {
 //    float sampleLod = textureQueryLod(usam_blockAlbedoAtlas, fragData.texCoord).y * fragData.lodMul;
 //    float alpha = textureLod(usam_blockAlbedoAtlas, fragData.texCoord, sampleLod).a;
     const float sssValueMin = 65.0 / 255.0;
-    float sssStrength = step(sssValueMin, textureLod(usam_blockSpecularAtlas, texCoordLodMul.xy, 0.0).b);
+    const float sssValueRangeInv = 1.0 / (1.0 - sssValueMin);
+//    float sssStrength = textureLod(usam_blockSpecularAtlas, texCoordLodMul.xy, 0.0).b;
+//    sssStrength = sqrt(max(sssStrength - sssValueMin, 0.0) * sssValueRangeInv);
     float sampleLod = textureQueryLod(usam_blockAlbedoAtlas, texCoordLodMul.xy).y * texCoordLodMul.z;
     float alpha = textureLod(usam_blockAlbedoAtlas, texCoordLodMul.xy, sampleLod).a;
-    uint coordRand = uint(rand(fWorldCoord) * 2048.0);
-
-    alpha *= (1.0 - sssStrength) + r2Seq1(coordRand + ubo_cameraNoJitter.gFrameIndex) * sssStrength;
+//    uint coordRand = uint(rand(fWorldCoord) * 2048.0);
+//
+//    alpha *= (1.0 - sssStrength) + r2Seq1(coordRand + ubo_cameraNoJitter.gFrameIndex) * sssStrength;
     if (alpha <= 0.5) discard;
 }
 #else

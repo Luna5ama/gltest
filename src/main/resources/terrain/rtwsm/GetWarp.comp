@@ -1,6 +1,8 @@
 #version 460 core
 #pragma optionNV (unroll all)
 
+#include "ShadowParams.glsl"
+
 #define OUTPUT_SIZE (IMAP_SIZE / 4)
 
 layout(local_size_x = OUTPUT_SIZE, local_size_y = 1, local_size_z = 1) in;

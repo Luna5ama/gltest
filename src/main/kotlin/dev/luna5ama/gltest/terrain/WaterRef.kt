@@ -16,8 +16,8 @@ import dev.luna5ama.glwrapper.enums.WrapMode
 class WaterRef(private val scene: TerrainScene) : IGLObjContainer by IGLObjContainer.Impl() {
     private val shader = register(
         ShaderProgram(
-            ShaderSource.Vert("/terrain/Blit.vert.glsl"),
-            ShaderSource.Frag("/terrain/water/Ref.frag.glsl")
+            ShaderSource.Vert("terrain/Blit.vert.glsl"),
+            ShaderSource.Frag("terrain/water/Ref.frag.glsl")
         )
     )
     private val refUvTex = register(TextureObject.Texture2D())

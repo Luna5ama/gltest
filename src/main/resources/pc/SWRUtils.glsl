@@ -10,7 +10,7 @@ vec3 swr_barycentric(vec2 pa, vec4 v, vec3 d) {
     return uvw;
 }
 
-void swr_calcBarycentricGrad(vec2 minBound, vec2 maxBound, vec2 invTexelN, vec2 a, vec2 b, vec2 c, out vec3 bcBase, out vec3 bcMx, out vec3 bcMy, out vec3 b1Dx, out vec3 b1Dy) {
+void swr_calcBarycentricGrad(vec4 screenBound, vec2 invTexelN, vec2 a, vec2 b, vec2 c, out vec3 bcBase, out vec3 bcMx, out vec3 bcMy, out vec3 b1Dx, out vec3 b1Dy) {
     vec4 v = vec4(b, c) - vec4(a, a);
     vec3 d = vec3(
         dot(v.xy, v.xy),
@@ -18,9 +18,9 @@ void swr_calcBarycentricGrad(vec2 minBound, vec2 maxBound, vec2 invTexelN, vec2 
         dot(v.zw, v.zw)
     );
 
-    bcBase = swr_barycentric(minBound - a.xy, v, d);
-    bcMx = swr_barycentric(vec2(maxBound.x, minBound.y) - a.xy, v, d);
-    bcMy = swr_barycentric(vec2(minBound.x, maxBound.y) - a.xy, v, d);
+    bcBase = swr_barycentric(screenBound.xy - a.xy, v, d);
+    bcMx = swr_barycentric(screenBound.zy - a.xy, v, d);
+    bcMy = swr_barycentric(screenBound.xw - a.xy, v, d);
 
     b1Dx = (bcMx - bcBase) * invTexelN.x;
     b1Dy = (bcMy - bcBase) * invTexelN.y;

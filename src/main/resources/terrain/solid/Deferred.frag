@@ -4,7 +4,10 @@ layout(early_fragment_tests) in;
 #endif
 
 #include "../GBuffers.glsl"
+#include "../GlobalCamera.glsl"
 #include "../ColorUtils.glsl"
+#include "../utils/R2Seqs.glsl"
+#include "../utils/Rand.glsl"
 
 uniform sampler2D usam_blockAlbedoAtlas;
 
@@ -37,11 +40,16 @@ void main() {
 
     outData.albedo *= fragData.colorMul;
     outData.albedo.rgb = srgb2linear(outData.albedo.rgb);
+    outData.albedo = vec4(1.0);
 
     outData.worldCoord = fragData.worldCoord;
     outData.worldNormal = fragData.worldNormal;
     outData.materialID = frag_mdlAttrib;
     outData.lightCoord = fragData.lightCoord;
+
+    const float delta = 16.0 / 256.0;
+    outData.lightCoord += r2Seq2(uint(rand(gl_FragCoord.xy) * 1024.0 + ubo_cameraDefault.gFrameIndex)) * delta - delta * 0.5;
+
     outData.worldTangent = vec3(1.0, 0.0, 0.0);
 
     gbuffer_pack1(rt_tex1, outData);

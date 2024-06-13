@@ -16,14 +16,14 @@ import kotlin.math.max
 
 class HiZBufferGen(val scene: TerrainScene) : IGLObjContainer by IGLObjContainer.Impl() {
     private val depthShader = ShaderProgram(
-        ShaderSource.Vert("/terrain/filters/HiZ.vert.glsl"),
-        ShaderSource.Frag("/terrain/filters/HiZ.frag.glsl") {
+        ShaderSource.Vert("terrain/filters/HiZ.vert.glsl"),
+        ShaderSource.Frag("terrain/filters/HiZ.frag.glsl") {
             define("DEPTH_OUTPUT")
         }
     )
     private val colorShader = ShaderProgram(
-        ShaderSource.Vert("/terrain/filters/HiZ.vert.glsl"),
-        ShaderSource.Frag("/terrain/filters/HiZ.frag.glsl") {
+        ShaderSource.Vert("terrain/filters/HiZ.vert.glsl"),
+        ShaderSource.Frag("terrain/filters/HiZ.frag.glsl") {
             define("COLOR_OUTPUT")
         }
     )

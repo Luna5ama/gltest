@@ -157,8 +157,8 @@ class GaussianBlur(private val scene: TerrainScene) : IGLObjContainer by IGLObjC
         }
 
         return ShaderProgram(
-            ShaderSource.Vert("/terrain/filters/LinearGaussian.vert"),
-            ShaderSource.Frag("/terrain/filters/LinearGaussian.frag") {
+            ShaderSource.Vert("terrain/filters/LinearGaussian.vert"),
+            ShaderSource.Frag("terrain/filters/LinearGaussian.frag") {
                 define("CODE_H", codeH)
                 define("CODE_V", codeV)
             }

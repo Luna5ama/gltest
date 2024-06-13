@@ -7,8 +7,7 @@ import dev.luna5ama.glwrapper.enums.FilterMode
 import dev.luna5ama.glwrapper.enums.WrapMode
 import dev.luna5ama.glwrapper.objects.SamplerObject
 
-class SamplerManager(private val delegate: IGLObjContainer) : IGLObjContainer by delegate {
-    constructor() : this(IGLObjContainer.Impl())
+class SamplerManager : IGLObjContainer by IGLObjContainer.Impl() {
 
     private val samplers = mutableMapOf<Key, SamplerObject>()
 
@@ -36,7 +35,6 @@ class SamplerManager(private val delegate: IGLObjContainer) : IGLObjContainer by
     }
 
     override fun destroy() {
-        delegate.destroy()
         samplers.values.forEach { it.destroy() }
     }
 

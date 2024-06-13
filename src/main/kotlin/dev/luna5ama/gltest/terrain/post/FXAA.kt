@@ -11,8 +11,8 @@ import dev.luna5ama.glwrapper.ShaderSource
 class FXAA(private val scene: TerrainScene) : IGLObjContainer by IGLObjContainer.Impl() {
     private val shader = register(
         ShaderProgram(
-            ShaderSource.Vert("/terrain/FXAA.vert.glsl"),
-            ShaderSource.Frag("/terrain/FXAA.frag.glsl")
+            ShaderSource.Vert("terrain/FXAA.vert.glsl"),
+            ShaderSource.Frag("terrain/FXAA.frag.glsl")
         )
     )
 

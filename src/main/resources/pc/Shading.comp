@@ -116,19 +116,17 @@ void main() {
     pos3 = vec3(pos34.xy, pos3.z);
     pos4 = vec3(pos34.zw, pos4.z);
 
-    vec2 minScreen = clamp(min(min(pos1.xy, pos2.xy), min(pos3.xy, pos4.xy)), 0.0, 1.0);
-    vec2 maxScreen = clamp(max(max(pos1.xy, pos2.xy), max(pos3.xy, pos4.xy)), 0.0, 1.0);
-    ivec2 minTexel = ivec2(floor(minScreen * uval_viewportSize.xy));
-    ivec2 maxTexel = ivec2(ceil(maxScreen * uval_viewportSize.xy));
+    vec4 screenBound = clamp(vec4(min(min(pos1.xy, pos2.xy), min(pos3.xy, pos4.xy)), max(max(pos1.xy, pos2.xy), max(pos3.xy, pos4.xy))), 0.0, 1.0);
+    screenBound *= uval_viewportSize.xyxy;
+    vec4 boundRounded = vec4(floor(screenBound.xy), ceil(screenBound.zw));
+    screenBound = boundRounded * uval_viewportSize.zwzw;
 
-    minScreen = vec2(minTexel) * uval_viewportSize.zw;
-    maxScreen = vec2(maxTexel) * uval_viewportSize.zw;
-
-    ivec2 texelN = maxTexel - minTexel;
-    vec2 invTexelN = 1.0 / vec2(texelN);
+    vec2 texelNF = boundRounded.zw - boundRounded.xy;
+    vec2 invTexelN = 1.0 / texelNF;
+    ivec2 texelNI = ivec2(texelNF);
 
     vec3 t1bBase, t1bMx, t1bMy, t1bDx, t1bDy;
-    swr_calcBarycentricGrad(minScreen, maxScreen, invTexelN, pos1.xy, pos2.xy, pos3.xy, t1bBase, t1bMx, t1bMy, t1bDx, t1bDy);
+    swr_calcBarycentricGrad(screenBound, invTexelN, pos1.xy, pos2.xy, pos3.xy, t1bBase, t1bMx, t1bMy, t1bDx, t1bDy);
 
     vec2 tTexCoordBase, tTexCoordDx, tTexCoordDy;
     swr_calcAttribGrad(invTexelN, t1bBase, t1bMx, t1bMy, texCoordX.xyz, texCoordY.xyz, tTexCoordBase, tTexCoordDx, tTexCoordDy);
@@ -149,15 +147,15 @@ void main() {
         );
         uint materialID = ssbo_quadExtraAttribDataBuffer[extraAttribIdx + 5u];
 
-        vec4 colorMaxLod = textureLod(usam_blockAlbedoAtlas, texCoord, 114.514);
+//        vec4 colorMaxLod = textureLod(usam_blockAlbedoAtlas, texCoord, 114.514);
         vec4 colorMinLod = textureLod(usam_blockAlbedoAtlas, texCoord, 0.0);
 //        vec4 colorNormal = textureGrad(usam_blockAlbedoAtlas, texCoord, tTexCoordDx, tTexCoordDy);
         vec4 colorNormal = colorMinLod;
 
-        vec4 colorFinal = mix(colorMaxLod, colorNormal, colorMinLod.a);
+        vec4 colorFinal = colorMinLod;
+//        vec4 colorFinal = mix(colorMaxLod, colorNormal, colorMinLod.a);
         colorFinal.rgb *= colorMul;
         colorFinal.rgb *= textureLod(usam_lightMap, lightCoord, 0.0).rgb;
-        colorFinal.a = 1.0;
         colorFinal.a = 1.0;
 //        colorFinal.rgb = vec3(float((materialID >> 1u) & 1u));
 

@@ -18,22 +18,22 @@ import kotlin.math.sqrt
 class DeferredShaders(private val scene: TerrainScene) : IGLObjContainer by IGLObjContainer.Impl() {
     val solid = register(
         DeferredShader(
-            ShaderSource.Vert("/terrain/solid/Deferred.vert"),
-            ShaderSource.Frag("/terrain/solid/Deferred.frag")
+            ShaderSource.Vert("terrain/solid/Deferred.vert"),
+            ShaderSource.Frag("terrain/solid/Deferred.frag")
         )
     )
     val cutout = register(
         DeferredShader(
-            ShaderSource.Vert("/terrain/solid/Deferred.vert"),
-            ShaderSource.Frag("/terrain/solid/Deferred.frag") {
+            ShaderSource.Vert("terrain/solid/Deferred.vert"),
+            ShaderSource.Frag("terrain/solid/Deferred.frag") {
                 define("CUTOUT")
             }
         )
     )
     val water = register(
         DeferredShader(
-            ShaderSource.Vert("/terrain/water/Deferred.vert"),
-            ShaderSource.Frag("/terrain/water/Deferred.frag")
+            ShaderSource.Vert("terrain/water/Deferred.vert"),
+            ShaderSource.Frag("terrain/water/Deferred.frag")
         )
     )
 
@@ -96,8 +96,8 @@ class PostShaders(private val scene: TerrainScene) : IGLObjContainer by IGLObjCo
                 PostDrawShader(
                     fogShape,
                     fogType,
-                    ShaderSource.Vert("/terrain/Blit.vert.glsl"),
-                    ShaderSource.Frag("/terrain/water/Post.frag")
+                    ShaderSource.Vert("terrain/Blit.vert.glsl"),
+                    ShaderSource.Frag("terrain/water/Post.frag")
                 )
             )
         }

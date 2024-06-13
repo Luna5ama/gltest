@@ -1,6 +1,7 @@
 #version 460 core
 
 uniform float uMul = 1.0;
+uniform float uval_alpha = 1.0;
 uniform float uAdd = 0.0;
 uniform float uPower = 1.0;
 uniform float uLod = 0.0;
@@ -17,33 +18,33 @@ layout(location = 0) subroutine uniform SampleChannel usubroutine_SampleChannel;
 
 subroutine(SampleChannel) void sampleRRR() {
     fragColor.rgb = vec3(pow(textureLod(usam_input, fTexCoord, uLod).r * uMul + uAdd, uPower));
-    fragColor.a = 1.0;
+    fragColor.a = uval_alpha;
 }
 
 subroutine(SampleChannel) void sampleGGG() {
     fragColor.rgb = vec3(pow(textureLod(usam_input, fTexCoord, uLod).g * uMul + uAdd, uPower));
-    fragColor.a = 1.0;
+    fragColor.a = uval_alpha;
 }
 
 subroutine(SampleChannel) void sampleBBB() {
     fragColor.rgb = vec3(pow(textureLod(usam_input, fTexCoord, uLod).b * uMul + uAdd, uPower));
-    fragColor.a = 1.0;
+    fragColor.a = uval_alpha;
 }
 
 subroutine(SampleChannel) void sampleAAA() {
     fragColor.rgb = vec3(pow(textureLod(usam_input, fTexCoord, uLod).a * uMul + uAdd, uPower));
-    fragColor.a = 1.0;
+    fragColor.a = uval_alpha;
 }
 
 subroutine(SampleChannel) void sampleRGB() {
     fragColor.rgb = pow(textureLod(usam_input, fTexCoord, uLod).rgb * uMul + uAdd, vec3(uPower));
-    fragColor.a = 1.0;
+    fragColor.a = uval_alpha;
 }
 
 subroutine(SampleChannel) void sampleRGBPA() {
     fragColor = pow(textureLod(usam_input, fTexCoord, uLod) * uMul + uAdd, vec4(uPower));
     fragColor.rgb *= fragColor.a;
-    fragColor.a = 1.0;
+    fragColor.a = uval_alpha;
 }
 
 subroutine(SampleChannel) void sampleRGBA() {
@@ -52,12 +53,12 @@ subroutine(SampleChannel) void sampleRGBA() {
 
 subroutine(SampleChannel) void sampleRG() {
     fragColor.rg = pow(textureLod(usam_input, fTexCoord, uLod).rg * uMul + uAdd, vec2(uPower));
-    fragColor.a = 1.0;
+    fragColor.a = uval_alpha;
 }
 
 subroutine(SampleChannel) void sampleRB() {
     fragColor.rb = pow(textureLod(usam_input, fTexCoord, uLod).rb * uMul + uAdd, vec2(uPower));
-    fragColor.a = 1.0;
+    fragColor.a = uval_alpha;
 }
 
 subroutine(SampleChannel) void sampleRA() {
@@ -67,7 +68,7 @@ subroutine(SampleChannel) void sampleRA() {
 
 subroutine(SampleChannel) void sampleGB() {
     fragColor.gb = pow(textureLod(usam_input, fTexCoord, uLod).gb * uMul + uAdd, vec2(uPower));
-    fragColor.a = 1.0;
+    fragColor.a = uval_alpha;
 }
 
 subroutine(SampleChannel) void sampleGA() {

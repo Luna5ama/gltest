@@ -40,8 +40,8 @@ class GBuffer(private val scene: TerrainScene, val name: String) : IGLObjContain
 
     private val clearShader = register(
         ShaderProgram(
-            ShaderSource.Vert("/terrain/ClearGBuffer.vert.glsl"),
-            ShaderSource.Frag("/terrain/ClearGBuffer.frag.glsl")
+            ShaderSource.Vert("terrain/ClearGBuffer.vert.glsl"),
+            ShaderSource.Frag("terrain/ClearGBuffer.frag.glsl")
         )
     )
 

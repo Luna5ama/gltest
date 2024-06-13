@@ -67,7 +67,7 @@ class PointCloudData(private val scene: AbstractScene, dir: File) : IGLObjContai
 
     var chunkIndices: IntArray
 
-    var pointCount = 0L
+    var totalQuadCount = 0L
         private set
     var quadBatchCount = 0
         private set
@@ -107,6 +107,7 @@ class PointCloudData(private val scene: AbstractScene, dir: File) : IGLObjContai
             "Total buffer usage: %.2f MB"
                 .format(bufferUsage / 1024.0 / 1024.0)
         )
+        println("Quad count: $totalQuadCount")
     }
 
     private suspend fun readData(dir: File) {
@@ -355,7 +356,7 @@ class PointCloudData(private val scene: AbstractScene, dir: File) : IGLObjContai
                     }
                 }
 
-                this@PointCloudData.pointCount = quadCounter.get()
+                this@PointCloudData.totalQuadCount = quadCounter.get()
 
                 quadPosDataBuffer.allocate(quadPosDataCounter.get() * 24L, quadPosDataUploadBuffer.ptr, 0)
                 quadTexCoordDataBuffer.allocate(quadAttribDataCounter.get() * 16L, quadTexCoordUploadBuffer.ptr, 0)
@@ -406,7 +407,7 @@ class PointCloudData(private val scene: AbstractScene, dir: File) : IGLObjContai
                 }.toList()
             }
             chunkinfos.addAll(chunkInfoList)
-            pointCount = chunkinfos.sumOf { it.quadCount.toLong() }
+            totalQuadCount = chunkinfos.sumOf { it.quadCount.toLong() }
 
             val mainCtx = this.coroutineContext
 
@@ -515,7 +516,7 @@ class PointCloudData(private val scene: AbstractScene, dir: File) : IGLObjContai
             val offset = chunkOffsets[chunkInfo.chunkIndex]
             val sampleCountPow2 = sampleCountPow2Array[chunkInfo.listIndex]
 
-            if (sampleCountPow2 == 5) {
+            if (true) {
                 var quadIdx = 0
                 while (quadIdx < chunkInfo.quadCount) {
                     quadBatchUploadBuffer.ensureCapacity((quadMetaIdx + 1L) * sizeof(QuadBatchInfo), false)
@@ -769,7 +770,7 @@ class PointCloudData(private val scene: AbstractScene, dir: File) : IGLObjContai
         const val ORIGIN = 128
         const val TOTAL_CHUNKS = SIZE_XZ * SIZE_XZ * SIZE_Y
 
-        const val BATCH_SIZE = 128
+        const val BATCH_SIZE = 192
     }
 
     data class PosKey(val x: Long, val y: Long, val z: Long)

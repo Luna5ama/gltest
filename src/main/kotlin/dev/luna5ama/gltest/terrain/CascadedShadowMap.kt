@@ -24,15 +24,15 @@ class CascadedShadowMap(
 
     private val csmGen = register(
         TerrainDrawShader(
-            ShaderSource.Vert("/terrain/shadow/CsmGen.vert.glsl"),
-            ShaderSource.Frag("/terrain/shadow/CsmGen.frag.glsl")
+            ShaderSource.Vert("terrain/shadow/CsmGen.vert.glsl"),
+            ShaderSource.Frag("terrain/shadow/CsmGen.frag.glsl")
         )
     )
 
     private val csmGenCutout = register(
         TerrainDrawShader(
-            ShaderSource.Vert("/terrain/shadow/CsmGen.vert.glsl"),
-            ShaderSource.Frag("/terrain/shadow/CsmGen.frag.glsl") {
+            ShaderSource.Vert("terrain/shadow/CsmGen.vert.glsl"),
+            ShaderSource.Frag("terrain/shadow/CsmGen.frag.glsl") {
                 define("CUTOUT")
             }
         )

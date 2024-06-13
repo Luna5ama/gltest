@@ -253,7 +253,7 @@ void main() {
     refractColor.rgb = mix(gw_data.albedo.rgb, refractColor.rgb, (1.0 - min(depthFactor + 0.2, 1.0)));
     reflectColor.rgb = mix(gw_data.albedo.rgb, reflectColor.rgb, 0.95 * reflectColor.a);
 
-    float reflectFactor = 0.4 + pow(1.0 + dot(normalize(gw_data.worldCoord), gw_data.worldNormal), 4.0);
+    float reflectFactor = 0.8 + pow(1.0 + dot(normalize(gw_data.worldCoord), gw_data.worldNormal), 4.0) * 0.2;
     reflectFactor = clamp(reflectFactor, 0.0, 0.98);
     //    reflectFactor = 1.0;
 

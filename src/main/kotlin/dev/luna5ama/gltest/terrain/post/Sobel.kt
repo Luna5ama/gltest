@@ -11,8 +11,8 @@ import dev.luna5ama.glwrapper.api.*
 class Sobel(private val scene: TerrainScene) : IGLObjContainer by IGLObjContainer.Impl() {
     private val shader = register(
         ShaderProgram(
-            ShaderSource.Vert("/terrain/post/Sobel.vert.glsl"),
-            ShaderSource.Frag("/terrain/post/Sobel.frag.glsl")
+            ShaderSource.Vert("terrain/post/Sobel.vert.glsl"),
+            ShaderSource.Frag("terrain/post/Sobel.frag.glsl")
         )
     )
 

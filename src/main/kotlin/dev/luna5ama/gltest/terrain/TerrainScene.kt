@@ -29,10 +29,10 @@ import kotlin.math.pow
 
 class TerrainScene(gameInstance: GameInstance) : AbstractScene(gameInstance) {
 //    val terrainMesh = register(TerrainMesh(this, File("dumpMountain")))
-    val terrainMesh = register(TerrainMesh(this, File("dumpMountainV")))
+//    val terrainMesh = register(TerrainMesh(this, File("dumpMountainV")))
 //    val terrainMesh = register(TerrainMesh(this, File("dumpBadlands")))
 //    val terrainMesh = register(TerrainMesh(this, File("dumpForest")))
-//    val terrainMesh = register(TerrainMesh(this, File("dumpTest")))
+    val terrainMesh = register(TerrainMesh(this, File("dumpTest")))
 //    val terrainMesh = register(TerrainMesh(this, File("dumpJungle")))
 //        val terrainMesh = register(TerrainMesh(this,File("dumpTaiga")))
 //    val terrainMesh = register(TerrainMesh(this, File("dumpDesert")))
@@ -47,7 +47,7 @@ class TerrainScene(gameInstance: GameInstance) : AbstractScene(gameInstance) {
 
     val basic = register(Basic())
     val samplers = register(Samplers())
-    val samplerManager = register(SamplerManager(this))
+    val samplerManager = register(SamplerManager())
     val hizGen = register(HiZBufferGen(this))
 
     private val skybox = register(Skybox(this))
@@ -226,8 +226,8 @@ class TerrainScene(gameInstance: GameInstance) : AbstractScene(gameInstance) {
     }
 
     val cullBoxDrawShader = TerrainDrawShader(
-        ShaderSource.Vert("/terrain/culling/CullBoxDraw.vert.glsl"),
-        ShaderSource.Frag("/terrain/culling/CullBoxDraw.frag.glsl")
+        ShaderSource.Vert("terrain/culling/CullBoxDraw.vert.glsl"),
+        ShaderSource.Frag("terrain/culling/CullBoxDraw.frag.glsl")
     )
 
     private suspend fun solidDeferredPass() {
@@ -356,7 +356,7 @@ class TerrainScene(gameInstance: GameInstance) : AbstractScene(gameInstance) {
         )
 
         waterGBuffer.setDrawBuffers()
-        terrainMesh.layers[2].getDrawViewOrCreate("View").draw()
+//        terrainMesh.layers[2].getDrawViewOrCreate("View").draw()
 
         glBlendEquation(GL_FUNC_ADD)
 
@@ -445,27 +445,20 @@ class TerrainScene(gameInstance: GameInstance) : AbstractScene(gameInstance) {
             glEnable(GL_DITHER)
         }
 
-        glDebugGroup("CombinedVelocity") { combinedVelocity.render(waterGBuffer) }
-        glDebugGroup("AutoExposure") { autoExposure.render(fboGroup) }
-//        glDebugGroup("Bloom") { bloom.render(fboGroup) }
-        glDebugGroup("ToneMapping") { toneMapping.render(fboGroup) }
+        fboGroup.input.fbo.bind()
 
-//        samplers.clearBinding()
-//        glViewport(0, 0, camera.screenWidth, camera.screenHeight)
-//        basic.blitShader.bind()
-//        basic.blitShader.applyBinding {
-////            sampler("usam_input", solidLighting.tex1)
-//            sampler("usam_input", solidLighting.hbao.finalTex)
-//            subroutine("usubroutine_SampleChannel", ShaderStage.FragmentShader, "sampleRGBPA")
-//            buffer(camera.uboBinding)
-//        }
-//        basic.blitShader.uniform1f("uMul", 1.0f)
-//        basic.blitShader.uniform1f("uAdd", 0.0f)
-//        basic.blitShader.uniform1f("uPower", 1.0f)
-//        basic.blitShader.uniform1f("uLod", 0.0f)
-//        basic.drawQuad()
+        glDebugGroup("CombinedVelocity") { combinedVelocity.render(waterGBuffer) }
+
+//        glDebugGroup("Bloom") { bloom.render(fboGroup) }
+        glDebugGroup("ToneMapping") {
+            autoExposure.render(fboGroup)
+            toneMapping.render(fboGroup)
+            autoExposure.update(fboGroup)
+        }
 
         glDebugGroup("TXAA") { txaa.render(fboGroup) }
+
+//        solidLightDebug()
 
 //        rtwsm.renderDebug(fboGroup)
 
@@ -502,6 +495,23 @@ class TerrainScene(gameInstance: GameInstance) : AbstractScene(gameInstance) {
 //            GL_NEAREST
 //        )
         fboGroup.swap()
+    }
+
+    private fun solidLightDebug() {
+        samplers.clearBinding()
+        glViewport(0, 0, camera.screenWidth, camera.screenHeight)
+        basic.blitShader.bind()
+        basic.blitShader.applyBinding {
+//            sampler("usam_input", solidLighting.tex1)
+                sampler("usam_input", solidLighting.hbao.finalTex)
+            subroutine("usubroutine_SampleChannel", ShaderStage.FragmentShader, "sampleAAA")
+            buffer(camera.uboBinding)
+        }
+        basic.blitShader.uniform1f("uMul", 1.0f)
+        basic.blitShader.uniform1f("uAdd", 0.0f)
+        basic.blitShader.uniform1f("uPower", 1.0f)
+        basic.blitShader.uniform1f("uLod", 0.0f)
+        basic.drawQuad()
     }
 
     private suspend fun preDraw(): Boolean {
