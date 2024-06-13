@@ -403,9 +403,9 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
 
         fboGroup.swap()
         timer2.end()
-        if (printTimer2.tickAndReset(3000)) {
-            println("Shading: %.4f ms".format(timer2.averageMS()))
-        }
+//        if (printTimer2.tickAndReset(3000)) {
+//            println("Shading: %.4f ms".format(timer2.averageMS()))
+//        }
     }
 
     private fun bufferBlit() {

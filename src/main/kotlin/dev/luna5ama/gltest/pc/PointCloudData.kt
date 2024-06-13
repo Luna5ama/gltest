@@ -478,8 +478,8 @@ class PointCloudData(private val scene: AbstractScene, dir: File) : IGLObjContai
     var drawQuadCount = 0L; private set
 
     suspend fun updateBatchMeta() {
-//        val print = false
-        val print = printTimer.tickAndReset(3000)
+        val print = false
+//        val print = printTimer.tickAndReset(3000)
         if (print) {
             println()
         }
@@ -770,7 +770,7 @@ class PointCloudData(private val scene: AbstractScene, dir: File) : IGLObjContai
         const val ORIGIN = 128
         const val TOTAL_CHUNKS = SIZE_XZ * SIZE_XZ * SIZE_Y
 
-        const val BATCH_SIZE = 192
+        const val BATCH_SIZE = 96
     }
 
     data class PosKey(val x: Long, val y: Long, val z: Long)
