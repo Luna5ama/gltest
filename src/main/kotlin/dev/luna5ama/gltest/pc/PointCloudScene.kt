@@ -339,7 +339,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
             camera.screenSize.x.toFloat(), camera.screenSize.y.toFloat(),
             1.0f / camera.screenSize.x.toFloat(), 1.0f / camera.screenSize.y.toFloat()
         )
-        program.uniform2ui("uval_viewportSizeUI", camera.screenSize.x, camera.screenSize.y)
+        program.uniform2i("uval_viewportSizeI", camera.screenSize.x, camera.screenSize.y)
     }
 
     private fun holeFill() {
