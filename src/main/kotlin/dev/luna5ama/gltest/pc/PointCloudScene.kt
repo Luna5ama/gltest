@@ -209,12 +209,12 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
             saveCameraPos()
         })
 //        dumpShaderAsm(pointDrawShader, "PointDraw.txt")
-        dumpShaderAsm(quadDrawShader, "QuadDraw.txt")
+//        dumpShaderAsm(quadDrawShader, "QuadDraw.txt")
     }
 
     override fun reloadShaders() {
         super.reloadShaders()
-        dumpShaderAsm(quadDrawShader, "QuadDraw.txt")
+//        dumpShaderAsm(quadDrawShader, "QuadDraw.txt")
     }
 
     override fun destroy() {
@@ -242,6 +242,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
     private fun dumpShaderAsm(program: ShaderProgram, name: String) {
         val binLen = glGetProgrami(pointDrawShader.id, GL_PROGRAM_BINARY_LENGTH)
         val file = File("shaderasm/$name")
+        file.parentFile.mkdirs()
         file.delete()
         FileChannel.open(
             file.toPath(),
@@ -452,9 +453,16 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
         if (overdrawDebug) overdrawCounterTex.clearImage(GL_RGBA_INTEGER, GL_UNSIGNED_INT, Ptr.NULL)
     }
 
+    private var lastKey = -1
+
     private fun updateCamera() {
         when {
             keyboard.pressing(GLFW_KEY_F7) -> {
+                if (lastKey != GLFW_KEY_F7) {
+                    println("F7 pressed")
+                }
+                lastKey = GLFW_KEY_F7
+
                 camera.fov = 90.0f
                 camera.viewDistance = 2048.0f
                 camera.rotation.x = -89.0f
@@ -464,6 +472,11 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
                 camera.pos.z = -95.0
             }
             keyboard.pressing(GLFW_KEY_F8) -> {
+                if (lastKey != GLFW_KEY_F8) {
+                    println("F8 pressed")
+                }
+                lastKey = GLFW_KEY_F8
+
                 camera.fov = 90.0f
                 camera.viewDistance = 2048.0f
                 camera.rotation.x = -50.0f
@@ -473,6 +486,11 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
                 camera.pos.z = -275.0
             }
             keyboard.pressing(GLFW_KEY_F9) -> {
+                if (lastKey != GLFW_KEY_F9) {
+                    println("F9 pressed")
+                }
+                lastKey = GLFW_KEY_F9
+
                 camera.fov = 90.0f
                 camera.viewDistance = 2048.0f
                 camera.rotation.x = -315.0f
@@ -482,6 +500,11 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
                 camera.pos.z = -435.0
             }
             keyboard.pressing(GLFW_KEY_F10) -> {
+                if (lastKey != GLFW_KEY_F10) {
+                    println("F10 pressed")
+                }
+                lastKey = GLFW_KEY_F10
+
                 camera.fov = 90.0f
                 camera.viewDistance = 2048.0f
                 camera.rotation.x = -260.0f

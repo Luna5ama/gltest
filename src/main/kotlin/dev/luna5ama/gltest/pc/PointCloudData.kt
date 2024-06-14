@@ -770,7 +770,7 @@ class PointCloudData(private val scene: AbstractScene, dir: File) : IGLObjContai
         const val ORIGIN = 128
         const val TOTAL_CHUNKS = SIZE_XZ * SIZE_XZ * SIZE_Y
 
-        const val BATCH_SIZE = 96
+        const val BATCH_SIZE = 128
     }
 
     data class PosKey(val x: Long, val y: Long, val z: Long)
