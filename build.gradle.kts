@@ -58,6 +58,12 @@ dependencies {
 }
 
 tasks {
+    jar {
+        manifest {
+            attributes["Main-Class"] = "dev.luna5ama.gltest.MainKt"
+        }
+    }
+
     val fatJar by creating(Jar::class) {
         group = "build"
 

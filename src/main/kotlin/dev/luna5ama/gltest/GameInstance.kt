@@ -15,6 +15,7 @@ import org.lwjgl.opengl.GL
 import org.lwjgl.opengl.GL43C.glDebugMessageCallback
 import org.lwjgl.opengl.GLDebugMessageCallback
 import java.io.File
+import java.net.URI
 import kotlin.coroutines.CoroutineContext
 
 class GameInstance(val window: Long) {
@@ -49,17 +50,26 @@ class GameInstance(val window: Long) {
     private val prevPos = Vec2i32(prevPosX)
     private val prevSize = Vec2i32(prevSizeX)
 
+    class PathResolverImpl : ShaderSource.PathResolver {
+        private val root = PathImpl(File("C:\\CodeShit\\gltest\\src\\main\\resources").toURI())
+
+        override fun resolve(path: String): ShaderSource.PathResolver.Path {
+            return PathImpl(root.uri.resolve("./$path"))
+        }
+
+        private inner class PathImpl(val uri: URI) : ShaderSource.PathResolver.Path {
+            override val url = uri.toURL()
+            override fun resolve(path: String): ShaderSource.PathResolver.Path {
+                return PathImpl(uri.resolve(path))
+            }
+        }
+    }
+
     fun run() {
         glfwMakeContextCurrent(window)
         glfwSwapInterval(SWAP_INTERVAL)
         val pathResolver = if (System.getProperty("gltest.devenv").toBoolean()) {
-            object : ShaderSource.PathResolver {
-                private val root = File("C:\\CodeShit\\gltest\\src\\main\\resources").toURI()
-
-                override fun resolve(path: String): ShaderSource.SourceKey.Path {
-                    return ShaderSource.SourceKey.Path(root, root.resolve("./$path"))
-                }
-            }
+            PathResolverImpl()
         } else {
             ShaderSource.PathResolver.Default
         }
