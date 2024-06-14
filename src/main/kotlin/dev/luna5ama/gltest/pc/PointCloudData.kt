@@ -524,7 +524,7 @@ class PointCloudData(private val scene: AbstractScene, dir: File) : IGLObjContai
             val offset = chunkOffsets[chunkInfo.chunkIndex]
             val sampleCountPow2 = sampleCountPow2Array[chunkInfo.listIndex]
 
-            if (false) {
+            if (scene.gameInstance.toggle1) {
                 indirectCommandUploadBuffer.ensureCapacity((hwIndirectCmdIdx + 1L) * sizeof(DrawArraysIndirectCommand), false)
                 val struct = DrawArraysIndirectCommand(indirectCommandUploadBuffer.ptr + hwIndirectCmdIdx * sizeof(DrawArraysIndirectCommand))
                 struct.count = chunkInfo.quadCount * 6

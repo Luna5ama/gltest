@@ -37,6 +37,7 @@ vec4 readPos(uint idx) {
 out vec2 frag_texCoord;
 #endif
 out vec4 frag_bCoord;
+out float frag_depth;
 flat out uint frag_quadIndex;
 
 layout(location = 0) in int vert_chunkOffsetEncoded;
@@ -80,7 +81,7 @@ void main() {
     vertPos.xyz = vertPos.xyz * coordConvert + chunkOffset;
 
     gl_Position = ubo_cameraDefault.combined * vertPos;
-//    gl_Position.xyw /= gl_Position.w;
+    frag_depth = gl_Position.z;
 
     #ifdef CUTOUT
     uint texCoordIdx = ssbo_quadAttribIndexBuffer[frag_quadIndex] * 4u;

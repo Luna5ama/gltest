@@ -6,7 +6,6 @@
 #include "vbuffer/VBuffers.glsl"
 #include "GlobalCamera.glsl"
 #include "SWRUtils.glsl"
-#include "FastMath.glsl"
 
 layout(local_size_x = BATCH_SIZE, local_size_y = 1, local_size_z = 1) in;
 
@@ -102,6 +101,8 @@ void main() {
 
     pos12 = pos12 * posZInv.xxyy;
     pos34 = pos34 * posZInv.zzww;
+
+    if (any(lessThanEqual(vec4(pos1.z, pos2.z, pos3.z, pos4.z), vec4(0.0)))) return;
 
     if (determinant(mat2(pos34.xy - pos12.xy, pos12.zw - pos12.xy)) >= 0.0) {
         return;
