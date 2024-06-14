@@ -142,16 +142,25 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
                 val bCoordIdx = bCoordIdxOffset + i
                 val bCoord = bcoords[bCoordIdx]
                 val encoded = encoded[bCoordIdx]
-                appendLine("DRAW_POINT(vec4(%f, %f, %f, %f),0x%08Xu);\\".format(bCoord.x, bCoord.y, bCoord.z, bCoord.w, encoded))
+                appendLine(
+                    "DRAW_POINT(vec4(%f, %f, %f, %f),0x%08Xu);\\".format(
+                        bCoord.x,
+                        bCoord.y,
+                        bCoord.z,
+                        bCoord.w,
+                        encoded
+                    )
+                )
             }
             appendLine("break;\\")
         }
+
         val xd = buildString {
             repeat(5) {
                 generate(it)
             }
         }
-        
+
 //        pointDrawShader = register(
 //            ShaderProgram(
 //                ShaderSource.Comp("pc/PointDraw.comp") {
@@ -165,7 +174,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
 //        ).apply {
 //            label("PointDraw")
 //        }
-        
+
 
         runCatching {
             val prop = Properties()
@@ -234,9 +243,9 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
         }
     }
 
-    private val hwDrawTimer = GPUTimer(1000)
-    private val swDrawTimer = GPUTimer(1000)
-    private val shadingTimer = GPUTimer(1000)
+    private val hwDrawTimer = GPUTimer(2000)
+    private val swDrawTimer = GPUTimer(2000)
+    private val shadingTimer = GPUTimer(2000)
     private val printTimer = TickTimer()
     private val updateTimer = TickTimer()
 
@@ -267,8 +276,8 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
 
 
         if (printTimer.tickAndReset(3000)) {
-            println("HW Draw: %.4f ms".format(hwDrawTimer.averageMS()))
-            println("SW Draw: %.4f ms".format(swDrawTimer.averageMS()))
+            if (pcData.hwBatchCount > 0) println("HW Draw: %.4f ms".format(hwDrawTimer.averageMS()))
+            if (pcData.quadBatchCount > 0) println("SW Draw: %.4f ms".format(swDrawTimer.averageMS()))
 //            println("Shading: %.4f ms".format(shadingTimer.averageMS()))
 //            val text = buildString {
 //                appendLine("Draw: %.4f ms".format(timer.averageMS()))
@@ -298,8 +307,6 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
         glDepthFunc(GL_LEQUAL)
         glEnable(GL_CULL_FACE)
         glCullFace(GL_BACK)
-//        glDepthBoundsdNV(0.0, 114514.0)
-//        glDepthRangedNV(0.0, 114514.0)
 
         pcData.quadDrawHWPipeline.vao.bind()
         pcData.quadDrawHWPipeline.shader.bind()
@@ -453,6 +460,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
                 camera.pos.y = 1024.0
                 camera.pos.z = -95.0
             }
+
             keyboard.pressing(GLFW_KEY_F8) -> {
                 if (lastKey != GLFW_KEY_F8) {
                     println("F8 pressed")
@@ -467,6 +475,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
                 camera.pos.y = 485.0
                 camera.pos.z = -275.0
             }
+
             keyboard.pressing(GLFW_KEY_F9) -> {
                 if (lastKey != GLFW_KEY_F9) {
                     println("F9 pressed")
@@ -481,6 +490,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
                 camera.pos.y = 270.0
                 camera.pos.z = -435.0
             }
+
             keyboard.pressing(GLFW_KEY_F10) -> {
                 if (lastKey != GLFW_KEY_F10) {
                     println("F10 pressed")

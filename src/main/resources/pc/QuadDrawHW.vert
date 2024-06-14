@@ -3,15 +3,9 @@
 
 #include "GlobalCamera.glsl"
 
-#ifdef CUTOUT
-layout(std430) readonly buffer QuadTexCoordDataBuffer {
-    uint ssbo_quadTexCoordDataBuffer[];
+layout(std430) restrict readonly buffer ChunkOffsetData {
+    uint ssbo_chunkOffsetData[];
 };
-
-layout(std430) readonly buffer QuadAttribIndexBuffer {
-    uint ssbo_quadAttribIndexBuffer[];
-};
-#endif
 
 layout(std430) restrict readonly buffer ChunkStartIndexBuffer {
     uint ssbo_chunkStartIndexBuffer[];
@@ -33,14 +27,9 @@ vec4 readPos(uint idx) {
     return vec4(uvec4(data1 & 0xFFFFu, data1 >> 16u, data2 & 0xFFFFu, data2 >> 16u));
 }
 
-#ifdef CUTOUT
-out vec2 frag_texCoord;
-#endif
 out vec4 frag_bCoord;
 out float frag_depth;
 flat out uint frag_quadIndex;
-
-layout(location = 0) in int vert_chunkOffsetEncoded;
 
 const vec4 BCOORDS[6] = {
     vec4(1.0, 0.0, 0.0, 0.0),
@@ -57,8 +46,8 @@ const uvec3 CHUNK_OFFSET_BITMASK = (uvec3(1u) << uvec3(13u, 6u, 13u)) - uvec3(1u
 const uvec3 CHUNK_OFFSET_BITSHIFT = uvec3(0u, 13u, 13u + 6u);
 
 void main() {
-    uvec3 chunkOffsetEncoded = uvec3(vert_chunkOffsetEncoded);
-    chunkOffsetEncoded = (uvec3(vert_chunkOffsetEncoded) >> CHUNK_OFFSET_BITSHIFT) & CHUNK_OFFSET_BITMASK;
+    uvec3 chunkOffsetEncoded = uvec3(ssbo_chunkOffsetData[gl_BaseInstance]);
+    chunkOffsetEncoded = (chunkOffsetEncoded >> CHUNK_OFFSET_BITSHIFT) & CHUNK_OFFSET_BITMASK;
     vec3 chunkOffset = vec3(chunkOffsetEncoded);
     chunkOffset = chunkOffset * 16.0 + uval_originOffset;
 
@@ -82,20 +71,4 @@ void main() {
 
     gl_Position = ubo_cameraDefault.combined * vertPos;
     frag_depth = gl_Position.z;
-
-    #ifdef CUTOUT
-    uint texCoordIdx = ssbo_quadAttribIndexBuffer[frag_quadIndex] * 4u;
-    vec4 texCoordX = vec4(
-        unpackUnorm2x16(ssbo_quadTexCoordDataBuffer[texCoordIdx]),
-        unpackUnorm2x16(ssbo_quadTexCoordDataBuffer[texCoordIdx + 1u])
-    );
-    vec4 texCoordY = vec4(
-        unpackUnorm2x16(ssbo_quadTexCoordDataBuffer[texCoordIdx + 2u]),
-        unpackUnorm2x16(ssbo_quadTexCoordDataBuffer[texCoordIdx + 3u])
-    );
-    frag_texCoord = vec2(
-        dot(texCoordX, frag_bCoord),
-        dot(texCoordY, frag_bCoord)
-    );
-    #endif
 }
