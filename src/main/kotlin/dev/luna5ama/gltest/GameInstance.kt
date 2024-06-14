@@ -5,7 +5,6 @@ import dev.fastmc.common.wrapDirectByteBuffer
 import dev.luna5ama.gltest.pc.PointCloudScene
 import dev.luna5ama.gltest.structs.Vec2i32
 import dev.luna5ama.gltest.structs.sizeof
-import dev.luna5ama.gltest.terrain.TerrainScene
 import dev.luna5ama.glwrapper.ShaderSource
 import dev.luna5ama.glwrapper.api.*
 import dev.luna5ama.kmogus.*
@@ -50,17 +49,21 @@ class GameInstance(val window: Long) {
     private val prevPos = Vec2i32(prevPosX)
     private val prevSize = Vec2i32(prevSizeX)
 
-    private val pathResolver = object : ShaderSource.PathResolver {
-        private val root = File("C:\\CodeShit\\gltest\\src\\main\\resources").toURI()
-
-        override fun resolve(path: String): ShaderSource.SourceKey.Path {
-            return ShaderSource.SourceKey.Path(root, root.resolve("./$path"))
-        }
-    }
-
     fun run() {
         glfwMakeContextCurrent(window)
         glfwSwapInterval(SWAP_INTERVAL)
+        val pathResolver = if (System.getProperty("gltest.devenv").toBoolean()) {
+            object : ShaderSource.PathResolver {
+                private val root = File("C:\\CodeShit\\gltest\\src\\main\\resources").toURI()
+
+                override fun resolve(path: String): ShaderSource.SourceKey.Path {
+                    return ShaderSource.SourceKey.Path(root, root.resolve("./$path"))
+                }
+            }
+        } else {
+            ShaderSource.PathResolver.Default
+        }
+
         GLWrapper.init {
             GLWrapper(it, pathResolver)
         }

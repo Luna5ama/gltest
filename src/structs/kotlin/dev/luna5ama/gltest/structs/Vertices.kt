@@ -104,8 +104,16 @@ class PointBatchInfo(
 @Struct(sizeAlignment = 1L, size = 8L)
 class QuadBatchInfo(
     val first: Int,
-    val count: Byte,
     val offsetX : Byte,
     val offsetY : Byte,
     val offsetZ : Byte,
+    val count: Byte,
+)
+
+@Struct(sizeAlignment = 1L, size = 16L)
+class DrawArraysIndirectCommand(
+    val count: Int,
+    val instanceCount: Int,
+    val first: Int,
+    val baseInstance: Int
 )

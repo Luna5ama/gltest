@@ -8,7 +8,6 @@ import dev.luna5ama.glwrapper.ShaderProgram
 import dev.luna5ama.glwrapper.ShaderSource
 import dev.luna5ama.glwrapper.api.*
 import dev.luna5ama.glwrapper.enums.ImageFormat
-import dev.luna5ama.glwrapper.objects.FramebufferObject
 import dev.luna5ama.glwrapper.objects.TextureObject
 import dev.luna5ama.kmogus.Arr
 import dev.luna5ama.kmogus.MemoryStack
@@ -20,7 +19,6 @@ import java.io.File
 import java.nio.channels.FileChannel
 import java.nio.file.StandardOpenOption
 import java.util.*
-import kotlin.system.exitProcess
 
 class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) {
 //        private val pcData = register(PointCloudData(this, File("dumpTest")))
@@ -41,21 +39,14 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
         label("prevTex")
     }
 
-//    private val depthRenderTex = register(TextureObject.Texture2D()).apply {
-//        label("depthTex32UI")
-//    }
-    private val depthCopyTex = register(TextureObject.Texture2D()).apply {
-        label("depthCopyTex")
-    }
-
     private var frameIndex = 0
     private val overdrawDebug = false
 
-    private val pointDrawShader: ShaderProgram
+//    private val pointDrawShader: ShaderProgram
     private val quadDrawShader = register(
         ShaderProgram(
             ShaderSource.Comp("pc/QuadDraw.comp") {
-                define("BATCH_SIZE", PointCloudData.BATCH_SIZE)
+                define("BATCH_SIZE", pcData.BATCH_SIZE)
                 if (overdrawDebug) {
                     define("OVERDRAW_DEBUG")
                 }
@@ -63,21 +54,6 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
         )
     ).apply {
         label("QuadDraw")
-    }
-    private val holeFill = register(
-        ShaderProgram(
-            ShaderSource.Comp("pc/HoleFill.comp")
-        )
-    ).apply {
-        label("bufferBlit")
-    }
-    private val depthBlit = register(
-        ShaderProgram(
-            ShaderSource.Vert("pc/Blit.vert"),
-            ShaderSource.Frag("pc/DepthBlit.frag")
-        )
-    ).apply {
-        label("depthBlit")
     }
     private val shadingShader = register(
         ShaderProgram(
@@ -176,19 +152,19 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
             }
         }
         
-        pointDrawShader = register(
-            ShaderProgram(
-                ShaderSource.Comp("pc/PointDraw.comp") {
-                    define("BATCH_SIZE", PointCloudData.BATCH_SIZE)
-                    define("UNROLLED_CODE", xd)
-                    if (overdrawDebug) {
-                        define("OVERDRAW_DEBUG")
-                    }
-                }
-            )
-        ).apply {
-            label("PointDraw")
-        }
+//        pointDrawShader = register(
+//            ShaderProgram(
+//                ShaderSource.Comp("pc/PointDraw.comp") {
+//                    define("BATCH_SIZE", pcData.BATCH_SIZE)
+//                    define("UNROLLED_CODE", xd)
+//                    if (overdrawDebug) {
+//                        define("OVERDRAW_DEBUG")
+//                    }
+//                }
+//            )
+//        ).apply {
+//            label("PointDraw")
+//        }
         
 
         runCatching {
@@ -209,12 +185,12 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
             saveCameraPos()
         })
 //        dumpShaderAsm(pointDrawShader, "PointDraw.txt")
-//        dumpShaderAsm(quadDrawShader, "QuadDraw.txt")
+        dumpShaderAsm(quadDrawShader, "QuadDraw.txt")
     }
 
     override fun reloadShaders() {
         super.reloadShaders()
-//        dumpShaderAsm(quadDrawShader, "QuadDraw.txt")
+        dumpShaderAsm(quadDrawShader, "QuadDraw.txt")
     }
 
     override fun destroy() {
@@ -240,7 +216,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
     }
 
     private fun dumpShaderAsm(program: ShaderProgram, name: String) {
-        val binLen = glGetProgrami(pointDrawShader.id, GL_PROGRAM_BINARY_LENGTH)
+        val binLen = glGetProgrami(program.id, GL_PROGRAM_BINARY_LENGTH)
         val file = File("shaderasm/$name")
         file.parentFile.mkdirs()
         file.delete()
@@ -258,10 +234,11 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
         }
     }
 
-    private val timer = GPUTimer(2000)
-    private val timer2 = GPUTimer(1000)
+    private val hwDrawTimer = GPUTimer(1000)
+    private val swDrawTimer = GPUTimer(1000)
+    private val shadingTimer = GPUTimer(1000)
     private val printTimer = TickTimer()
-    private val printTimer2 = TickTimer()
+    private val updateTimer = TickTimer()
 
     override suspend fun renderFrame() {
 //        exitProcess(0)
@@ -272,11 +249,35 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
         updateRes()
         clear()
 
-        glDebugGroup("Draw") { draw() }
-        glDebugGroup("Hole fill") { holeFill() }
-        glDebugGroup("Depth blit") { depthBlit() }
+        if (updateTimer.tickAndReset(10)) {
+            pcData.updateBatchMeta()
+        }
+        glDebugGroup("HW Draw") { hwDraw() }
+        glDebugGroup("HW2SW Blit") {
+            vbuffer.blitHW2SW()
+        }
+        glDebugGroup("SW Draw") { swDraw() }
+        glDebugGroup("SW2HW Blit") {
+            vbuffer.blitSW2HW()
+            vbuffer.fbo.blitTo(fboGroup.input.fbo, GL_DEPTH_BUFFER_BIT, GL_NEAREST)
+            vbuffer.fbo.blitTo(fboGroup.output.fbo, GL_DEPTH_BUFFER_BIT, GL_NEAREST)
+        }
         glDebugGroup("Shading") { shading() }
         glDebugGroup("Buffer blit") { bufferBlit() }
+
+
+        if (printTimer.tickAndReset(3000)) {
+            println("HW Draw: %.4f ms".format(hwDrawTimer.averageMS()))
+            println("SW Draw: %.4f ms".format(swDrawTimer.averageMS()))
+//            println("Shading: %.4f ms".format(shadingTimer.averageMS()))
+//            val text = buildString {
+//                appendLine("Draw: %.4f ms".format(timer.averageMS()))
+//                appendLine("Quad count: %,d".format(pcData.quadBatchCount))
+//                appendLine("Point count: %,d(%,d)".format(pcData.drawPointCount, pcData.drawPointTotalCount))
+//            }
+//            print(text)
+//            File("G:\\temp\\xd.txt").writeText(text)
+        }
 
         glBlitNamedFramebuffer(
             fboGroup.input.fbo.id, 0,
@@ -286,40 +287,60 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
         )
     }
 
-    private val updateTimer = TickTimer()
 
-    private suspend fun draw() {
-        if (updateTimer.tickAndReset(10)) {
-            pcData.updateBatchMeta()
+    private suspend fun hwDraw() {
+        if (pcData.hwBatchCount == 0) return
+
+        vbuffer.fbo.bind()
+        vbuffer.fbo.setDrawBufferAll()
+
+        glEnable(GL_DEPTH_TEST)
+        glDepthFunc(GL_LEQUAL)
+        glEnable(GL_CULL_FACE)
+        glCullFace(GL_BACK)
+//        glDepthBoundsdNV(0.0, 114514.0)
+//        glDepthRangedNV(0.0, 114514.0)
+
+        pcData.quadDrawHWPipeline.vao.bind()
+        pcData.quadDrawHWPipeline.shader.bind()
+        pcData.quadDrawHWPipeline.shader.applyBinding {
+            sampler(textures.blockAlbedo)
+            buffer(pcData.quadDrawHWPipeline.bufferBinding)
+            buffer(pcData.bufferBindings)
+            buffer(camera.uboBinding)
         }
-        timer.begin()
+        pcData.quadDrawHWPipeline.shader.uniform3f(
+            "uval_originOffset",
+            (originX - camera.pos.x - 0.5).toFloat(),
+            (originY - camera.pos.y - 1.62).toFloat(),
+            (originZ - camera.pos.z - 0.5).toFloat()
+        )
+        pcData.quadDrawHWPipeline.indirectCommands.bind(GL_DRAW_INDIRECT_BUFFER)
+
+        hwDrawTimer.begin()
+        glMultiDrawArraysIndirect(GL_TRIANGLES, 0L, pcData.hwBatchCount, 0)
+        hwDrawTimer.end()
+    }
+
+    private suspend fun swDraw() {
+        swDrawTimer.begin()
 
         if (pcData.quadBatchCount > 0) {
-            bindDrawShader(quadDrawShader)
+            bindSWDrawShader(quadDrawShader)
             glDispatchCompute(pcData.quadBatchCount, 1, 1)
         }
 
-        if (pcData.pointBatchCount > 0) {
-            bindDrawShader(pointDrawShader)
-            glDispatchCompute(pcData.pointBatchCount, 1, 1)
-        }
+//        if (pcData.pointBatchCount > 0) {
+//            bindSWDrawShader(pointDrawShader)
+//            glDispatchCompute(pcData.pointBatchCount, 1, 1)
+//        }
 
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT or GL_SHADER_STORAGE_BARRIER_BIT)
 
-        timer.end()
-        if (printTimer.tickAndReset(3000)) {
-            println("Draw: %.4f ms".format(timer.averageMS()))
-//            val text = buildString {
-//                appendLine("Draw: %.4f ms".format(timer.averageMS()))
-//                appendLine("Quad count: %,d".format(pcData.quadBatchCount))
-//                appendLine("Point count: %,d(%,d)".format(pcData.drawPointCount, pcData.drawPointTotalCount))
-//            }
-//            print(text)
-//            File("G:\\temp\\xd.txt").writeText(text)
-        }
+        swDrawTimer.end()
     }
 
-    private fun bindDrawShader(program: ShaderProgram) {
+    private fun bindSWDrawShader(program: ShaderProgram) {
         program.bind()
         program.uniform3f(
             "uval_originOffset",
@@ -333,7 +354,6 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
             buffer(pcData.bufferBindings)
             buffer(vbuffer.bufferBinding)
             image(vbuffer.imageBindings)
-//            image("uimg_depthRenderTex", depthRenderTex)
             image("uimg_overdrawCounter", overdrawCounterTex)
         }
         program.uniform4f(
@@ -344,39 +364,8 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
         program.uniform2i("uval_viewportSizeI", camera.screenSize.x, camera.screenSize.y)
     }
 
-    private fun holeFill() {
-        holeFill.bind()
-        holeFill.applyBinding {
-            buffer(vbuffer.bufferBinding)
-//            image("uimg_depthInput", depthRenderTex)
-            image("uimg_depthOutput", depthCopyTex)
-            image(vbuffer.imageBindings)
-        }
-        glDispatchCompute((camera.screenSize.x + 15) / 16, (camera.screenSize.y + 15) / 16, 1)
-        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
-    }
-
-    private fun depthBlit() {
-        glEnable(GL_DEPTH_TEST)
-        glDepthFunc(GL_ALWAYS)
-        glDisable(GL_DEPTH_CLAMP)
-
-        fboGroup.output.fbo.bind()
-        fboGroup.output.fbo.setDrawBuffer()
-        depthBlit.bind()
-        depthBlit.applyBinding {
-            buffer(camera.uboBinding)
-            sampler("usam_input", depthCopyTex)
-        }
-        basic.drawQuad()
-        glDisable(GL_DEPTH_TEST)
-
-        fboGroup.output.fbo.setDrawBufferAll()
-        fboGroup.output.depthStencilTex.copyTo(fboGroup.input.depthStencilTex)
-    }
-
     private fun shading() {
-        timer2.begin()
+        shadingTimer.begin()
         shadingShader.bind()
         shadingShader.applyBinding {
             buffer(camera.uboBinding)
@@ -404,10 +393,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
 
         fboGroup.swap()
-        timer2.end()
-//        if (printTimer2.tickAndReset(3000)) {
-//            println("Shading: %.4f ms".format(timer2.averageMS()))
-//        }
+        shadingTimer.end()
     }
 
     private fun bufferBlit() {
@@ -430,12 +416,8 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
             lastUpdateSize.set(camera.screenSize)
 
             taaPrevTex.destroy()
-//            depthRenderTex.destroy()
-            depthCopyTex.destroy()
 
             taaPrevTex.allocate(1, ImageFormat.R16_G16_B16_A16_F, camera.screenSize.x, camera.screenSize.y)
-//            depthRenderTex.allocate(1, ImageFormat.R32_UI, camera.screenSize.x, camera.screenSize.y)
-            depthCopyTex.allocate(1, ImageFormat.R32_F, camera.screenSize.x, camera.screenSize.y)
             if (overdrawDebug) overdrawCounterTex.allocate(
                 1,
                 ImageFormat.R32_UI,

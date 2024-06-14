@@ -10,11 +10,11 @@ uniform vec3 uval_originOffset;
 uniform vec4 uval_viewportSize;
 uniform uvec2 uval_viewportSizeUI;
 
-layout(std430) buffer VBufferRender {
+layout(std430) buffer VBufferDepthQuadIndex {
     int64_t ssbo_vBufferRender[];
 };
 
-layout(r32ui) uniform writeonly uimage2D uimg_vbufferRender;
+layout(r32ui) uniform writeonly uimage2D uimg_vBufferBCoord;
 #ifdef OVERDRAW_DEBUG
 layout(r32ui) uniform writeonly uimage2D uimg_overdrawCounter;
 #endif
@@ -62,10 +62,10 @@ vec4 readPos(uint idx) {
 }
 
 #ifdef OVERDRAW_DEBUG
-#define WRITE_POINT(be) imageStore(uimg_vbufferRender, outputCoord, uvec4(be, 0u, 0u, 0u));\
+#define WRITE_POINT(be) imageStore(uimg_vBufferBCoord, outputCoord, uvec4(be, 0u, 0u, 0u));\
 imageAtomicAdd(uimg_overdrawCounter, outputCoord, 1u);
 #else
-#define WRITE_POINT(be) imageStore(uimg_vbufferRender, outputCoord, uvec4(be, 0u, 0u, 0u));
+#define WRITE_POINT(be) imageStore(uimg_vBufferBCoord, outputCoord, uvec4(be, 0u, 0u, 0u));
 #endif
 
 #define DRAW_POINT(bc, be) bCoord = bc;\
