@@ -21,7 +21,7 @@ import java.nio.channels.FileChannel
 import java.nio.file.StandardOpenOption
 import java.util.*
 
-class Textures(val scene: AbstractScene) : IGLObjContainer by IGLObjContainer.Impl() {
+class Textures(val scene: AbstractScene, pbr: Boolean) : IGLObjContainer by IGLObjContainer.Impl() {
     private val lightMapTex = register(TextureObject.Texture2D())
     private val blockTex = register(TextureObject.Texture2D())
     private val blockNormalTex = register(TextureObject.Texture2D())
@@ -38,9 +38,11 @@ class Textures(val scene: AbstractScene) : IGLObjContainer by IGLObjContainer.Im
         runBlocking {
             launch { initLightMap(File("tex")) }
             launch { initBlocks(File("tex")) }
-            launch { initBlockNormal(File("tex")) }
-            launch { initBlockSpecular(File("tex")) }
-            launch { initNoiseTexture() }
+            if (pbr) {
+                launch { initBlockNormal(File("tex")) }
+                launch { initBlockSpecular(File("tex")) }
+                launch { initNoiseTexture() }
+            }
         }
     }
 
@@ -58,29 +60,28 @@ class Textures(val scene: AbstractScene) : IGLObjContainer by IGLObjContainer.Im
 
     private suspend fun initBlocks(dir: File) {
         Arr.malloc(0).use { buffer ->
-            repeat(5) {
-                val image = readImage(File(dir, "blocks_$it.png"))
-                if (it == 0) {
-                    blockTex.allocate(5, ImageFormat.R8_G8_B8_A8_UN, image.width, image.height)
+            val image = readImage(File(dir, "blocks_0.png"))
+            val data = image.getRGBA(buffer)
+            blockTex.allocate(5, ImageFormat.R8_G8_B8_A8_UN, image.width, image.height)
 
-                    blockTex.setMipLevels(0, 4)
-                    blockTex.setMipLod(0.0f, 4.0f)
-                    blockTex.setFilter(GL_NEAREST_MIPMAP_LINEAR, GL_NEAREST)
-                    blockTex.setWrap(GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE)
+            blockTex.setMipLevels(0, 4)
+            blockTex.setMipLod(0.0f, 4.0f)
+            blockTex.setFilter(GL_NEAREST_MIPMAP_LINEAR, GL_NEAREST)
+            blockTex.setWrap(GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE)
 
-                    // WTF Intel
-                    blockTex.setAnisotropy(16.0f)
-                }
+            // WTF Intel
+            blockTex.setAnisotropy(16.0f)
 
+            generateMipmap(data, image.width, image.height, 4).forEachIndexed { index, arr ->
                 blockTex.upload(
-                    it,
+                    index,
                     0,
                     0,
-                    image.width,
-                    image.height,
+                    image.width shr index,
+                    image.height shr index,
                     GL_RGBA,
                     GL_UNSIGNED_BYTE,
-                    image.getRGBA(buffer).ptr
+                    arr.ptr
                 )
             }
         }

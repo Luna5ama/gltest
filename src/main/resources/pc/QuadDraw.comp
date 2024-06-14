@@ -202,6 +202,7 @@ void main() {
                 vec4 posZs = posZsShared[gl_LocalInvocationID.x];
                 valueVec.y = (int64_t(floatBitsToInt(dot(posZs.xyz, t1b))) << 32) | int64_t(quadIndex);
                 valueVec.z = (int64_t(floatBitsToInt(dot(posZs.zwx, t2b))) << 32) | int64_t(quadIndex);
+                #ifdef CUTOUT
                 vec4 texCoordX = vec4(
                     unpackUnorm2x16(texCoordXY.x),
                     unpackUnorm2x16(texCoordXY.y)
@@ -211,6 +212,7 @@ void main() {
                     unpackUnorm2x16(texCoordXY.w)
                 );
                 outputCoord.w = int(bool(textureLod(usam_blockAlbedoAtlas, vec2(dot(texCoordX.xyz, t1b), dot(texCoordY.xyz, t1b)), 0.0).a > 0.5)) | (int(bool(textureLod(usam_blockAlbedoAtlas, vec2(dot(texCoordX.zwx, t2b), dot(texCoordY.zwx, t2b)), 0.0).a > 0.5)) << 1);
+                #endif
 
                 if (min3(t1b) >= 0.0) {
                     #ifdef CUTOUT

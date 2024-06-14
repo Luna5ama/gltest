@@ -15,6 +15,7 @@ import dev.luna5ama.kmogus.MemoryStack
 import dev.luna5ama.kmogus.Ptr
 import org.joml.Vector2i
 import org.joml.Vector4f
+import org.lwjgl.glfw.GLFW.*
 import java.io.File
 import java.nio.channels.FileChannel
 import java.nio.file.StandardOpenOption
@@ -34,7 +35,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
     val fboGroup = register(FboGroup(this))
 
     private val lastUpdateSize = Vector2i(-1, -1)
-    private val textures = register(Textures(this))
+    private val textures = register(Textures(this, false))
 
     private val taaPrevTex = register(TextureObject.Texture2D()).apply {
         label("prevTex")
@@ -452,6 +453,45 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
     }
 
     private fun updateCamera() {
+        when {
+            keyboard.pressing(GLFW_KEY_F7) -> {
+                camera.fov = 90.0f
+                camera.viewDistance = 2048.0f
+                camera.rotation.x = -89.0f
+                camera.rotation.y = 75.0f
+                camera.pos.x = -514.0
+                camera.pos.y = 1024.0
+                camera.pos.z = -95.0
+            }
+            keyboard.pressing(GLFW_KEY_F8) -> {
+                camera.fov = 90.0f
+                camera.viewDistance = 2048.0f
+                camera.rotation.x = -50.0f
+                camera.rotation.y = 77.5f
+                camera.pos.x = -256.0
+                camera.pos.y = 485.0
+                camera.pos.z = -275.0
+            }
+            keyboard.pressing(GLFW_KEY_F9) -> {
+                camera.fov = 90.0f
+                camera.viewDistance = 2048.0f
+                camera.rotation.x = -315.0f
+                camera.rotation.y = 31.3f
+                camera.pos.x = 508.0
+                camera.pos.y = 270.0
+                camera.pos.z = -435.0
+            }
+            keyboard.pressing(GLFW_KEY_F10) -> {
+                camera.fov = 90.0f
+                camera.viewDistance = 2048.0f
+                camera.rotation.x = -260.0f
+                camera.rotation.y = 22.0f
+                camera.pos.x = 1288.0
+                camera.pos.y = 172.0
+                camera.pos.z = 337.0
+            }
+        }
+
         camera.updateScreenSize()
 
         val range = 1.0

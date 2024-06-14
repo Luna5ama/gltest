@@ -41,7 +41,7 @@ class TerrainScene(gameInstance: GameInstance) : AbstractScene(gameInstance) {
 
     val old = register(PostShaders(this))
     val deferredShaders = register(DeferredShaders(this))
-    val textures = register(Textures(this))
+    val textures = register(Textures(this, true))
 
     private val fboGroup = register(FboGroup(this))
 

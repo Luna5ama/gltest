@@ -299,7 +299,7 @@ class GameInstance(val window: Long) {
             }
         }
 
-        keyboard.register(GLFW_KEY_F9) {
+        keyboard.register(GLFW_KEY_F1) {
             if (it == GLFW_RELEASE) {
                 cinematicCamera = !cinematicCamera
             }
