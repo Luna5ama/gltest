@@ -15,13 +15,15 @@ import dev.luna5ama.kmogus.ensureCapacity
 import kotlin.math.min
 
 class SWQuadPipeline(scene: PointCloudScene) : TerrainDrawPipeline<SWQuadPipeline.UpdateContextImpl>(scene) {
-    private val batchInfoBuffer = register(BufferObject.Immutable())
+    private val batchInfoBuffer = register(BufferObject.Immutable()).apply {
+        label("SWQuad.BatchInfoBuffer")
+    }
 
     val bufferBinding = ShaderBindingSpecs.Buffer("QuadBatchInfoBuffer", batchInfoBuffer, BufferTarget.ShaderStorage)
 
     private val quadDrawShader = register(
         ShaderProgram(
-            ShaderSource.Comp("pc/QuadDraw.comp") {
+            ShaderSource.Comp("pc/vbuffer/SWQuad.comp") {
                 define("BATCH_SIZE", scene.terrainMeshData.batchSize)
                 if (scene.overdrawDebug) {
                     define("OVERDRAW_DEBUG")
@@ -29,7 +31,7 @@ class SWQuadPipeline(scene: PointCloudScene) : TerrainDrawPipeline<SWQuadPipelin
             }
         )
     ).apply {
-        label("QuadDraw")
+        label("SWQuad.shader")
     }
 
     override fun startUpdate(): UpdateContextImpl {

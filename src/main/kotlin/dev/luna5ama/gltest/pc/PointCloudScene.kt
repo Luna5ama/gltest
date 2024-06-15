@@ -61,7 +61,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
     val hwVsPipeline = register(HWVertexShaderPipeline(this))
     val hwMsPipeline = register(HWMeshShaderPipeline(this))
     val swQuadPipeline = register(SWQuadPipeline(this))
-    val swPointPipeline = register(SWPointPipeline(this))
+//    val swPointPipeline = register(SWPointPipeline(this))
 
     init {
         runCatching {
@@ -198,7 +198,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
         swDrawTimer.begin()
 
         swQuadPipeline.draw()
-        swPointPipeline.draw()
+//        swPointPipeline.draw()
 
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT or GL_SHADER_STORAGE_BARRIER_BIT)
 

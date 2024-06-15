@@ -13,6 +13,7 @@ import org.joml.Vector2d
 import org.lwjgl.glfw.GLFW.*
 import org.lwjgl.opengl.GL
 import org.lwjgl.opengl.GL43C.glDebugMessageCallback
+import org.lwjgl.opengl.GLCapabilities
 import org.lwjgl.opengl.GLDebugMessageCallback
 import java.io.File
 import java.net.URI
@@ -34,6 +35,7 @@ class GameInstance(val window: Long) {
     var toggle3 = false; private set
 
     lateinit var mainContext: CoroutineContext
+    lateinit var glCapabilities: GLCapabilities
 
     val prevMousePos = Vector2d()
     val mousePos = Vector2d()
@@ -79,7 +81,7 @@ class GameInstance(val window: Long) {
         }
 
         runCatching { GL.create() }
-        GL.createCapabilities()
+        glCapabilities = GL.createCapabilities()
 
         glEnable(GL_DEBUG_OUTPUT)
         glDebugMessageCallback(GLDebugMessageCallback.create { source, type, id, severity, length, message, userParam ->

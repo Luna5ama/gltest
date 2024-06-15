@@ -114,7 +114,7 @@ class SWPointPipeline(scene: PointCloudScene) : TerrainDrawPipeline<SWPointPipel
 
         pointDrawShader = register(
             ShaderProgram(
-                ShaderSource.Comp("pc/PointDraw.comp") {
+                ShaderSource.Comp("pc/vbuffer/PointDraw.comp") {
                     define("BATCH_SIZE", scene.terrainMeshData.batchSize)
                     define("UNROLLED_CODE", xd)
                     if (scene.overdrawDebug) {

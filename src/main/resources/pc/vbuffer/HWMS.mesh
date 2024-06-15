@@ -2,7 +2,7 @@
 
 #extension GL_NV_mesh_shader : enable
 
-#include "GlobalCamera.glsl"
+#include "../GlobalCamera.glsl"
 
 layout(local_size_x = 16, local_size_y = 1, local_size_z = 1) in;
 

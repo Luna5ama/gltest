@@ -17,18 +17,18 @@ class HWVertexShaderPipeline(scene: PointCloudScene) :
     private val vao = register(VertexArrayObject())
     private val shader = register(
         ShaderProgram(
-            ShaderSource.Vert("pc/QuadDrawHW.vert"),
-            ShaderSource.Frag("pc/QuadDrawHW.frag")
+            ShaderSource.Vert("pc/vbuffer/HWVS.vert"),
+            ShaderSource.Frag("pc/vbuffer/HW.frag")
         )
     ).apply {
-        label("QuadDrawHW.shader")
+        label("HWVS.shader")
     }
     private val indirectCmds = register(BufferObject.Immutable()).apply {
-        label("QuadDrawHW.indirectCmds")
+        label("HWVS.indirectCmds")
     }
 
     private val elementBuffer = register(BufferObject.Immutable()).apply {
-        label("QuadDrawHW.elementBuffer")
+        label("HWVS.elementBuffer")
     }
 
     init {

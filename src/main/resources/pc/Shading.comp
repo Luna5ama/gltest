@@ -2,7 +2,7 @@
 
 #include "vbuffer/VBuffers.glsl"
 #include "GlobalCamera.glsl"
-#include "SWRUtils.glsl"
+#include "utils/SWRUtils.glsl"
 
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 

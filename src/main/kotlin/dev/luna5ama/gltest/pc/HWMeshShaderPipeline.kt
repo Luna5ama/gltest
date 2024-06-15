@@ -17,17 +17,17 @@ class HWMeshShaderPipeline(scene: PointCloudScene) :
     TerrainDrawPipeline<HWMeshShaderPipeline.UpdateContextImpl>(scene) {
     private val shader = register(
         ShaderProgram(
-            ShaderSource.Task("pc/QuadDrawHW.task"),
-            ShaderSource.Mesh("pc/QuadDrawHW.mesh"),
-            ShaderSource.Frag("pc/QuadDrawHW.frag") {
+            ShaderSource.Task("pc/vbuffer/HWMS.task"),
+            ShaderSource.Mesh("pc/vbuffer/HWMS.mesh"),
+            ShaderSource.Frag("pc/vbuffer/HW.frag") {
                 define("MESH_SHADER")
             }
         )
     ).apply {
-        label("HWMeshShaderPipeline.shader")
+        label("HWMS.shader")
     }
     private val batchInfoBuffer = register(BufferObject.Immutable()).apply {
-        label("HWMeshShaderPipeline.BatchInfoBuffer")
+        label("HWMS.BatchInfoBuffer")
     }
     private val bufferBinding =
         ShaderBindingSpecs.Buffer("BatchInfoBuffer", batchInfoBuffer, BufferTarget.ShaderStorage)

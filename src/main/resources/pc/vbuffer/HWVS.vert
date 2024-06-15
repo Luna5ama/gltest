@@ -1,7 +1,7 @@
 #version 460 core
 #define CUTOUT
 
-#include "GlobalCamera.glsl"
+#include "../GlobalCamera.glsl"
 
 layout(std430) restrict readonly buffer ChunkOffsetData {
     uint ssbo_chunkOffsetData[];
