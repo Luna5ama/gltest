@@ -76,14 +76,16 @@ class SWQuadPipeline(scene: PointCloudScene) : TerrainDrawPipeline<SWQuadPipelin
         override fun add(chunkInfo: TerrainMeshData.ChunkInfo) {
             var quadIdx = 0
             while (quadIdx < chunkInfo.quadCount) {
+                val batchQuadCount = min(chunkInfo.quadCount - quadIdx, scene.terrainMeshData.batchSize)
+
                 uploadBuffer.ensureCapacity((batchCount + 1L) * sizeof(QuadBatchInfo), false)
                 val struct = QuadBatchInfo(uploadBuffer.ptr + batchCount * sizeof(QuadBatchInfo))
-                val batchQuadCount = min(chunkInfo.quadCount - quadIdx, scene.terrainMeshData.batchSize)
                 struct.first = chunkInfo.startIndex + quadIdx
                 struct.count = batchQuadCount.toByte()
                 struct.offsetX = chunkInfo.offset.x.toByte()
                 struct.offsetY = chunkInfo.offset.y.toByte()
                 struct.offsetZ = chunkInfo.offset.z.toByte()
+
                 quadIdx += batchQuadCount
                 batchCount++
             }

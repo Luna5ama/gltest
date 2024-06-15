@@ -105,7 +105,7 @@ class Camera(val scene: AbstractScene) {
 
     fun update(offsetX: Float, offsetY: Float) {
         jitter.set(offsetX, offsetY)
-        nearPlane = 0.05f
+        nearPlane = 0.01f
         farPlane = viewDistance * 1.5f
         planeZ.set(nearPlane, farPlane)
         aspectRatio = screenWidth.toFloat() / screenHeight.toFloat()

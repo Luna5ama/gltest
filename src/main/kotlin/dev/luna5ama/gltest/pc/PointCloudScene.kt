@@ -158,11 +158,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
 
 
         if (printTimer.tickAndReset(3000)) {
-//            if (hwVsPipeline.batchCount > 0) println("HW VS Draw: %.2f ms".format(hwVsDrawTimer.averageMS()))
-//            if (hwMsPipeline.batchCount > 0) println("HW MS Draw: %.2f ms".format(hwMsDrawTimer.averageMS()))
-//            if (swQuadPipeline.batchCount + swPointPipeline.batchCount > 0)
-//                println("SW Draw: %.2f ms".format(swDrawTimer.averageMS()))
-            println("HW Draw: %.2f ms".format(hwMsDrawTimer.averageMS()))
+            println("HW Draw: %.2f ms".format(hwMsDrawTimer.averageMS() + hwVsDrawTimer.averageMS()))
             println("SW Draw: %.2f ms".format(swDrawTimer.averageMS()))
             println("Total: %.2f ms".format(swDrawTimer.averageMS() + hwVsDrawTimer.averageMS() + hwMsDrawTimer.averageMS()))
             println()

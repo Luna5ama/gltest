@@ -10,6 +10,7 @@ import dev.luna5ama.glwrapper.objects.BufferObject
 import dev.luna5ama.glwrapper.objects.VertexArrayObject
 import dev.luna5ama.kmogus.Arr
 import dev.luna5ama.kmogus.ensureCapacity
+import kotlin.math.min
 
 class HWVertexShaderPipeline(scene: PointCloudScene) :
     TerrainDrawPipeline<HWVertexShaderPipeline.UpdateContextImpl>(scene) {
@@ -30,6 +31,24 @@ class HWVertexShaderPipeline(scene: PointCloudScene) :
         label("QuadDrawHW.elementBuffer")
     }
 
+    init {
+        Arr.malloc(BATCH_MAX_QUAD * 6 * 2L).use { arr ->
+            val ptr = arr.ptr
+            for (i in 0 until BATCH_MAX_QUAD) {
+                val baseIdx = i * 6L * 2L
+                val vertBaseIdx = i * 4
+                ptr.setShort(baseIdx, vertBaseIdx.toShort())
+                ptr.setShort(baseIdx + 2, (vertBaseIdx + 1).toShort())
+                ptr.setShort(baseIdx + 4, (vertBaseIdx + 2).toShort())
+                ptr.setShort(baseIdx + 6, (vertBaseIdx + 2).toShort())
+                ptr.setShort(baseIdx + 8, (vertBaseIdx + 3).toShort())
+                ptr.setShort(baseIdx + 10, vertBaseIdx.toShort())
+            }
+            elementBuffer.allocate(arr.len, ptr, 0)
+        }
+        vao.attachEbo(elementBuffer)
+    }
+
     override fun startUpdate(): UpdateContextImpl {
         return UpdateContextImpl()
     }
@@ -47,25 +66,6 @@ class HWVertexShaderPipeline(scene: PointCloudScene) :
         } else {
             indirectCmds.invalidate()
             indirectCmds.upload(0L, indirctCmdLen, context.indirectCmdUpload.ptr)
-        }
-
-        if (elementBuffer.size < context.maxQuadCount * 6 * 4) {
-            elementBuffer.destroy()
-            Arr.malloc(context.maxQuadCount * 6 * 4L).use { arr ->
-                val ptr = arr.ptr
-                for (i in 0 until context.maxQuadCount) {
-                    val baseIdx = i * 6L * 4L
-                    val vertBaseIdx = i * 4
-                    ptr.setInt(baseIdx, vertBaseIdx)
-                    ptr.setInt(baseIdx + 4, vertBaseIdx + 1)
-                    ptr.setInt(baseIdx + 8, vertBaseIdx + 2)
-                    ptr.setInt(baseIdx + 12, vertBaseIdx + 2)
-                    ptr.setInt(baseIdx + 16, vertBaseIdx + 3)
-                    ptr.setInt(baseIdx + 20, vertBaseIdx)
-                }
-                elementBuffer.allocate(arr.len, ptr, 0)
-            }
-            vao.attachEbo(elementBuffer)
         }
     }
 
@@ -86,25 +86,30 @@ class HWVertexShaderPipeline(scene: PointCloudScene) :
             (PointCloudScene.originZ - scene.camera.pos.z - 0.5).toFloat()
         )
         indirectCmds.bind(GL_DRAW_INDIRECT_BUFFER)
-        glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, 0L, batchCount, 0)
+        glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_SHORT, 0L, batchCount, 0)
     }
 
     inner class UpdateContextImpl : UpdateContext() {
         val indirectCmdUpload = Arr.malloc(0L)
-        var maxQuadCount = 0
 
         override fun add(chunkInfo: TerrainMeshData.ChunkInfo) {
-            indirectCmdUpload.ensureCapacity((batchCount + 1L) * sizeof(DrawElementsIndirectCommand), false)
-            val structOffset = batchCount * sizeof(DrawElementsIndirectCommand)
-            val struct = DrawElementsIndirectCommand(indirectCmdUpload.ptr + structOffset)
-            struct.count = chunkInfo.quadCount * 6
-            struct.instanceCount = 1
-            struct.firstIndex = 0
-            struct.baseVertex = chunkInfo.startIndex * 4
-            struct.baseInstance = chunkInfo.chunkIndex
-            maxQuadCount = maxOf(maxQuadCount, chunkInfo.quadCount)
+            var quadIdx = 0
+            while (quadIdx < chunkInfo.quadCount) {
+                val batchQuadCount = min(chunkInfo.quadCount - quadIdx, BATCH_MAX_QUAD)
 
-            batchCount++
+                indirectCmdUpload.ensureCapacity((batchCount + 1L) * sizeof(DrawElementsIndirectCommand), false)
+                val structOffset = batchCount * sizeof(DrawElementsIndirectCommand)
+                val struct = DrawElementsIndirectCommand(indirectCmdUpload.ptr + structOffset)
+                struct.count = batchQuadCount * 6
+                struct.instanceCount = 1
+                struct.firstIndex = 0
+                struct.baseVertex = (chunkInfo.startIndex + quadIdx) * 4
+                struct.baseInstance = chunkInfo.chunkIndex
+
+                quadIdx += batchQuadCount
+                batchCount++
+            }
+
             chunkCount++
             quadCount += chunkInfo.quadCount
         }
@@ -112,5 +117,9 @@ class HWVertexShaderPipeline(scene: PointCloudScene) :
         override fun close() {
             indirectCmdUpload.free()
         }
+    }
+
+    companion object {
+        const val BATCH_MAX_QUAD = 65536 / 4
     }
 }

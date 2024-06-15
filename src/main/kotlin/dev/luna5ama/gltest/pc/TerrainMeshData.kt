@@ -541,16 +541,16 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
         }
 
         if (print) {
-//            println("HW VS Batch count: ${chunkCountString(scene.hwVsPipeline)}")
-            println("HW MS Batch count: ${chunkCountString(scene.hwMsPipeline)}")
-            println("SW Quad Batch count: ${chunkCountString(scene.swQuadPipeline)}")
-//            println("SW Point Batch count: ${chunkCountString(scene.swPointPipeline)}")
+            println("HW VS: ${chunkCountString(scene.hwVsPipeline)}")
+            println("HW MS: ${chunkCountString(scene.hwMsPipeline)}")
+            println("SW Quad: ${chunkCountString(scene.swQuadPipeline)}")
+//            println("SW Point: ${chunkCountString(scene.swPointPipeline)}")
             println()
         }
     }
 
     private fun chunkCountString(pipeline: TerrainDrawPipeline<*>): String {
-        return "${pipeline.chunkCount}(${pipeline.batchCount})/${chunkinfos.size}"
+        return "${pipeline.quadCount} quads, ${pipeline.chunkCount}(${pipeline.batchCount})/${chunkinfos.size} chunks"
     }
 
     private fun CoroutineScope.calcSampleCount() {
