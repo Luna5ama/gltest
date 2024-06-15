@@ -15,7 +15,7 @@ import dev.luna5ama.glwrapper.objects.TextureObject
 import dev.luna5ama.kmogus.MemoryStack
 import dev.luna5ama.kmogus.Ptr
 
-class PointCloudVisibilityBuffer(private val scene: PointCloudScene) : IGLObjContainer by IGLObjContainer.Impl() {
+class VisibilityBuffer(private val scene: PointCloudScene) : IGLObjContainer by IGLObjContainer.Impl() {
     private val dataTex1 = register(TextureObject.Texture2D()).apply {
         label("VBuffer.DataTex1")
     }

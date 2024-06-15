@@ -13,7 +13,6 @@ import dev.luna5ama.kmogus.Arr
 import dev.luna5ama.kmogus.MemoryStack
 import dev.luna5ama.kmogus.Ptr
 import org.joml.Vector2i
-import org.joml.Vector4f
 import org.lwjgl.glfw.GLFW.*
 import java.io.File
 import java.nio.channels.FileChannel
@@ -21,40 +20,27 @@ import java.nio.file.StandardOpenOption
 import java.util.*
 
 class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) {
-//        private val pcData = register(PointCloudData(this, File("dumpTest")))
-//        private val pcData = register(PointCloudData(this, File("dumpForestPC")))
-//    private val pcData = register(PointCloudData(this, File("dumpMountainV")))
-//    private val pcData = register(PointCloudData(this, File("dumpMountainS")))
-//    private val pcData = register(PointCloudData(this, File("dumpMountainS00")))
-    private val pcData = register(PointCloudData(this, File("dumpMountainS64")))
-//    private val pcData = register(PointCloudData(this, File("dumpForest2")))
+//        private val terrainMeshData = register(TerrainMeshData(this, File("dumpTest")))
+//        private val terrainMeshData = register(TerrainMeshData(this, File("dumpForestPC")))
+//    private val terrainMeshData = register(TerrainMeshData(this, File("dumpMountainV")))
+//    private val terrainMeshData = register(TerrainMeshData(this, File("dumpMountainS")))
+//    private val terrainMeshData = register(TerrainMeshData(this, File("dumpMountainS00")))
+    val terrainMeshData = register(TerrainMeshData(this, File("dumpMountainS64")))
+//    private val terrainMeshData = register(TerrainMeshData(this, File("dumpForest2")))
 
-    val vbuffer = register(PointCloudVisibilityBuffer(this))
+    val vbuffer = register(VisibilityBuffer(this))
     val fboGroup = register(FboGroup(this))
 
     private val lastUpdateSize = Vector2i(-1, -1)
-    private val textures = register(Textures(this, false))
+    val textures = register(Textures(this, false))
 
     private val taaPrevTex = register(TextureObject.Texture2D()).apply {
         label("prevTex")
     }
 
     private var frameIndex = 0
-    private val overdrawDebug = false
+    val overdrawDebug = false
 
-//    private val pointDrawShader: ShaderProgram
-    private val quadDrawShader = register(
-        ShaderProgram(
-            ShaderSource.Comp("pc/QuadDraw.comp") {
-                define("BATCH_SIZE", pcData.BATCH_SIZE)
-                if (overdrawDebug) {
-                    define("OVERDRAW_DEBUG")
-                }
-            }
-        )
-    ).apply {
-        label("QuadDraw")
-    }
     private val shadingShader = register(
         ShaderProgram(
             ShaderSource.Comp("pc/Shading.comp")
@@ -69,113 +55,14 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
     ).apply {
         label("bufferBlit")
     }
-    private val overdrawCounterTex = register(TextureObject.Texture2D())
+    val overdrawCounterTex = register(TextureObject.Texture2D())
     val basic = register(Basic())
 
+    val hwVsPipeline = register(HWVertexShaderPipeline(this))
+    val swQuadPipeline = register(SWQuadPipeline(this))
+    val swPointPipeline = register(SWPointPipeline(this))
+
     init {
-        val bcoords = listOf(
-            Vector4f(0.25f, 0.25f, 0.25f, 0.25f),
-
-            Vector4f(0.5f, 0.25f, 0.0f, 0.25f),
-            Vector4f(0.0f, 0.25f, 0.5f, 0.25f),
-
-
-            Vector4f(0.0f, 0.125f, 0.5f, 0.375f),
-            Vector4f(0.375f, 0.0f, 0.125f, 0.5f),
-            Vector4f(0.125f, 0.5f, 0.375f, 0.0f),
-            Vector4f(0.5f, 0.375f, 0.0f, 0.125f),
-
-
-            Vector4f(0.0f, 0.3125f, 0.125f, 0.5625f),
-            Vector4f(0.125f, 0.5625f, 0.0f, 0.3125f),
-            Vector4f(0.5625f, 0.0f, 0.1875f, 0.25f),
-            Vector4f(0.1875f, 0.0f, 0.6875f, 0.125f),
-
-            Vector4f(0.0f, 0.8125f, 0.0f, 0.1875f),
-            Vector4f(0.0625f, 0.375f, 0.5625f, 0.0f),
-            Vector4f(0.625f, 0.3125f, 0.0f, 0.0625f),
-            Vector4f(0.0625f, 0.0f, 0.0625f, 0.875f),
-
-
-            Vector4f(0.125f, 0.4375f, 0.0f, 0.4375f),
-            Vector4f(0.3125f, 0.0f, 0.5625f, 0.125f),
-            Vector4f(0.0f, 0.625f, 0.0625f, 0.3125f),
-            Vector4f(0.1875f, 0.25f, 0.0f, 0.5625f),
-
-            Vector4f(0.1875f, 0.1875f, 0.625f, 0.0f),
-            Vector4f(0.625f, 0.1875f, 0.1875f, 0.0f),
-            Vector4f(0.6875f, 0.0f, 0.1875f, 0.125f),
-            Vector4f(0.0f, 0.1875f, 0.125f, 0.6875f),
-
-            Vector4f(0.25f, 0.625f, 0.0f, 0.125f),
-            Vector4f(0.0625f, 0.0f, 0.5f, 0.4375f),
-            Vector4f(0.125f, 0.0f, 0.75f, 0.125f),
-            Vector4f(0.0f, 0.75f, 0.125f, 0.125f),
-
-            Vector4f(0.0f, 0.5f, 0.5f, 0.0f),
-            Vector4f(0.1875f, 0.0625f, 0.0f, 0.75f),
-            Vector4f(0.8125f, 0.125f, 0.0f, 0.0625f),
-            Vector4f(0.0625f, 0.9375f, 0.0f, 0.0f)
-        )
-        val bcoordIdxOffsets = listOf(
-            0,
-            1,
-            1 + 2,
-            1 + 2 + 4,
-            1 + 2 + 4 + 8
-        )
-
-        fun encodeBCoord(bcoord: Vector4f): Long {
-            val tempX = ((bcoord.x * 2047.0f).toLong() and 2047L) shl 0
-            val tempY = ((bcoord.y * 1023.0f).toLong() and 1023L) shl 11
-            val tempZ = ((bcoord.z * 2047.0f).toLong() and 2047L) shl 21
-            return tempX or tempY or tempZ
-        }
-
-        val encoded = bcoords.map { encodeBCoord(it) }
-
-        fun StringBuilder.generate(sampleCountPow2: Int) {
-            val bCoordIdxOffset = bcoordIdxOffsets[sampleCountPow2]
-            val sampleCount = 1 shl sampleCountPow2
-            appendLine("case $sampleCountPow2:\\")
-            repeat(sampleCount) { i ->
-                val bCoordIdx = bCoordIdxOffset + i
-                val bCoord = bcoords[bCoordIdx]
-                val encoded = encoded[bCoordIdx]
-                appendLine(
-                    "DRAW_POINT(vec4(%f, %f, %f, %f),0x%08Xu);\\".format(
-                        bCoord.x,
-                        bCoord.y,
-                        bCoord.z,
-                        bCoord.w,
-                        encoded
-                    )
-                )
-            }
-            appendLine("break;\\")
-        }
-
-        val xd = buildString {
-            repeat(5) {
-                generate(it)
-            }
-        }
-
-//        pointDrawShader = register(
-//            ShaderProgram(
-//                ShaderSource.Comp("pc/PointDraw.comp") {
-//                    define("BATCH_SIZE", pcData.BATCH_SIZE)
-//                    define("UNROLLED_CODE", xd)
-//                    if (overdrawDebug) {
-//                        define("OVERDRAW_DEBUG")
-//                    }
-//                }
-//            )
-//        ).apply {
-//            label("PointDraw")
-//        }
-
-
         runCatching {
             val prop = Properties()
             prop.load(File("camera.properties").inputStream())
@@ -193,13 +80,6 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
         Runtime.getRuntime().addShutdownHook(Thread {
             saveCameraPos()
         })
-//        dumpShaderAsm(pointDrawShader, "PointDraw.txt")
-        dumpShaderAsm(quadDrawShader, "QuadDraw.txt")
-    }
-
-    override fun reloadShaders() {
-        super.reloadShaders()
-        dumpShaderAsm(quadDrawShader, "QuadDraw.txt")
     }
 
     override fun destroy() {
@@ -244,7 +124,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
     }
 
     private val hwDrawTimer = GPUTimer(2000)
-    private val swDrawTimer = GPUTimer(2000)
+    private val swDrawTimer = GPUTimer(200)
     private val shadingTimer = GPUTimer(2000)
     private val printTimer = TickTimer()
     private val updateTimer = TickTimer()
@@ -259,7 +139,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
         clear()
 
         if (updateTimer.tickAndReset(10)) {
-            pcData.updateBatchMeta()
+            terrainMeshData.updateBatchMeta()
         }
         glDebugGroup("HW Draw") { hwDraw() }
         glDebugGroup("HW2SW Blit") {
@@ -276,16 +156,9 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
 
 
         if (printTimer.tickAndReset(3000)) {
-            if (pcData.hwBatchCount > 0) println("HW Draw: %.4f ms".format(hwDrawTimer.averageMS()))
-            if (pcData.quadBatchCount > 0) println("SW Draw: %.4f ms".format(swDrawTimer.averageMS()))
-//            println("Shading: %.4f ms".format(shadingTimer.averageMS()))
-//            val text = buildString {
-//                appendLine("Draw: %.4f ms".format(timer.averageMS()))
-//                appendLine("Quad count: %,d".format(pcData.quadBatchCount))
-//                appendLine("Point count: %,d(%,d)".format(pcData.drawPointCount, pcData.drawPointTotalCount))
-//            }
-//            print(text)
-//            File("G:\\temp\\xd.txt").writeText(text)
+            if (hwVsPipeline.batchCount > 0) println("HW VS Draw: %.4f ms".format(hwDrawTimer.averageMS()))
+            if (swQuadPipeline.batchCount + swPointPipeline.batchCount > 0)
+                println("SW Draw: %.4f ms".format(swDrawTimer.averageMS()))
         }
 
         glBlitNamedFramebuffer(
@@ -298,8 +171,6 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
 
 
     private suspend fun hwDraw() {
-        if (pcData.hwBatchCount == 0) return
-
         vbuffer.fbo.bind()
         vbuffer.fbo.setDrawBufferAll()
 
@@ -308,46 +179,23 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
         glEnable(GL_CULL_FACE)
         glCullFace(GL_BACK)
 
-        pcData.quadDrawHWPipeline.vao.bind()
-        pcData.quadDrawHWPipeline.shader.bind()
-        pcData.quadDrawHWPipeline.shader.applyBinding {
-            sampler(textures.blockAlbedo)
-            buffer(pcData.quadDrawHWPipeline.bufferBinding)
-            buffer(pcData.bufferBindings)
-            buffer(camera.uboBinding)
-        }
-        pcData.quadDrawHWPipeline.shader.uniform3f(
-            "uval_originOffset",
-            (originX - camera.pos.x - 0.5).toFloat(),
-            (originY - camera.pos.y - 1.62).toFloat(),
-            (originZ - camera.pos.z - 0.5).toFloat()
-        )
-        pcData.quadDrawHWPipeline.indirectCommands.bind(GL_DRAW_INDIRECT_BUFFER)
-
         hwDrawTimer.begin()
-        glMultiDrawArraysIndirect(GL_TRIANGLES, 0L, pcData.hwBatchCount, 0)
+        hwVsPipeline.draw()
         hwDrawTimer.end()
     }
 
     private suspend fun swDraw() {
         swDrawTimer.begin()
 
-        if (pcData.quadBatchCount > 0) {
-            bindSWDrawShader(quadDrawShader)
-            glDispatchCompute(pcData.quadBatchCount, 1, 1)
-        }
-
-//        if (pcData.pointBatchCount > 0) {
-//            bindSWDrawShader(pointDrawShader)
-//            glDispatchCompute(pcData.pointBatchCount, 1, 1)
-//        }
+        swQuadPipeline.draw()
+        swPointPipeline.draw()
 
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT or GL_SHADER_STORAGE_BARRIER_BIT)
 
         swDrawTimer.end()
     }
 
-    private fun bindSWDrawShader(program: ShaderProgram) {
+    fun bindSWDrawShader(program: ShaderProgram) {
         program.bind()
         program.uniform3f(
             "uval_originOffset",
@@ -355,14 +203,6 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
             (originY - camera.pos.y - 1.62).toFloat(),
             (originZ - camera.pos.z - 0.5).toFloat()
         )
-        program.applyBinding {
-            sampler(textures.blockAlbedo)
-            buffer(camera.uboBinding)
-            buffer(pcData.bufferBindings)
-            buffer(vbuffer.bufferBinding)
-            image(vbuffer.imageBindings)
-            image("uimg_overdrawCounter", overdrawCounterTex)
-        }
         program.uniform4f(
             "uval_viewportSize",
             camera.screenSize.x.toFloat(), camera.screenSize.y.toFloat(),
@@ -376,7 +216,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
         shadingShader.bind()
         shadingShader.applyBinding {
             buffer(camera.uboBinding)
-            buffer(pcData.bufferBindings)
+            buffer(terrainMeshData.bufferBindings)
 
             sampler(textures.blockAlbedo)
             sampler(textures.lightMap)
@@ -524,8 +364,8 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
     }
 
     companion object {
-        val originX get() = -PointCloudData.ORIGIN * 16.0f
-        val originY get() = PointCloudData.MIN_CHUNK_Y * 16.0f
-        val originZ get() = -PointCloudData.ORIGIN * 16.0f
+        val originX get() = -TerrainMeshData.ORIGIN * 16.0f
+        val originY get() = TerrainMeshData.MIN_CHUNK_Y * 16.0f
+        val originZ get() = -TerrainMeshData.ORIGIN * 16.0f
     }
 }

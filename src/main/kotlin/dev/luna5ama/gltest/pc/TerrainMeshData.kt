@@ -2,17 +2,22 @@ package dev.luna5ama.gltest.pc
 
 import dev.fastmc.common.*
 import dev.fastmc.common.sort.IntIntrosort
-import dev.luna5ama.gltest.AbstractScene
-import dev.luna5ama.gltest.structs.*
+import dev.luna5ama.gltest.structs.QuadExtraAttrib
+import dev.luna5ama.gltest.structs.QuadPos
+import dev.luna5ama.gltest.structs.QuadTexCoord
+import dev.luna5ama.gltest.structs.TerrainVertex
 import dev.luna5ama.gltest.terrain.IGLObjContainer
 import dev.luna5ama.gltest.terrain.register
 import dev.luna5ama.glwrapper.ShaderBindingSpecs
-import dev.luna5ama.glwrapper.api.*
+import dev.luna5ama.glwrapper.api.GLWrapper
+import dev.luna5ama.glwrapper.api.GL_MAP_INVALIDATE_BUFFER_BIT
+import dev.luna5ama.glwrapper.api.GL_MAP_WRITE_BIT
+import dev.luna5ama.glwrapper.api.GpuVendor
 import dev.luna5ama.glwrapper.enums.BufferTarget
 import dev.luna5ama.glwrapper.objects.BufferObject
 import dev.luna5ama.kmogus.Arr
+import dev.luna5ama.kmogus.MemoryStack
 import dev.luna5ama.kmogus.asByteBuffer
-import dev.luna5ama.kmogus.ensureCapacity
 import dev.luna5ama.kmogus.memcpy
 import kotlinx.coroutines.*
 import org.apache.commons.lang3.mutable.MutableBoolean
@@ -25,15 +30,12 @@ import java.nio.file.StandardOpenOption
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicInteger
-import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.abs
 import kotlin.math.log2
 import kotlin.math.min
 import kotlin.math.sqrt
 
-class PointCloudData(private val scene: AbstractScene, dir: File) : IGLObjContainer by IGLObjContainer.Impl() {
-    private val pointBatchInfoBuffer = register(BufferObject.Immutable())
-    private val quadBatchInfoBuffer = register(BufferObject.Immutable())
+class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer by IGLObjContainer.Impl() {
 
     private val quadPosDataBuffer = register(BufferObject.Immutable())
     private val quadTexCoordDataBuffer = register(BufferObject.Immutable())
@@ -41,18 +43,6 @@ class PointCloudData(private val scene: AbstractScene, dir: File) : IGLObjContai
     private val quadPosIndexBuffer = register(BufferObject.Immutable())
     private val quadAttribIndexBuffer = register(BufferObject.Immutable())
     val chunkinfos = mutableListOf<ChunkInfo>()
-
-    val BATCH_SIZE = if (GLWrapper.instance.vendor == GpuVendor.NVIDIA) 96 else 128
-
-    val bufferBindings = listOf(
-        ShaderBindingSpecs.Buffer("PointBatchInfoBuffer", pointBatchInfoBuffer, BufferTarget.ShaderStorage),
-        ShaderBindingSpecs.Buffer("QuadBatchInfoBuffer", quadBatchInfoBuffer, BufferTarget.ShaderStorage),
-        ShaderBindingSpecs.Buffer("QuadPosDataBuffer", quadPosDataBuffer, BufferTarget.ShaderStorage),
-        ShaderBindingSpecs.Buffer("QuadTexCoordDataBuffer", quadTexCoordDataBuffer, BufferTarget.ShaderStorage),
-        ShaderBindingSpecs.Buffer("QuadExtraAttribDataBuffer", quadExtraAttribDataBuffer, BufferTarget.ShaderStorage),
-        ShaderBindingSpecs.Buffer("QuadPosIndexBuffer", quadPosIndexBuffer, BufferTarget.ShaderStorage),
-        ShaderBindingSpecs.Buffer("QuadAttribIndexBuffer", quadAttribIndexBuffer, BufferTarget.ShaderStorage)
-    )
 
     val chunkOffsets = Array(TOTAL_CHUNKS) { Vector3i() }.apply {
         var i = 0
@@ -65,15 +55,24 @@ class PointCloudData(private val scene: AbstractScene, dir: File) : IGLObjContai
         }
     }
 
+    private val chunkOffsetData = register(BufferObject.Immutable()).apply {
+        label("QuadDrawHW.chunkOffsetData")
+    }
+
+    val batchSize = if (GLWrapper.instance.vendor == GpuVendor.NVIDIA) 96 else 128
+
+    val bufferBindings = listOf(
+        ShaderBindingSpecs.Buffer("QuadPosDataBuffer", quadPosDataBuffer, BufferTarget.ShaderStorage),
+        ShaderBindingSpecs.Buffer("QuadTexCoordDataBuffer", quadTexCoordDataBuffer, BufferTarget.ShaderStorage),
+        ShaderBindingSpecs.Buffer("QuadExtraAttribDataBuffer", quadExtraAttribDataBuffer, BufferTarget.ShaderStorage),
+        ShaderBindingSpecs.Buffer("QuadPosIndexBuffer", quadPosIndexBuffer, BufferTarget.ShaderStorage),
+        ShaderBindingSpecs.Buffer("QuadAttribIndexBuffer", quadAttribIndexBuffer, BufferTarget.ShaderStorage),
+        ShaderBindingSpecs.Buffer("ChunkOffsetData", chunkOffsetData, BufferTarget.ShaderStorage)
+    )
+
     var chunkIndices: IntArray
 
     var totalQuadCount = 0
-        private set
-    var hwBatchCount = 0
-        private set
-    var quadBatchCount = 0
-        private set
-    var pointBatchCount = 0
         private set
 
     init {
@@ -89,7 +88,7 @@ class PointCloudData(private val scene: AbstractScene, dir: File) : IGLObjContai
         chunkIndices = IntArray(chunkinfos.size) { it }
         val attribDataSize = quadTexCoordDataBuffer.size + quadExtraAttribDataBuffer.size
         val bufferUsage = quadPosDataBuffer.size + attribDataSize + quadPosIndexBuffer.size + quadAttribIndexBuffer.size
-        println("Using batch size: $BATCH_SIZE")
+        println("Using batch size: $batchSize")
         println(
             "Quad pos data: %.2f MB"
                 .format(quadPosDataBuffer.size / 1024.0 / 1024.0)
@@ -111,6 +110,19 @@ class PointCloudData(private val scene: AbstractScene, dir: File) : IGLObjContai
                 .format(bufferUsage / 1024.0 / 1024.0)
         )
         println("Quad count: $totalQuadCount")
+
+        val xBits = (1 shl 13) - 1
+        val yBits = (1 shl 6) - 1
+        MemoryStack {
+            val arr = malloc(chunkOffsets.size * 4L)
+            val ptr = arr.ptr
+            for (i in chunkOffsets.indices) {
+                val offset = chunkOffsets[i]
+                val offsetEncoded = (offset.x and xBits) or (offset.y and yBits shl 13) or (offset.z shl (13 + 6))
+                ptr.setInt(i * 4L, offsetEncoded)
+            }
+            chunkOffsetData.allocate(arr.len, arr.ptr, 0)
+        }
     }
 
     private suspend fun readData(dir: File) {
@@ -359,7 +371,7 @@ class PointCloudData(private val scene: AbstractScene, dir: File) : IGLObjContai
                     }
                 }
 
-                this@PointCloudData.totalQuadCount = quadCounter.get()
+                this@TerrainMeshData.totalQuadCount = quadCounter.get()
 
                 quadPosDataBuffer.allocate(quadPosDataCounter.get() * 24L, quadPosDataUploadBuffer.ptr, 0)
                 quadTexCoordDataBuffer.allocate(quadAttribDataCounter.get() * 16L, quadTexCoordUploadBuffer.ptr, 0)
@@ -467,19 +479,10 @@ class PointCloudData(private val scene: AbstractScene, dir: File) : IGLObjContai
     }
 
     private val printTimer = TickTimer()
-    private val quadBatchUploadBuffer = Arr.malloc(chunkinfos.size * sizeof(QuadBatchInfo))
-    private val pointBatchUploadBuffer = Arr.malloc(chunkinfos.size * sizeof(PointBatchInfo))
     private val frustumCullingFlags = Array(chunkinfos.size) {
         MutableBoolean(true)
     }
-
-    private val sampleCountPow2Array = IntArray(chunkinfos.size)
-    val quadDrawHWPipeline = register(QuadDrawHWPipeline(scene, this))
-
-    var drawPointCount = 0L; private set
-    var drawPointTotalCount = 0L; private set
-
-    var drawQuadCount = 0L; private set
+    val sampleCountArray = IntArray(chunkinfos.size)
 
     suspend fun updateBatchMeta() {
         val print = false
@@ -501,130 +504,38 @@ class PointCloudData(private val scene: AbstractScene, dir: File) : IGLObjContai
         }
 
         if (print) {
-            println("Min sample count: ${sampleCountPow2Array.min()}")
-            println("Average sample count: ${sampleCountPow2Array.average()}")
-            println("Max sample count: ${sampleCountPow2Array.max()}")
+            println("Min sample count: ${sampleCountArray.min()}")
+            println("Average sample count: ${sampleCountArray.average()}")
+            println("Max sample count: ${sampleCountArray.max()}")
         }
 
-        var pointMetaIdx = 0
-        var quadMetaIdx = 0
-        var hwIndirectCmdIdx = 0
+        scene.hwVsPipeline.startUpdate().use { hwVs ->
+            scene.swQuadPipeline.startUpdate().use { swQuad ->
+                scene.swPointPipeline.startUpdate().use { swPoint ->
+                    for (i in chunkIndices) {
+                        val chunkInfo = chunkinfos[i]
+                        if (!frustumCullingFlags[chunkInfo.listIndex].value) continue
 
-        drawPointCount = 0L
-        drawPointTotalCount = 0L
+                        if (scene.gameInstance.toggle1) {
+                            hwVs.add(chunkInfo)
+                        } else if (true) {
+                            swQuad.add(chunkInfo)
+                        } else {
+                            swPoint.add(chunkInfo)
+                        }
+                    }
 
-        drawQuadCount = 0L
-
-        val indirectCommandUploadBuffer = quadDrawHWPipeline.indirectCommandUploadBuffer
-        val chunkStartIndexUploadBuffer = quadDrawHWPipeline.chunkStartIndexUploadBuffer
-
-        for (i in chunkIndices) {
-            val chunkInfo = chunkinfos[i]
-            if (!frustumCullingFlags[chunkInfo.listIndex].value) continue
-            val offset = chunkOffsets[chunkInfo.chunkIndex]
-            val sampleCountPow2 = sampleCountPow2Array[chunkInfo.listIndex]
-
-            if (scene.gameInstance.toggle1) {
-                indirectCommandUploadBuffer.ensureCapacity((hwIndirectCmdIdx + 1L) * sizeof(DrawArraysIndirectCommand), false)
-                val struct = DrawArraysIndirectCommand(indirectCommandUploadBuffer.ptr + hwIndirectCmdIdx * sizeof(DrawArraysIndirectCommand))
-                struct.count = chunkInfo.quadCount * 6
-                struct.instanceCount = 1
-                struct.first = 0
-                struct.baseInstance = chunkInfo.chunkIndex
-
-                chunkStartIndexUploadBuffer.ensureCapacity((hwIndirectCmdIdx + 1L) * 4L, false)
-                chunkStartIndexUploadBuffer.ptr.setInt(hwIndirectCmdIdx * 4L, chunkInfo.startIndex)
-
-                hwIndirectCmdIdx++
-            } else if (true) {
-                var quadIdx = 0
-                while (quadIdx < chunkInfo.quadCount) {
-                    quadBatchUploadBuffer.ensureCapacity((quadMetaIdx + 1L) * sizeof(QuadBatchInfo), false)
-                    val struct = QuadBatchInfo(quadBatchUploadBuffer.ptr + quadMetaIdx * sizeof(QuadBatchInfo))
-                    val batchCount = min(chunkInfo.quadCount - quadIdx, BATCH_SIZE)
-                    struct.first = chunkInfo.startIndex + quadIdx
-                    struct.count = batchCount.toByte()
-                    struct.offsetX = offset.x.toByte()
-                    struct.offsetY = offset.y.toByte()
-                    struct.offsetZ = offset.z.toByte()
-                    quadIdx += batchCount
-                    quadMetaIdx++
+                    scene.hwVsPipeline.endUpdate(hwVs)
+                    scene.swQuadPipeline.endUpdate(swQuad)
+                    scene.swPointPipeline.endUpdate(swPoint)
                 }
-                drawQuadCount += quadIdx
-            } else {
-                var quadIdx = 0
-                val sampleCount = 1 shl abs(sampleCountPow2)
-                val count = if (sampleCountPow2 > 0) BATCH_SIZE else BATCH_SIZE * sampleCount
-
-                while (quadIdx < chunkInfo.quadCount) {
-                    pointBatchUploadBuffer.ensureCapacity((pointMetaIdx + 1L) * sizeof(PointBatchInfo), false)
-                    val struct = PointBatchInfo(pointBatchUploadBuffer.ptr + pointMetaIdx * sizeof(PointBatchInfo))
-                    val batchCount = min(chunkInfo.quadCount - quadIdx, count)
-                    struct.first = chunkInfo.startIndex + quadIdx
-                    struct.count = batchCount
-                    struct.offsetX = offset.x.toByte()
-                    struct.offsetY = offset.y.toByte()
-                    struct.offsetZ = offset.z.toByte()
-                    struct.pointSampleCount = sampleCountPow2
-                    quadIdx += batchCount
-                    pointMetaIdx++
-                }
-                drawPointCount += quadIdx
-                drawPointTotalCount += if (sampleCountPow2 > 0) quadIdx * sampleCount else quadIdx / sampleCount
             }
         }
-
-        val hwCommandLen = hwIndirectCmdIdx * sizeof(DrawArraysIndirectCommand)
-        if (hwCommandLen > 0) {
-            if (quadDrawHWPipeline.indirectCommands.size < hwCommandLen) {
-                quadDrawHWPipeline.indirectCommands.destroy()
-                quadDrawHWPipeline.indirectCommands.allocate(hwCommandLen, indirectCommandUploadBuffer.ptr, GL_DYNAMIC_STORAGE_BIT)
-            } else {
-                quadDrawHWPipeline.indirectCommands.invalidate()
-                quadDrawHWPipeline.indirectCommands.upload(0L, hwCommandLen, indirectCommandUploadBuffer.ptr)
-            }
-
-            val chunkStartIndexLen = hwIndirectCmdIdx * 4L
-            if (quadDrawHWPipeline.chunkStartIndex.size < chunkStartIndexLen) {
-                quadDrawHWPipeline.chunkStartIndex.destroy()
-                quadDrawHWPipeline.chunkStartIndex.allocate(chunkStartIndexLen, chunkStartIndexUploadBuffer.ptr, GL_DYNAMIC_STORAGE_BIT)
-            } else {
-                quadDrawHWPipeline.chunkStartIndex.invalidate()
-                quadDrawHWPipeline.chunkStartIndex.upload(0L, chunkStartIndexLen, chunkStartIndexUploadBuffer.ptr)
-            }
-        }
-
-        val pointMetaLen = pointMetaIdx * sizeof(PointBatchInfo)
-        if (pointMetaLen > 0) {
-            if (pointBatchInfoBuffer.size < pointMetaLen) {
-                pointBatchInfoBuffer.destroy()
-                pointBatchInfoBuffer.allocate(pointMetaLen, pointBatchUploadBuffer.ptr, GL_DYNAMIC_STORAGE_BIT)
-            } else {
-                pointBatchInfoBuffer.invalidate()
-                pointBatchInfoBuffer.upload(0L, pointMetaLen, pointBatchUploadBuffer.ptr)
-            }
-        }
-
-        val quadMetaLen = quadMetaIdx * sizeof(QuadBatchInfo)
-        if (quadMetaLen > 0) {
-            if (quadBatchInfoBuffer.size < quadMetaLen) {
-                quadBatchInfoBuffer.destroy()
-                quadBatchInfoBuffer.allocate(quadMetaLen, quadBatchUploadBuffer.ptr, GL_DYNAMIC_STORAGE_BIT)
-            } else {
-                quadBatchInfoBuffer.invalidate()
-                quadBatchInfoBuffer.upload(0L, quadMetaLen, quadBatchUploadBuffer.ptr)
-            }
-        }
-
-        hwBatchCount = hwIndirectCmdIdx
-        pointBatchCount = pointMetaIdx
-        quadBatchCount = quadMetaIdx
 
         if (print) {
-            println("Quad Batch count: $quadBatchCount/${chunkinfos.size}")
-            println("Quad count: $drawQuadCount")
-            println("Point Batch count: $pointBatchCount/${chunkinfos.size}")
-            println("Point count: $drawPointCount($drawPointTotalCount)")
+            println("HW Batch count: ${scene.hwVsPipeline.batchCount}/${chunkinfos.size}")
+            println("SW Quad Batch count: ${scene.swQuadPipeline.batchCount}/${chunkinfos.size}")
+            println("SW Point Batch count: ${scene.swPointPipeline.batchCount}/${chunkinfos.size}")
             println()
         }
     }
@@ -640,9 +551,9 @@ class PointCloudData(private val scene: AbstractScene, dir: File) : IGLObjContai
                         val area = areaCalc.calc(chunkInfo)
                         if (area + 0.25f < 1.0f) {
                             val v = min(log2(1.0f / (area + 0.33f)).floorToInt(), 8)
-                            sampleCountPow2Array[chunkInfo.listIndex] = -v
+                            sampleCountArray[chunkInfo.listIndex] = -v
                         } else {
-                            sampleCountPow2Array[chunkInfo.listIndex] =
+                            sampleCountArray[chunkInfo.listIndex] =
                                 MathUtil.clamp((log2(area + 0.25f) + 0.25f).ceilToInt(), 0, 5)
                         }
 //                            sampleCountPow2Array[chunkInfo.listIndex] = MathUtil.clamp((log2(area) + 0.25f).ceilToInt(), 1, 5)
@@ -795,7 +706,7 @@ class PointCloudData(private val scene: AbstractScene, dir: File) : IGLObjContai
         val indexLength: Long
     )
 
-    class ChunkInfo(val chunkIndex: Int, val pos: Vector3i, val quadCount: Int, val startIndex: Int) {
+    inner class ChunkInfo(val chunkIndex: Int, val pos: Vector3i, val quadCount: Int, val startIndex: Int) {
         var listIndex = 0
         val minX = pos.x shl 4
         val minY = pos.y shl 4
@@ -803,6 +714,8 @@ class PointCloudData(private val scene: AbstractScene, dir: File) : IGLObjContai
         val maxX = minX + 16
         val maxY = minY + 16
         val maxZ = minZ + 16
+
+        val offset get() = chunkOffsets[chunkIndex]
     }
 
     companion object {
@@ -815,5 +728,12 @@ class PointCloudData(private val scene: AbstractScene, dir: File) : IGLObjContai
 
     data class PosKey(val x: Long, val y: Long, val z: Long)
 
-    data class AttribKey(val materialID: Int, val uv1: Long, val uv2: Long, val lightMapCoord: Long, val color1: Long, val color2: Long)
+    data class AttribKey(
+        val materialID: Int,
+        val uv1: Long,
+        val uv2: Long,
+        val lightMapCoord: Long,
+        val color1: Long,
+        val color2: Long
+    )
 }
