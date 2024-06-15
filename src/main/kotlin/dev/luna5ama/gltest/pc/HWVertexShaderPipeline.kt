@@ -1,22 +1,18 @@
 package dev.luna5ama.gltest.pc
 
-import dev.luna5ama.gltest.structs.DrawArraysIndirectCommand
+import dev.luna5ama.gltest.structs.DrawElementsIndirectCommand
 import dev.luna5ama.gltest.structs.sizeof
 import dev.luna5ama.gltest.terrain.register
-import dev.luna5ama.glwrapper.ShaderBindingSpecs
 import dev.luna5ama.glwrapper.ShaderProgram
 import dev.luna5ama.glwrapper.ShaderSource
-import dev.luna5ama.glwrapper.api.GL_DRAW_INDIRECT_BUFFER
-import dev.luna5ama.glwrapper.api.GL_DYNAMIC_STORAGE_BIT
-import dev.luna5ama.glwrapper.api.GL_TRIANGLES
-import dev.luna5ama.glwrapper.api.glMultiDrawArraysIndirect
-import dev.luna5ama.glwrapper.enums.BufferTarget
+import dev.luna5ama.glwrapper.api.*
 import dev.luna5ama.glwrapper.objects.BufferObject
 import dev.luna5ama.glwrapper.objects.VertexArrayObject
 import dev.luna5ama.kmogus.Arr
 import dev.luna5ama.kmogus.ensureCapacity
 
-class HWVertexShaderPipeline(scene: PointCloudScene) : TerrainDrawPipeline<HWVertexShaderPipeline.UpdateContextImpl>(scene) {
+class HWVertexShaderPipeline(scene: PointCloudScene) :
+    TerrainDrawPipeline<HWVertexShaderPipeline.UpdateContextImpl>(scene) {
     private val vao = register(VertexArrayObject())
     private val shader = register(
         ShaderProgram(
@@ -29,11 +25,10 @@ class HWVertexShaderPipeline(scene: PointCloudScene) : TerrainDrawPipeline<HWVer
     private val indirectCmds = register(BufferObject.Immutable()).apply {
         label("QuadDrawHW.indirectCmds")
     }
-    private val chunkStartIndex = register(BufferObject.Immutable()).apply {
-        label("QuadDrawHW.chunkStartIndex")
+
+    private val elementBuffer = register(BufferObject.Immutable()).apply {
+        label("QuadDrawHW.elementBuffer")
     }
-    private val bufferBinding =
-        ShaderBindingSpecs.Buffer("ChunkStartIndexBuffer", chunkStartIndex, BufferTarget.ShaderStorage)
 
     override fun startUpdate(): UpdateContextImpl {
         return UpdateContextImpl()
@@ -45,7 +40,7 @@ class HWVertexShaderPipeline(scene: PointCloudScene) : TerrainDrawPipeline<HWVer
         chunkCount = context.chunkCount
 
         if (context.batchCount == 0) return
-        val indirctCmdLen = context.batchCount * sizeof(DrawArraysIndirectCommand)
+        val indirctCmdLen = context.batchCount * sizeof(DrawElementsIndirectCommand)
         if (indirectCmds.size < indirctCmdLen) {
             indirectCmds.destroy()
             indirectCmds.allocate(indirctCmdLen, context.indirectCmdUpload.ptr, GL_DYNAMIC_STORAGE_BIT)
@@ -54,13 +49,23 @@ class HWVertexShaderPipeline(scene: PointCloudScene) : TerrainDrawPipeline<HWVer
             indirectCmds.upload(0L, indirctCmdLen, context.indirectCmdUpload.ptr)
         }
 
-        val startIndexLen = context.batchCount * 4L
-        if (chunkStartIndex.size < startIndexLen) {
-            chunkStartIndex.destroy()
-            chunkStartIndex.allocate(startIndexLen, context.startIndexUpload.ptr, GL_DYNAMIC_STORAGE_BIT)
-        } else {
-            chunkStartIndex.invalidate()
-            chunkStartIndex.upload(0L, startIndexLen, context.startIndexUpload.ptr)
+        if (elementBuffer.size < context.maxQuadCount * 6 * 4) {
+            elementBuffer.destroy()
+            Arr.malloc(context.maxQuadCount * 6 * 4L).use { arr ->
+                val ptr = arr.ptr
+                for (i in 0 until context.maxQuadCount) {
+                    val baseIdx = i * 6L * 4L
+                    val vertBaseIdx = i * 4
+                    ptr.setInt(baseIdx, vertBaseIdx)
+                    ptr.setInt(baseIdx + 4, vertBaseIdx + 1)
+                    ptr.setInt(baseIdx + 8, vertBaseIdx + 2)
+                    ptr.setInt(baseIdx + 12, vertBaseIdx + 2)
+                    ptr.setInt(baseIdx + 16, vertBaseIdx + 3)
+                    ptr.setInt(baseIdx + 20, vertBaseIdx)
+                }
+                elementBuffer.allocate(arr.len, ptr, 0)
+            }
+            vao.attachEbo(elementBuffer)
         }
     }
 
@@ -72,7 +77,6 @@ class HWVertexShaderPipeline(scene: PointCloudScene) : TerrainDrawPipeline<HWVer
         shader.applyBinding {
             sampler(scene.textures.blockAlbedo)
             buffer(scene.camera.uboBinding)
-            buffer(bufferBinding)
             buffer(scene.terrainMeshData.bufferBindings)
         }
         shader.uniform3f(
@@ -82,27 +86,23 @@ class HWVertexShaderPipeline(scene: PointCloudScene) : TerrainDrawPipeline<HWVer
             (PointCloudScene.originZ - scene.camera.pos.z - 0.5).toFloat()
         )
         indirectCmds.bind(GL_DRAW_INDIRECT_BUFFER)
-        glMultiDrawArraysIndirect(GL_TRIANGLES, 0L, batchCount, 0)
+        glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, 0L, batchCount, 0)
     }
 
     inner class UpdateContextImpl : UpdateContext() {
         val indirectCmdUpload = Arr.malloc(0L)
-        val startIndexUpload = Arr.malloc(0L)
+        var maxQuadCount = 0
 
         override fun add(chunkInfo: TerrainMeshData.ChunkInfo) {
-            indirectCmdUpload.ensureCapacity((batchCount + 1L) * sizeof(DrawArraysIndirectCommand), false)
-            val struct = DrawArraysIndirectCommand(
-                indirectCmdUpload.ptr + batchCount * sizeof(
-                    DrawArraysIndirectCommand
-                )
-            )
+            indirectCmdUpload.ensureCapacity((batchCount + 1L) * sizeof(DrawElementsIndirectCommand), false)
+            val structOffset = batchCount * sizeof(DrawElementsIndirectCommand)
+            val struct = DrawElementsIndirectCommand(indirectCmdUpload.ptr + structOffset)
             struct.count = chunkInfo.quadCount * 6
             struct.instanceCount = 1
-            struct.first = 0
+            struct.firstIndex = 0
+            struct.baseVertex = chunkInfo.startIndex * 4
             struct.baseInstance = chunkInfo.chunkIndex
-
-            startIndexUpload.ensureCapacity((batchCount + 1L) * 4L, false)
-            startIndexUpload.ptr.setInt(batchCount * 4L, chunkInfo.startIndex)
+            maxQuadCount = maxOf(maxQuadCount, chunkInfo.quadCount)
 
             batchCount++
             chunkCount++
@@ -111,7 +111,6 @@ class HWVertexShaderPipeline(scene: PointCloudScene) : TerrainDrawPipeline<HWVer
 
         override fun close() {
             indirectCmdUpload.free()
-            startIndexUpload.free()
         }
     }
 }

@@ -7,10 +7,6 @@ layout(std430) restrict readonly buffer ChunkOffsetData {
     uint ssbo_chunkOffsetData[];
 };
 
-layout(std430) restrict readonly buffer ChunkStartIndexBuffer {
-    uint ssbo_chunkStartIndexBuffer[];
-};
-
 layout(std430) restrict readonly buffer QuadPosDataBuffer {
     uint ssbo_quadPosDataBuffer[];
 };
@@ -33,13 +29,11 @@ layout(location = 0) out VertData {
     float depth;
 } vertDataOut;
 
-const vec4 BCOORDS[6] = {
+const vec4 BCOORDS[4] = {
     vec4(1.0, 0.0, 0.0, 0.0),
     vec4(0.0, 1.0, 0.0, 0.0),
     vec4(0.0, 0.0, 1.0, 0.0),
-    vec4(0.0, 0.0, 1.0, 0.0),
-    vec4(0.0, 0.0, 0.0, 1.0),
-    vec4(1.0, 0.0, 0.0, 0.0)
+    vec4(0.0, 0.0, 0.0, 1.0)
 };
 
 const vec3 coordConvert = vec3(2.51773861295491E-4);
@@ -53,10 +47,10 @@ void main() {
     vec3 chunkOffset = vec3(chunkOffsetEncoded);
     chunkOffset = chunkOffset * 16.0 + uval_originOffset;
 
-    vertDataOut.quadIndex = ssbo_chunkStartIndexBuffer[gl_DrawID] + uint(gl_VertexID) / 6;
+    vertDataOut.quadIndex = uint(gl_VertexID) / 4;
     uint quadPosDataIdx = ssbo_quadPosIndexBuffer[vertDataOut.quadIndex] * 6u;
 
-    vertDataOut.bCoord = BCOORDS[gl_VertexID % 6u];
+    vertDataOut.bCoord = BCOORDS[gl_VertexID % 4u];
 
     vec4 posX = readPos(quadPosDataIdx);
     vec4 posY = readPos(quadPosDataIdx + 2u);
