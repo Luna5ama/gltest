@@ -38,6 +38,7 @@ class GPUTimer(private val runtimeLength: Int) : IGLObjContainer {
     }
 
     fun averageMS(): Double {
+        if (times.isEmpty) return 0.0
         return times.average() / 1_000_000.0
     }
 

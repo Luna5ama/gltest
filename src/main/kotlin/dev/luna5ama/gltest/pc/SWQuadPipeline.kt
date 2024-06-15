@@ -38,6 +38,7 @@ class SWQuadPipeline(scene: PointCloudScene) : TerrainDrawPipeline<SWQuadPipelin
 
     override fun endUpdate(context: UpdateContextImpl) {
         batchCount = context.batchCount
+        chunkCount = context.chunkCount
         quadCount = context.quadCount
 
         if (context.batchCount == 0) return
@@ -86,6 +87,7 @@ class SWQuadPipeline(scene: PointCloudScene) : TerrainDrawPipeline<SWQuadPipelin
                 quadIdx += batchQuadCount
                 batchCount++
             }
+            chunkCount++
             quadCount += quadIdx
         }
 

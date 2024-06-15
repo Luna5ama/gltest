@@ -39,6 +39,7 @@ class HWMeshShaderPipeline(scene: PointCloudScene) :
     override fun endUpdate(context: UpdateContextImpl) {
         batchCount = context.batchCount
         quadCount = context.quadCount
+        chunkCount = context.chunkCount
 
         if (context.batchCount == 0) return
         val batchInfoLen = context.batchCount * sizeof(MeshShaderBatchInfo)
@@ -83,6 +84,7 @@ class HWMeshShaderPipeline(scene: PointCloudScene) :
             struct.chunkOffsetEncoded = (offset.x and xBits) or (offset.y and yBits shl 13) or (offset.z shl (13 + 6))
 
             batchCount++
+            chunkCount++
             quadCount += chunkInfo.quadCount
         }
 

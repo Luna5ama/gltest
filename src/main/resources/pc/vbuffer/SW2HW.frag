@@ -21,6 +21,6 @@ void main() {
     int bCoord = texelFetch(usam_vBufferTex1, coord, 0).x;
     int quadIndex = -int(dataRaw);
 
-    gl_FragDepth = uintBitsToFloat(depth);
+    gl_FragDepth = intBitsToFloat(depth);
     rt_vbuffer = uvec2(quadIndex, bCoord);
 }

@@ -124,9 +124,9 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
         }
     }
 
-    private val hwVsDrawTimer = GPUTimer(200)
-    private val hwMsDrawTimer = GPUTimer(200)
-    private val swDrawTimer = GPUTimer(2000)
+    private val hwVsDrawTimer = GPUTimer(100)
+    private val hwMsDrawTimer = GPUTimer(100)
+    private val swDrawTimer = GPUTimer(100)
     private val shadingTimer = GPUTimer(2000)
     private val printTimer = TickTimer()
     private val updateTimer = TickTimer()
@@ -158,10 +158,14 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
 
 
         if (printTimer.tickAndReset(3000)) {
-            if (hwVsPipeline.batchCount > 0) println("HW VS Draw: %.4f ms".format(hwVsDrawTimer.averageMS()))
-            if (hwMsPipeline.batchCount > 0) println("HW MS Draw: %.4f ms".format(hwMsDrawTimer.averageMS()))
-            if (swQuadPipeline.batchCount + swPointPipeline.batchCount > 0)
-                println("SW Draw: %.4f ms".format(swDrawTimer.averageMS()))
+//            if (hwVsPipeline.batchCount > 0) println("HW VS Draw: %.2f ms".format(hwVsDrawTimer.averageMS()))
+//            if (hwMsPipeline.batchCount > 0) println("HW MS Draw: %.2f ms".format(hwMsDrawTimer.averageMS()))
+//            if (swQuadPipeline.batchCount + swPointPipeline.batchCount > 0)
+//                println("SW Draw: %.2f ms".format(swDrawTimer.averageMS()))
+            println("HW Draw: %.2f ms".format(hwMsDrawTimer.averageMS()))
+            println("SW Draw: %.2f ms".format(swDrawTimer.averageMS()))
+            println("Total: %.2f ms".format(swDrawTimer.averageMS() + hwVsDrawTimer.averageMS() + hwMsDrawTimer.averageMS()))
+            println()
         }
 
         glBlitNamedFramebuffer(
@@ -260,7 +264,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
             image("uimg_input", fboGroup.input.colorTex)
             image("uimg_output", fboGroup.output.colorTex)
         }
-        bufferBlit.uniform1f("uval_mixFactor", 0.9f)
+        bufferBlit.uniform1f("uval_mixFactor", 0.8f)
 
         glDispatchCompute((camera.screenSize.x + 15) / 16, (camera.screenSize.y + 15) / 16, 1)
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
@@ -349,11 +353,11 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
 
                 camera.fov = 90.0f
                 camera.viewDistance = 2048.0f
-                camera.rotation.x = -260.0f
-                camera.rotation.y = 22.0f
-                camera.pos.x = 1288.0
-                camera.pos.y = 172.0
-                camera.pos.z = 337.0
+                camera.rotation.x = -236.0f
+                camera.rotation.y = 40.0f
+                camera.pos.x = 746.0
+                camera.pos.y = 112.0
+                camera.pos.z = 768.0
             }
         }
 

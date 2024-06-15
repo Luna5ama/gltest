@@ -284,18 +284,21 @@ class GameInstance(val window: Long) {
         keyboard.register(GLFW_KEY_F2) {
             if (it == GLFW_RELEASE) {
                 toggle1 = !toggle1
+                println("Toggle 1: $toggle1")
             }
         }
 
         keyboard.register(GLFW_KEY_F3) {
             if (it == GLFW_RELEASE) {
                 toggle2 = !toggle2
+                println("Toggle 2: $toggle2")
             }
         }
 
         keyboard.register(GLFW_KEY_F4) {
             if (it == GLFW_RELEASE) {
                 toggle3 = !toggle3
+                println("Toggle 3: $toggle3")
             }
         }
 

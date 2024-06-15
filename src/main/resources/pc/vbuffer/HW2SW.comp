@@ -24,6 +24,6 @@ void main() {
     float depth = texelFetch(usam_vBufferDepth, coord, 0).r;
 
     uint bufferIndex = coord.y * outputSize.x + coord.x;
-    ssbo_vBufferDepthQuadIndex[bufferIndex] = (uint64_t(floatBitsToUint(depth)) << 32u) | uint64_t(-quadIndex);
+    ssbo_vBufferDepthQuadIndex[bufferIndex] = uint64_t(floatBitsToUint(depth)) << 32u | uint64_t(uint(-quadIndex));
     imageStore(uimg_vBufferTex1, coord, uvec4(bCoord, 0, 0, 0));
 }

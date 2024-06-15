@@ -42,6 +42,7 @@ class HWVertexShaderPipeline(scene: PointCloudScene) : TerrainDrawPipeline<HWVer
     override fun endUpdate(context: UpdateContextImpl) {
         batchCount = context.batchCount
         quadCount = context.quadCount
+        chunkCount = context.chunkCount
 
         if (context.batchCount == 0) return
         val indirctCmdLen = context.batchCount * sizeof(DrawArraysIndirectCommand)
@@ -104,6 +105,7 @@ class HWVertexShaderPipeline(scene: PointCloudScene) : TerrainDrawPipeline<HWVer
             startIndexUpload.ptr.setInt(batchCount * 4L, chunkInfo.startIndex)
 
             batchCount++
+            chunkCount++
             quadCount += chunkInfo.quadCount
         }
 

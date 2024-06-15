@@ -133,6 +133,7 @@ class SWPointPipeline(scene: PointCloudScene) : TerrainDrawPipeline<SWPointPipel
 
     override fun endUpdate(context: UpdateContextImpl) {
         batchCount = context.batchCount
+        chunkCount = context.chunkCount
         quadCount = context.quadCount
 
         if (context.batchCount == 0) return
@@ -170,7 +171,7 @@ class SWPointPipeline(scene: PointCloudScene) : TerrainDrawPipeline<SWPointPipel
         override fun add(chunkInfo: TerrainMeshData.ChunkInfo) {
             val sampleCountPow2 = scene.terrainMeshData.sampleCountArray[chunkInfo.listIndex]
             var quadIdx = 0
-            val sampleCount = 1 shl abs(sampleCountPow2)
+            val sampleCount = 1 shl abs(sampleCountPow2).toInt()
             val count = if (sampleCountPow2 > 0) scene.terrainMeshData.batchSize else scene.terrainMeshData.batchSize * sampleCount
 
             while (quadIdx < chunkInfo.quadCount) {
@@ -182,10 +183,11 @@ class SWPointPipeline(scene: PointCloudScene) : TerrainDrawPipeline<SWPointPipel
                 struct.offsetX = chunkInfo.offset.x.toByte()
                 struct.offsetY = chunkInfo.offset.y.toByte()
                 struct.offsetZ = chunkInfo.offset.z.toByte()
-                struct.pointSampleCount = sampleCountPow2
+                struct.pointSampleCount = sampleCountPow2.toInt()
                 quadIdx += batchQuadCount
                 batchCount++
             }
+            chunkCount++
             quadCount += chunkInfo.quadCount
         }
 

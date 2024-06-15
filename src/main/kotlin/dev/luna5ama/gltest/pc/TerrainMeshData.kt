@@ -1,6 +1,8 @@
 package dev.luna5ama.gltest.pc
 
-import dev.fastmc.common.*
+import dev.fastmc.common.ParallelUtils
+import dev.fastmc.common.TickTimer
+import dev.fastmc.common.floorToInt
 import dev.fastmc.common.sort.IntIntrosort
 import dev.luna5ama.gltest.structs.QuadExtraAttrib
 import dev.luna5ama.gltest.structs.QuadPos
@@ -30,10 +32,8 @@ import java.nio.file.StandardOpenOption
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicInteger
-import kotlin.math.abs
-import kotlin.math.log2
+import kotlin.math.max
 import kotlin.math.min
-import kotlin.math.sqrt
 
 class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer by IGLObjContainer.Impl() {
 
@@ -482,14 +482,14 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
     private val frustumCullingFlags = Array(chunkinfos.size) {
         MutableBoolean(true)
     }
-    val sampleCountArray = IntArray(chunkinfos.size)
+    val sampleCountArray = FloatArray(chunkinfos.size)
 
     suspend fun updateBatchMeta() {
-        val print = false
-//        val print = printTimer.tickAndReset(3000)
-        if (print) {
-            println()
-        }
+//        val print = false
+        val print = printTimer.tickAndReset(3000)
+//        if (print) {
+//            println()
+//        }
 
         coroutineScope {
             launch(Dispatchers.Default) {
@@ -503,38 +503,37 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
             }
         }
 
-        if (print) {
-            println("Min sample count: ${sampleCountArray.min()}")
-            println("Average sample count: ${sampleCountArray.average()}")
-            println("Max sample count: ${sampleCountArray.max()}")
-        }
+//        if (print) {
+//            println("Min sample count: ${sampleCountArray.min()}")
+//            println("Average sample count: ${sampleCountArray.average()}")
+//            println("Max sample count: ${sampleCountArray.max()}")
+//        }
 
         scene.hwVsPipeline.startUpdate().use { hwVs ->
             scene.hwMsPipeline.startUpdate().use { hwMs ->
                 scene.swQuadPipeline.startUpdate().use { swQuad ->
 //                    scene.swPointPipeline.startUpdate().use { swPoint ->
-                        for (i in chunkIndices) {
-                            val chunkInfo = chunkinfos[i]
-                            if (!frustumCullingFlags[chunkInfo.listIndex].value) continue
-
+                    for (i in chunkIndices) {
+                        val chunkInfo = chunkinfos[i]
+                        if (!frustumCullingFlags[chunkInfo.listIndex].value) continue
+                        if (sampleCountArray[chunkInfo.listIndex] > 4.0f) {
                             if (!scene.gameInstance.toggle1) {
-                                if (!scene.gameInstance.toggle2) {
-                                    hwVs.add(chunkInfo)
-                                } else {
+                                if (!scene.gameInstance.toggle3) {
                                     hwMs.add(chunkInfo)
+                                } else {
+                                    hwVs.add(chunkInfo)
                                 }
-                            } else {
-//                                if (!scene.gameInstance.toggle2) {
-                                    swQuad.add(chunkInfo)
-//                                } else {
-//                                    swPoint.add(chunkInfo)
-//                                }
+                            }
+                        } else {
+                            if (!scene.gameInstance.toggle2) {
+                                swQuad.add(chunkInfo)
                             }
                         }
+                    }
 
-                        scene.hwVsPipeline.endUpdate(hwVs)
-                        scene.hwMsPipeline.endUpdate(hwMs)
-                        scene.swQuadPipeline.endUpdate(swQuad)
+                    scene.hwVsPipeline.endUpdate(hwVs)
+                    scene.hwMsPipeline.endUpdate(hwMs)
+                    scene.swQuadPipeline.endUpdate(swQuad)
 //                        scene.swPointPipeline.endUpdate(swPoint)
 //                    }
                 }
@@ -542,12 +541,16 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
         }
 
         if (print) {
-            println("HW VS Batch count: ${scene.hwVsPipeline.batchCount}/${chunkinfos.size}")
-            println("HW MS Batch count: ${scene.hwMsPipeline.batchCount}/${chunkinfos.size}")
-            println("SW Quad Batch count: ${scene.swQuadPipeline.batchCount}/${chunkinfos.size}")
-            println("SW Point Batch count: ${scene.swPointPipeline.batchCount}/${chunkinfos.size}")
+//            println("HW VS Batch count: ${chunkCountString(scene.hwVsPipeline)}")
+            println("HW MS Batch count: ${chunkCountString(scene.hwMsPipeline)}")
+            println("SW Quad Batch count: ${chunkCountString(scene.swQuadPipeline)}")
+//            println("SW Point Batch count: ${chunkCountString(scene.swPointPipeline)}")
             println()
         }
+    }
+
+    private fun chunkCountString(pipeline: TerrainDrawPipeline<*>): String {
+        return "${pipeline.chunkCount}(${pipeline.batchCount})/${chunkinfos.size}"
     }
 
     private fun CoroutineScope.calcSampleCount() {
@@ -559,15 +562,7 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
                     for (i in start until end) {
                         val chunkInfo = chunkinfos[i]
                         val area = areaCalc.calc(chunkInfo)
-                        if (area + 0.25f < 1.0f) {
-                            val v = min(log2(1.0f / (area + 0.33f)).floorToInt(), 8)
-                            sampleCountArray[chunkInfo.listIndex] = -v
-                        } else {
-                            sampleCountArray[chunkInfo.listIndex] =
-                                MathUtil.clamp((log2(area + 0.25f) + 0.25f).ceilToInt(), 0, 5)
-                        }
-//                            sampleCountPow2Array[chunkInfo.listIndex] = MathUtil.clamp((log2(area) + 0.25f).ceilToInt(), 1, 5)
-//                        sampleCountPow2Array[chunkInfo.listIndex] = 5
+                        sampleCountArray[chunkInfo.listIndex] = area
                     }
                 }
             }
@@ -597,9 +592,9 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
             )
         }
 
-        if (print) {
-            println("Min distance ${sqrt(distanceSqs.min().toDouble())}")
-        }
+//        if (print) {
+//            println("Min distance ${sqrt(distanceSqs.min().toDouble())}")
+//        }
 
         IntIntrosort.sort(chunkIndices, distanceSqs)
     }
@@ -660,6 +655,10 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
                     (chunkInfo.maxZ - scene.camera.pos.z).toFloat()
                 )
             )
+            if (vec3f1.lengthSquared() < 32 * 32) {
+                return 114514.0f
+            }
+
             vec3f1.mul(-1.0f)
             vec3f2.set(1.0f, 1.0f, 1.0f)
             rotateMatrix.identity()
@@ -691,18 +690,14 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
             point3.mul(scene.camera.screenWidth.toFloat(), scene.camera.screenHeight.toFloat(), 1.0f, 1.0f)
             point4.mul(scene.camera.screenWidth.toFloat(), scene.camera.screenHeight.toFloat(), 1.0f, 1.0f)
 
-            val area = 0.5f * (
-                    point1.x() * point2.y() +
-                            point2.x() * point3.y() +
-                            point3.x() * point4.y() +
-                            point4.x() * point1.y() -
-                            point2.x() * point1.y() -
-                            point3.x() * point2.y() -
-                            point4.x() * point3.y() -
-                            point1.x() * point4.y()
-                    )
+            val minX = min(min(point1.x(), point2.x()), min(point3.x(), point4.x()))
+            val minY = min(min(point1.y(), point2.y()), min(point3.y(), point4.y()))
+            val maxX = min(max(point1.x(), point2.x()), max(point3.x(), point4.x()))
+            val maxY = min(max(point1.y(), point2.y()), max(point3.y(), point4.y()))
 
-            return abs(area)
+            val maxEdge = max(maxX - minX, maxY - minY)
+
+            return maxEdge
         }
     }
 
