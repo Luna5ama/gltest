@@ -117,3 +117,11 @@ class DrawArraysIndirectCommand(
     val first: Int,
     val baseInstance: Int
 )
+
+@Struct(sizeAlignment = 1L, size = 16L)
+class MeshShaderBatchInfo(
+    val chunkIndex: Int,
+    val quadStartIndex: Int,
+    val quadCount: Int,
+    val chunkOffsetEncoded: Int
+)

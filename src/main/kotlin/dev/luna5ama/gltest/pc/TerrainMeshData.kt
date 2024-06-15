@@ -510,30 +510,40 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
         }
 
         scene.hwVsPipeline.startUpdate().use { hwVs ->
-            scene.swQuadPipeline.startUpdate().use { swQuad ->
-                scene.swPointPipeline.startUpdate().use { swPoint ->
-                    for (i in chunkIndices) {
-                        val chunkInfo = chunkinfos[i]
-                        if (!frustumCullingFlags[chunkInfo.listIndex].value) continue
+            scene.hwMsPipeline.startUpdate().use { hwMs ->
+                scene.swQuadPipeline.startUpdate().use { swQuad ->
+//                    scene.swPointPipeline.startUpdate().use { swPoint ->
+                        for (i in chunkIndices) {
+                            val chunkInfo = chunkinfos[i]
+                            if (!frustumCullingFlags[chunkInfo.listIndex].value) continue
 
-                        if (scene.gameInstance.toggle1) {
-                            hwVs.add(chunkInfo)
-                        } else if (true) {
-                            swQuad.add(chunkInfo)
-                        } else {
-                            swPoint.add(chunkInfo)
+                            if (!scene.gameInstance.toggle1) {
+                                if (!scene.gameInstance.toggle2) {
+                                    hwVs.add(chunkInfo)
+                                } else {
+                                    hwMs.add(chunkInfo)
+                                }
+                            } else {
+//                                if (!scene.gameInstance.toggle2) {
+                                    swQuad.add(chunkInfo)
+//                                } else {
+//                                    swPoint.add(chunkInfo)
+//                                }
+                            }
                         }
-                    }
 
-                    scene.hwVsPipeline.endUpdate(hwVs)
-                    scene.swQuadPipeline.endUpdate(swQuad)
-                    scene.swPointPipeline.endUpdate(swPoint)
+                        scene.hwVsPipeline.endUpdate(hwVs)
+                        scene.hwMsPipeline.endUpdate(hwMs)
+                        scene.swQuadPipeline.endUpdate(swQuad)
+//                        scene.swPointPipeline.endUpdate(swPoint)
+//                    }
                 }
             }
         }
 
         if (print) {
-            println("HW Batch count: ${scene.hwVsPipeline.batchCount}/${chunkinfos.size}")
+            println("HW VS Batch count: ${scene.hwVsPipeline.batchCount}/${chunkinfos.size}")
+            println("HW MS Batch count: ${scene.hwMsPipeline.batchCount}/${chunkinfos.size}")
             println("SW Quad Batch count: ${scene.swQuadPipeline.batchCount}/${chunkinfos.size}")
             println("SW Point Batch count: ${scene.swPointPipeline.batchCount}/${chunkinfos.size}")
             println()

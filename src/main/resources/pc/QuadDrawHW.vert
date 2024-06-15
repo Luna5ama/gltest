@@ -27,9 +27,14 @@ vec4 readPos(uint idx) {
     return vec4(uvec4(data1 & 0xFFFFu, data1 >> 16u, data2 & 0xFFFFu, data2 >> 16u));
 }
 
-out vec4 frag_bCoord;
-out float frag_depth;
-flat out uint frag_quadIndex;
+layout(location = 0) out VertData {
+    vec4 bCoord;
+    float depth;
+} vertDataOut;
+
+layout(location = 2) out PrimData {
+    flat uint quadIndex;
+} primDataOut;
 
 const vec4 BCOORDS[6] = {
     vec4(1.0, 0.0, 0.0, 0.0),
@@ -51,24 +56,24 @@ void main() {
     vec3 chunkOffset = vec3(chunkOffsetEncoded);
     chunkOffset = chunkOffset * 16.0 + uval_originOffset;
 
-    frag_quadIndex = ssbo_chunkStartIndexBuffer[gl_DrawID] + uint(gl_VertexID) / 6;
-    uint quadPosDataIdx = ssbo_quadPosIndexBuffer[frag_quadIndex] * 6u;
+    primDataOut.quadIndex = ssbo_chunkStartIndexBuffer[gl_DrawID] + uint(gl_VertexID) / 6;
+    uint quadPosDataIdx = ssbo_quadPosIndexBuffer[primDataOut.quadIndex] * 6u;
 
-    frag_bCoord = BCOORDS[gl_VertexID % 6u];
+    vertDataOut.bCoord = BCOORDS[gl_VertexID % 6u];
 
     vec4 posX = readPos(quadPosDataIdx);
     vec4 posY = readPos(quadPosDataIdx + 2u);
     vec4 posZ = readPos(quadPosDataIdx + 4u);
 
     vec4 vertPos = vec4(
-        dot(posX, frag_bCoord),
-        dot(posY, frag_bCoord),
-        dot(posZ, frag_bCoord),
+        dot(posX, vertDataOut.bCoord),
+        dot(posY, vertDataOut.bCoord),
+        dot(posZ, vertDataOut.bCoord),
         1.0
     );
 
     vertPos.xyz = vertPos.xyz * coordConvert + chunkOffset;
 
     gl_Position = ubo_cameraDefault.combined * vertPos;
-    frag_depth = gl_Position.z;
+    vertDataOut.depth = gl_Position.z;
 }

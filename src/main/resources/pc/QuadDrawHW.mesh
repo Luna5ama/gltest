@@ -1,0 +1,112 @@
+#version 460 core
+
+#extension GL_NV_mesh_shader : enable
+
+#include "GlobalCamera.glsl"
+
+layout(local_size_x = 16, local_size_y = 1, local_size_z = 1) in;
+
+layout(max_vertices = 64, max_primitives = 32) out;
+layout(triangles) out;
+
+layout(std430) restrict readonly buffer QuadPosDataBuffer {
+    uint ssbo_quadPosDataBuffer[];
+};
+
+layout(std430) restrict readonly buffer QuadPosIndexBuffer {
+    uint ssbo_quadPosIndexBuffer[];
+};
+
+vec4 readPos(uint idx) {
+    uint data1 = ssbo_quadPosDataBuffer[idx];
+    uint data2 = ssbo_quadPosDataBuffer[idx + 1];
+    return vec4(uvec4(data1 & 0xFFFFu, data1 >> 16u, data2 & 0xFFFFu, data2 >> 16u));
+}
+
+taskNV in Task {
+    vec3 chunkOffset;
+    uint quadStartIndex;
+    uint quadCount;
+} dataIn;
+
+layout(location = 0) out VertData {
+    vec4 bCoord;
+    float depth;
+} vertDataOut[];
+
+layout(location = 2) perprimitiveNV out PrimData {
+    uint quadIndex;
+} primDataOut[];
+
+const vec4 coordConvert = vec4(2.51773861295491E-4);
+
+void writeVertexData() {
+    uint quadIndex = dataIn.quadStartIndex + gl_GlobalInvocationID.x;
+
+    uint primWriteIdxBase = gl_LocalInvocationID.x;
+    uint primWriteIdx1 = primWriteIdxBase << 1u;
+    uint primWriteIdx2 = primWriteIdx1 + 1u;
+
+    primDataOut[primWriteIdx1].quadIndex = quadIndex;
+    primDataOut[primWriteIdx2].quadIndex = quadIndex;
+
+    uint quadPosDataIdx = ssbo_quadPosIndexBuffer[quadIndex] * 6u;
+    vec4 posX = readPos(quadPosDataIdx);
+    vec4 posY = readPos(quadPosDataIdx + 2u);
+    vec4 posZ = readPos(quadPosDataIdx + 4u);
+
+    posX = posX * coordConvert + dataIn.chunkOffset.x;
+    posY = posY * coordConvert + dataIn.chunkOffset.y;
+    posZ = posZ * coordConvert + dataIn.chunkOffset.z;
+
+    uint vertWriteIdxBase = gl_LocalInvocationID.x << 2u;
+
+    uint writeIdx1 = vertWriteIdxBase + 0u;
+    uint writeIdx2 = vertWriteIdxBase + 1u;
+    uint writeIdx3 = vertWriteIdxBase + 2u;
+    uint writeIdx4 = vertWriteIdxBase + 3u;
+
+    vec4 pos1 = ubo_cameraDefault.combined * vec4(posX.x, posY.x, posZ.x, 1.0);
+    vec4 pos2 = ubo_cameraDefault.combined * vec4(posX.y, posY.y, posZ.y, 1.0);
+    vec4 pos3 = ubo_cameraDefault.combined * vec4(posX.z, posY.z, posZ.z, 1.0);
+    vec4 pos4 = ubo_cameraDefault.combined * vec4(posX.w, posY.w, posZ.w, 1.0);
+
+    gl_MeshVerticesNV[writeIdx1].gl_Position = pos1;
+    gl_MeshVerticesNV[writeIdx2].gl_Position = pos2;
+    gl_MeshVerticesNV[writeIdx3].gl_Position = pos3;
+    gl_MeshVerticesNV[writeIdx4].gl_Position = pos4;
+
+    vertDataOut[writeIdx1].bCoord = vec4(1.0, 0.0, 0.0, 0.0);
+    vertDataOut[writeIdx2].bCoord = vec4(0.0, 1.0, 0.0, 0.0);
+    vertDataOut[writeIdx3].bCoord = vec4(0.0, 0.0, 1.0, 0.0);
+    vertDataOut[writeIdx4].bCoord = vec4(0.0, 0.0, 0.0, 1.0);
+
+    vertDataOut[writeIdx1].depth = pos1.z;
+    vertDataOut[writeIdx2].depth = pos2.z;
+    vertDataOut[writeIdx3].depth = pos3.z;
+    vertDataOut[writeIdx4].depth = pos4.z;
+}
+
+void writeIndices() {
+    uint primitiveIdxBase = gl_LocalInvocationID.x * 6;
+    uint vertIdxBase = gl_LocalInvocationID.x << 2;
+
+    gl_PrimitiveIndicesNV[primitiveIdxBase + 0] = vertIdxBase + 0;
+    gl_PrimitiveIndicesNV[primitiveIdxBase + 1] = vertIdxBase + 1;
+    gl_PrimitiveIndicesNV[primitiveIdxBase + 2] = vertIdxBase + 2;
+
+    gl_PrimitiveIndicesNV[primitiveIdxBase + 3] = vertIdxBase + 2;
+    gl_PrimitiveIndicesNV[primitiveIdxBase + 4] = vertIdxBase + 3;
+    gl_PrimitiveIndicesNV[primitiveIdxBase + 5] = vertIdxBase + 0;
+}
+
+void main() {
+    if (gl_GlobalInvocationID.x < dataIn.quadCount) {
+        writeVertexData();
+        writeIndices();
+    }
+
+    if (gl_LocalInvocationID.x == 0) {
+        gl_PrimitiveCountNV = min((dataIn.quadCount - (gl_WorkGroupID.x << 4u)) << 1u, 32u);
+    }
+}

@@ -59,6 +59,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
     val basic = register(Basic())
 
     val hwVsPipeline = register(HWVertexShaderPipeline(this))
+    val hwMsPipeline = register(HWMeshShaderPipeline(this))
     val swQuadPipeline = register(SWQuadPipeline(this))
     val swPointPipeline = register(SWPointPipeline(this))
 
@@ -123,8 +124,9 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
         }
     }
 
-    private val hwDrawTimer = GPUTimer(2000)
-    private val swDrawTimer = GPUTimer(200)
+    private val hwVsDrawTimer = GPUTimer(200)
+    private val hwMsDrawTimer = GPUTimer(200)
+    private val swDrawTimer = GPUTimer(2000)
     private val shadingTimer = GPUTimer(2000)
     private val printTimer = TickTimer()
     private val updateTimer = TickTimer()
@@ -156,7 +158,8 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
 
 
         if (printTimer.tickAndReset(3000)) {
-            if (hwVsPipeline.batchCount > 0) println("HW VS Draw: %.4f ms".format(hwDrawTimer.averageMS()))
+            if (hwVsPipeline.batchCount > 0) println("HW VS Draw: %.4f ms".format(hwVsDrawTimer.averageMS()))
+            if (hwMsPipeline.batchCount > 0) println("HW MS Draw: %.4f ms".format(hwMsDrawTimer.averageMS()))
             if (swQuadPipeline.batchCount + swPointPipeline.batchCount > 0)
                 println("SW Draw: %.4f ms".format(swDrawTimer.averageMS()))
         }
@@ -179,9 +182,16 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
         glEnable(GL_CULL_FACE)
         glCullFace(GL_BACK)
 
-        hwDrawTimer.begin()
-        hwVsPipeline.draw()
-        hwDrawTimer.end()
+        if (hwVsPipeline.batchCount > 0) {
+            hwVsDrawTimer.begin()
+            hwVsPipeline.draw()
+            hwVsDrawTimer.end()
+        }
+        if (hwMsPipeline.batchCount > 0) {
+            hwMsDrawTimer.begin()
+            hwMsPipeline.draw()
+            hwMsDrawTimer.end()
+        }
     }
 
     private suspend fun swDraw() {
