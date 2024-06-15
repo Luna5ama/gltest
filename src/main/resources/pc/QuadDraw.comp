@@ -161,8 +161,8 @@ void main() {
                 outputCoord.z = outputCoord.y * uval_viewportSizeI.x + outputCoord.x;
                 valueVec.x = ssbo_vBufferDepthQuadIndex[outputCoord.z];
                 vec4 posZs = posZsShared[gl_LocalInvocationID.x];
-                valueVec.y = (int64_t(floatBitsToInt(dot(posZs.xyz, t1b))) << 32) | int64_t(quadIndex);
-                valueVec.z = (int64_t(floatBitsToInt(dot(posZs.zwx, t2b))) << 32) | int64_t(quadIndex);
+                valueVec.y = (int64_t(floatBitsToInt(dot(posZs.xyz, t1b))) << 32) | int64_t(-quadIndex);
+                valueVec.z = (int64_t(floatBitsToInt(dot(posZs.zwx, t2b))) << 32) | int64_t(-quadIndex);
                 #ifdef CUTOUT
                 vec4 texCoordX = vec4(
                     unpackUnorm2x16(texCoordXY.x),

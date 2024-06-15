@@ -28,13 +28,10 @@ vec4 readPos(uint idx) {
 }
 
 layout(location = 0) out VertData {
+    flat uint quadIndex;
     vec4 bCoord;
     float depth;
 } vertDataOut;
-
-layout(location = 2) out PrimData {
-    flat uint quadIndex;
-} primDataOut;
 
 const vec4 BCOORDS[6] = {
     vec4(1.0, 0.0, 0.0, 0.0),
@@ -56,8 +53,8 @@ void main() {
     vec3 chunkOffset = vec3(chunkOffsetEncoded);
     chunkOffset = chunkOffset * 16.0 + uval_originOffset;
 
-    primDataOut.quadIndex = ssbo_chunkStartIndexBuffer[gl_DrawID] + uint(gl_VertexID) / 6;
-    uint quadPosDataIdx = ssbo_quadPosIndexBuffer[primDataOut.quadIndex] * 6u;
+    vertDataOut.quadIndex = ssbo_chunkStartIndexBuffer[gl_DrawID] + uint(gl_VertexID) / 6;
+    uint quadPosDataIdx = ssbo_quadPosIndexBuffer[vertDataOut.quadIndex] * 6u;
 
     vertDataOut.bCoord = BCOORDS[gl_VertexID % 6u];
 

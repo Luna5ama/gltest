@@ -30,25 +30,27 @@ taskNV in Task {
 } dataIn;
 
 layout(location = 0) out VertData {
+    flat uint quadIndex;
     vec4 bCoord;
     float depth;
 } vertDataOut[];
-
-layout(location = 2) perprimitiveNV out PrimData {
-    uint quadIndex;
-} primDataOut[];
 
 const vec4 coordConvert = vec4(2.51773861295491E-4);
 
 void writeVertexData() {
     uint quadIndex = dataIn.quadStartIndex + gl_GlobalInvocationID.x;
 
-    uint primWriteIdxBase = gl_LocalInvocationID.x;
-    uint primWriteIdx1 = primWriteIdxBase << 1u;
-    uint primWriteIdx2 = primWriteIdx1 + 1u;
+    uint vertWriteIdxBase = gl_LocalInvocationID.x << 2u;
 
-    primDataOut[primWriteIdx1].quadIndex = quadIndex;
-    primDataOut[primWriteIdx2].quadIndex = quadIndex;
+    uint writeIdx1 = vertWriteIdxBase + 0u;
+    uint writeIdx2 = vertWriteIdxBase + 1u;
+    uint writeIdx3 = vertWriteIdxBase + 2u;
+    uint writeIdx4 = vertWriteIdxBase + 3u;
+
+    vertDataOut[writeIdx1].quadIndex = quadIndex;
+    vertDataOut[writeIdx2].quadIndex = quadIndex;
+    vertDataOut[writeIdx3].quadIndex = quadIndex;
+    vertDataOut[writeIdx4].quadIndex = quadIndex;
 
     uint quadPosDataIdx = ssbo_quadPosIndexBuffer[quadIndex] * 6u;
     vec4 posX = readPos(quadPosDataIdx);
@@ -58,13 +60,6 @@ void writeVertexData() {
     posX = posX * coordConvert + dataIn.chunkOffset.x;
     posY = posY * coordConvert + dataIn.chunkOffset.y;
     posZ = posZ * coordConvert + dataIn.chunkOffset.z;
-
-    uint vertWriteIdxBase = gl_LocalInvocationID.x << 2u;
-
-    uint writeIdx1 = vertWriteIdxBase + 0u;
-    uint writeIdx2 = vertWriteIdxBase + 1u;
-    uint writeIdx3 = vertWriteIdxBase + 2u;
-    uint writeIdx4 = vertWriteIdxBase + 3u;
 
     vec4 pos1 = ubo_cameraDefault.combined * vec4(posX.x, posY.x, posZ.x, 1.0);
     vec4 pos2 = ubo_cameraDefault.combined * vec4(posX.y, posY.y, posZ.y, 1.0);
