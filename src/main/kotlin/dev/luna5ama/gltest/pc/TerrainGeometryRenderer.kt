@@ -28,6 +28,7 @@ import org.joml.Vector3f
 import org.joml.Vector4f
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.sqrt
 
 class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by IGLObjContainer.Impl() {
     val visibilityFlagType = when {
@@ -107,7 +108,7 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
         visibleBuffer.copyTo(visibleBuffer, 4L, 4L + visibleFlagLen, visibleFlagLen)
         visibleBuffer.clear(GL_R8UI, 4L, visibleFlagLen, GL_RED_INTEGER, GL_UNSIGNED_BYTE, Ptr.NULL)
 
-//        glDebugGroup("HW Draw") { hwDraw() }
+        glDebugGroup("HW Draw") { hwDraw() }
         glDebugGroup("HW2SW Blit") {
             blitHW2SW()
         }
@@ -119,16 +120,16 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
         }
 
         if (printTimer.tickAndReset(3000)) {
-//            println("Min distance ${sqrt(distanceSqs.min().toDouble())}")
-//            println("Min sample count: ${sampleCountArray.min()}")
-//            println("Average sample count: ${sampleCountArray.average()}")
-//            println("Max sample count: ${sampleCountArray.max()}")
-//            println()
-//            println("HW VS: ${chunkCountString(hwVsPipeline)}")
-//            println("HW MS: ${chunkCountString(hwMsPipeline)}")
-//            println("SW Quad: ${chunkCountString(swQuadPipeline)}")
+            println("Min distance ${sqrt(distanceSqs.min().toDouble())}")
+            println("Min sample count: ${sampleCountArray.min()}")
+            println("Average sample count: ${sampleCountArray.average()}")
+            println("Max sample count: ${sampleCountArray.max()}")
+            println()
+            println("HW VS: ${chunkCountString(hwVsPipeline)}")
+            println("HW MS: ${chunkCountString(hwMsPipeline)}")
+            println("SW Quad: ${chunkCountString(swQuadPipeline)}")
 //            println("SW Point: ${chunkCountString(swPointPipeline)}")
-//            println()
+            println()
             println("HW Draw: %.2f ms".format(hwMsDrawTimer.averageMS() + hwVsDrawTimer.averageMS()))
             println("SW Draw: %.2f ms".format(swDrawTimer.averageMS()))
             println("Total: %.2f ms".format(swDrawTimer.averageMS() + hwVsDrawTimer.averageMS() + hwMsDrawTimer.averageMS()))
@@ -161,20 +162,20 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
                     for (i in chunkIndices) {
                         val chunkInfo = scene.terrainMeshData.chunkinfos[i]
                         if (!frustumCullingFlags[chunkInfo.listIndex].value) continue
-//                        if (sampleCountArray[chunkInfo.listIndex] > 4.0f) {
-//                            if (!scene.gameInstance.toggle1) {
-//                                if (!scene.gameInstance.toggle3) {
-//                                    hwMs.add(chunkInfo)
-//                                } else {
-//                                    hwVs.add(chunkInfo)
-//                                }
-//                            }
-//                        } else {
-//                            if (!scene.gameInstance.toggle2) {
-//                                swQuad.add(chunkInfo)
-//                            }
-//                        }
-                        swQuad.add(chunkInfo)
+                        if (sampleCountArray[chunkInfo.listIndex] > 4.0f) {
+                            if (!scene.gameInstance.toggle1) {
+                                if (!scene.gameInstance.toggle3) {
+                                    hwMs.add(chunkInfo)
+                                } else {
+                                    hwVs.add(chunkInfo)
+                                }
+                            }
+                        } else {
+                            if (!scene.gameInstance.toggle2) {
+                                swQuad.add(chunkInfo)
+                            }
+                        }
+//                        swQuad.add(chunkInfo)
                     }
 
                     hwVsPipeline.endUpdate(hwVs)

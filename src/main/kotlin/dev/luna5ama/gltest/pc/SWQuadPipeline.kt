@@ -11,15 +11,15 @@ import dev.luna5ama.glwrapper.api.*
 import dev.luna5ama.glwrapper.enums.BufferTarget
 import dev.luna5ama.glwrapper.objects.BufferObject
 import dev.luna5ama.kmogus.Arr
-import dev.luna5ama.kmogus.MemoryStack
 import dev.luna5ama.kmogus.Ptr
 import dev.luna5ama.kmogus.ensureCapacity
+import dev.luna5ama.kmogus.memcpy
 import kotlin.math.min
 
 class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) :
     TerrainDrawPipeline<SWQuadPipeline.UpdateContextImpl>(scene, renderer) {
-//    private val batchSize = renderer.threadBatchSize
-    private val batchSize = 128
+    private val workGroupSize = 128
+    private val quadsPerWorkGroup = workGroupSize * 16
 
     private val batchInfoBuffer = register(BufferObject.Immutable()).apply {
         label("SWQuad.BatchInfoBuffer")
@@ -30,8 +30,9 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
     val quadDrawShader = register(
         ShaderProgram(
             ShaderSource.Comp("pc/geometry/SWQuad.comp") {
+                define("WORKGROUP_SIZE", workGroupSize)
+                define("QUADS_PER_WORK_GROUP", quadsPerWorkGroup)
                 define("uint_least8_t", renderer.visibilityFlagType.glslTypeName)
-                define("BATCH_SIZE", batchSize)
                 if (scene.overdrawDebug) {
                     define("OVERDRAW_DEBUG")
                 }
@@ -43,7 +44,6 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
 
     private val tempBuffer = register(BufferObject.Immutable()).apply {
         label("SWQuad.tempBuffer")
-        allocate(8L, 0)
     }
 
     private val tempBufferBinding = ShaderBindingSpecs.Buffer("TempBuffer", tempBuffer, BufferTarget.ShaderStorage)
@@ -75,7 +75,13 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
 
     override fun draw() {
         if (batchCount == 0) return
-        tempBuffer.clear(GL_R32UI, GL_RED_INTEGER, GL_UNSIGNED_INT, Ptr.NULL)
+        val tempDataLen = batchCount * 4L
+        if (tempBuffer.size < tempDataLen) {
+            tempBuffer.destroy()
+            tempBuffer.allocate(tempDataLen, 0)
+        }
+
+//        tempBuffer.clear(GL_R32UI, GL_RED_INTEGER, GL_UNSIGNED_INT, Ptr.NULL)
         scene.bindSWDrawShader(quadDrawShader)
         quadDrawShader.applyBinding {
             sampler(scene.textures.blockAlbedo)
@@ -91,12 +97,18 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
 
 //        if (printTimer.tickAndReset(3000L)) {
 //            glMemoryBarrier(GL_BUFFER_UPDATE_BARRIER_BIT)
-//            MemoryStack {
-//                val arr = malloc(8L)
+//            val array = Arr.malloc(tempDataLen).use { arr ->
 //                val ptr = arr.ptr
 //                glGetNamedBufferSubData(tempBuffer.id, 0, arr.len, ptr)
-//                println("${ptr.getInt()}/${ptr.getInt(4)}")
+//                val array = IntArray(batchCount)
+//                memcpy(ptr, 0L, array, 0L, tempDataLen)
+//                array
 //            }
+//            array.sort()
+//            println(array.min())
+//            println(array.max())
+//            println(array.average())
+//            println(array[batchCount / 2])
 //        }
     }
 
@@ -106,12 +118,12 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
         override fun add(chunkInfo: TerrainMeshData.ChunkInfo) {
             var quadIdx = 0
             while (quadIdx < chunkInfo.quadCount) {
-                val batchQuadCount = min(chunkInfo.quadCount - quadIdx, batchSize)
+                val batchQuadCount = min(chunkInfo.quadCount - quadIdx, quadsPerWorkGroup)
 
                 uploadBuffer.ensureCapacity((batchCount + 1L) * sizeof(QuadBatchInfo), false)
                 val struct = QuadBatchInfo(uploadBuffer.ptr + batchCount * sizeof(QuadBatchInfo))
                 struct.first = chunkInfo.startIndex + quadIdx
-                struct.count = (batchQuadCount - 1).toByte()
+                struct.count = batchQuadCount
                 struct.offsetX = chunkInfo.offset.x.toByte()
                 struct.offsetY = chunkInfo.offset.y.toByte()
                 struct.offsetZ = chunkInfo.offset.z.toByte()

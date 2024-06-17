@@ -124,7 +124,7 @@ void main() {
     ivec2 texelNI = ivec2(texelNF);
 
     vec3 t1bBase, t1bMx, t1bMy, t1bDx, t1bDy;
-    swr_calcBarycentricGrad(screenBound, invTexelN, pos1.xy, pos2.xy, pos3.xy, t1bBase, t1bMx, t1bMy, t1bDx, t1bDy);
+    swr_calcBarycentricGradMxMy(screenBound, invTexelN, pos1.xy, pos2.xy, pos3.xy, t1bBase, t1bMx, t1bMy, t1bDx, t1bDy);
 
     vec2 tTexCoordBase, tTexCoordDx, tTexCoordDy;
     swr_calcAttribGrad(invTexelN, t1bBase, t1bMx, t1bMy, texCoordX.xyz, texCoordY.xyz, tTexCoordBase, tTexCoordDx, tTexCoordDy);

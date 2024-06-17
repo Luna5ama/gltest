@@ -1,4 +1,5 @@
 #version 460 core
+
 #extension GL_ARB_gpu_shader_int64 : enable
 #extension GL_NV_shader_atomic_int64 : enable
 #extension GL_KHR_shader_subgroup_ballot : enable
@@ -15,7 +16,7 @@
 #include "../GlobalCamera.glsl"
 #include "../utils/SWRUtils.glsl"
 
-layout(local_size_x = BATCH_SIZE, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = WORKGROUP_SIZE, local_size_y = 1, local_size_z = 1) in;
 
 uniform vec3 uval_originOffset;
 uniform vec4 uval_viewportSize;
@@ -32,7 +33,8 @@ layout(r32ui) uniform writeonly uimage2D uimg_overdrawCounter;
 
 struct QuadBatchInfo {
     uint first;
-    uint encoded_count_offsets;
+    uint count;
+    uint offsetEncoded;
 };
 
 #ifdef CUTOUT
@@ -59,15 +61,20 @@ layout(std430) restrict readonly buffer QuadPosIndexBuffer {
     uint ssbo_quadPosIndexBuffer[];
 };
 
-layout(std430) buffer TempBuffer {
-    uint count1;
-    uint count2;
-} ssbo_tempBuffer;
+layout(std430) writeonly buffer TempBuffer {
+    uint ssbo_tempBuffer[];
+};
 
-vec4 readPos(uint idx) {
+uvec2 readPosData(uint idx) {
     uint data1 = ssbo_quadPosDataBuffer[idx];
     uint data2 = ssbo_quadPosDataBuffer[idx + 1];
-    return vec4(uvec4(data1 & 0xFFFFu, data1 >> 16u, data2 & 0xFFFFu, data2 >> 16u));
+    return uvec2(data1, data2);
+}
+
+const uvec4 DECODE_POS_SHIFT = uvec4(0u, 16u, 0u, 16u);
+const uvec4 DECODE_POS_MASK = uvec4(0xFFFFu);
+vec4 decodePos(uvec2 data) {
+    return vec4(uvec4((data.xxyy >> DECODE_POS_SHIFT) & DECODE_POS_MASK));
 }
 
 float min3(vec3 v) {
@@ -82,33 +89,31 @@ float max4(vec4 v) {
     return max(max(v.x, v.y), max(v.z, v.w));
 }
 
+shared uvec2 shared_metaFirstCount;
+shared vec3 shared_chunkOffset;
 shared uint shared_quadCount = 0u;
-shared uint_least8_t shared_quadIndicesOffset[BATCH_SIZE];
+shared int16_t shared_quadIndexOffset[QUADS_PER_WORK_GROUP];
 
 const vec4 coordConvert = vec4(2.51773861295491E-4);
 
-bool setup(out vec4 posX, out vec4 posY, out vec4 posZ, out uvec4 screenBound) {
-    QuadBatchInfo batchMetadata = ssbo_quadBatchInfoBuffer[gl_WorkGroupID.x];
-    uint metaEncoded = batchMetadata.encoded_count_offsets;
-    uint metaFirst = batchMetadata.first;
-    uint metaCount = ((metaEncoded >> 24u) & 0xFFu) + 1u;
+bool cullQuad(uint localQuadIndex) {
+    uvec2 metaFirstCount = shared_metaFirstCount;
+    uint metaFirst = metaFirstCount.x;
+    uint metaCount = metaFirstCount.y;
+    vec3 chunkOffset = shared_chunkOffset;
 
-    vec3 chunkOffset = vec3(uvec3(metaEncoded) >> uvec3(0u, 8u, 16u) & uvec3(255u));
-    chunkOffset = chunkOffset * 16.0 + uval_originOffset;
-
-    if (gl_LocalInvocationID.x >= metaCount) {
+    if (localQuadIndex >= metaCount) {
         return false;
     }
 
     uint survived = 1;
 
-    uint quadIndex = metaFirst + gl_LocalInvocationID.x;
-
+    uint quadIndex = metaFirst + localQuadIndex;
     uint quadPosDataIdx = ssbo_quadPosIndexBuffer[quadIndex] * 6u;
 
-    posX = readPos(quadPosDataIdx);
-    posY = readPos(quadPosDataIdx + 2u);
-    posZ = readPos(quadPosDataIdx + 4u);
+    vec4 posX = decodePos(readPosData(quadPosDataIdx));
+    vec4 posY = decodePos(readPosData(quadPosDataIdx + 2u));
+    vec4 posZ = decodePos(readPosData(quadPosDataIdx + 4u));
 
     posX = posX * coordConvert + chunkOffset.x;
     posY = posY * coordConvert + chunkOffset.y;
@@ -119,9 +124,6 @@ bool setup(out vec4 posX, out vec4 posY, out vec4 posZ, out uvec4 screenBound) {
     vec3 pos3 = (ubo_cameraDefault.combined * vec4(posX.z, posY.z, posZ.z, 1.0)).xyw;
     vec3 pos4 = (ubo_cameraDefault.combined * vec4(posX.w, posY.w, posZ.w, 1.0)).xyw;
 
-//    if (determinant(mat3(pos1, pos2, pos3)) <= 0.0) {
-//        survived = false;
-//    }
     survived = survived & uint(determinant(mat3(pos1, pos2, pos3)) > 0.0);
 
     posX = vec4(pos1.x, pos2.x, pos3.x, pos4.x);
@@ -143,31 +145,30 @@ bool setup(out vec4 posX, out vec4 posY, out vec4 posZ, out uvec4 screenBound) {
         ), 0.0, 1.0
     );
     screenBoundF *= uval_viewportSize.xyxy;
-    screenBound = uvec4(floor(screenBoundF.xy), ceil(screenBoundF.zw));
+    uvec4 screenBound = uvec4(floor(screenBoundF.xy), ceil(screenBoundF.zw));
 
     survived = survived & uint(!any(equal(round(screenBoundF.xy), round(screenBoundF.zw))));
 
     return bool(survived);
 }
 
-void rasterize() {
-    QuadBatchInfo batchMetadata = ssbo_quadBatchInfoBuffer[gl_WorkGroupID.x];
-    uint metaEncoded = batchMetadata.encoded_count_offsets;
-    uint metaFirst = batchMetadata.first;
-    uint metaCount = ((metaEncoded >> 24u) & 0xFFu) + 1u;
+void rasterize(uint baseLocalQuadIndex) {
+    uint localQuadIndex = baseLocalQuadIndex + gl_LocalInvocationID.x;
+    if (localQuadIndex >= shared_quadCount) {
+        return;
+    }
 
-    vec3 chunkOffset = vec3(uvec3(metaEncoded) >> uvec3(0u, 8u, 16u) & uvec3(255u));
-    chunkOffset = chunkOffset * 16.0 + uval_originOffset;
-
-    uint localQuadIndex = gl_LocalInvocationID.x;
-    uint quadIndex = metaFirst + uint(shared_quadIndicesOffset[localQuadIndex]);
+    int quadIndexOffset = int(shared_quadIndexOffset[localQuadIndex]);
+    if (quadIndexOffset == -1) return;
+    uint quadIndex = shared_metaFirstCount.x + uint(quadIndexOffset);
 
     uint quadPosDataIdx = ssbo_quadPosIndexBuffer[quadIndex] * 6u;
 
-    vec4 posXs = readPos(quadPosDataIdx);
-    vec4 posYs = readPos(quadPosDataIdx + 2u);
-    vec4 posZs = readPos(quadPosDataIdx + 4u);
+    vec4 posXs = decodePos(readPosData(quadPosDataIdx));
+    vec4 posYs = decodePos(readPosData(quadPosDataIdx + 2u));
+    vec4 posZs = decodePos(readPosData(quadPosDataIdx + 4u));
 
+    vec3 chunkOffset = shared_chunkOffset;
     posXs = posXs * coordConvert + chunkOffset.x;
     posYs = posYs * coordConvert + chunkOffset.y;
     posZs = posZs * coordConvert + chunkOffset.z;
@@ -207,14 +208,13 @@ void rasterize() {
     pos3 = vec3(posXs.z, posYs.z, posZs.z);
     pos4 = vec3(posXs.w, posYs.w, posZs.w);
 
-
-    vec3 t1bBase, t1bMx, t1bMy, t1bDx, t1bDy;
-    swr_calcBarycentricGrad(screenBoundF, invTexelN, pos1.xy, pos2.xy, pos3.xy, t1bBase, t1bMx, t1bMy, t1bDx, t1bDy);
+    vec3 t1bBase, t1bDx, t1bDy;
+    swr_calcBarycentricGrad(screenBoundF, invTexelN, pos1.xy, pos2.xy, pos3.xy, t1bBase, t1bDx, t1bDy);
     t1bBase += (t1bDx + t1bDy) * 0.5;
     t1bDy -= t1bDx * texelNF.x;
 
-    vec3 t2bBase, t2bMx, t2bMy, t2bDx, t2bDy;
-    swr_calcBarycentricGrad(screenBoundF, invTexelN, pos3.xy, pos4.xy, pos1.xy, t2bBase, t2bMx, t2bMy, t2bDx, t2bDy);
+    vec3 t2bBase, t2bDx, t2bDy;
+    swr_calcBarycentricGrad(screenBoundF, invTexelN, pos3.xy, pos4.xy, pos1.xy, t2bBase, t2bDx, t2bDy);
     t2bBase += (t2bDx + t2bDy) * 0.5;
     t2bDy -= t2bDx * texelNF.x;
 
@@ -299,10 +299,13 @@ void rasterize() {
     }
 }
 
-void main() {
-    vec4 posX, posY, posZ;
-    uvec4 screenBound;
-    bool survived = setup(posX, posY, posZ, screenBound);
+void setup(uint baseLocalQuadIndex) {
+    uint localQuadIndex = baseLocalQuadIndex + gl_LocalInvocationID.x;
+    if (localQuadIndex >= shared_metaFirstCount.y) {
+        return;
+    }
+
+    bool survived = cullQuad(localQuadIndex);
 
     uvec4 ballot = subgroupBallot(survived);
     uint subgroupCount = subgroupBallotBitCount(ballot);
@@ -311,31 +314,46 @@ void main() {
 
     if (subgroupElect()) {
         quadWriteBaseIdx = atomicAdd(shared_quadCount, subgroupCount);
-//        atomicAdd(ssbo_tempBuffer.count1, subgroupCount);
     }
 
     quadWriteBaseIdx = subgroupBroadcastFirst(quadWriteBaseIdx);
 
     if (survived) {
         quadWriteBaseIdx += subgroupBallotExclusiveBitCount(ballot);
-        shared_quadIndicesOffset[quadWriteBaseIdx] = uint_least8_t(gl_LocalInvocationID.x);
-//        shared_posXs[quadWriteBaseIdx] = posX;
-//        shared_posYs[quadWriteBaseIdx] = posY;
-//        shared_posXs[quadWriteBaseIdx] = uvec2(packUnorm2x16(posX.xy), packUnorm2x16(posX.zw));
-//        shared_posYs[quadWriteBaseIdx] = uvec2(packUnorm2x16(posY.xy), packUnorm2x16(posY.zw));
-//        shared_posZs[quadWriteBaseIdx] = posZ;
-//        uvec2 screenBoundEncoded = uvec2(
-//            screenBound.x & 0xFFFFu | (screenBound.y & 0xFFFFu) << 16u,
-//            screenBound.z & 0xFFFFu | (screenBound.w & 0xFFFFu) << 16u
-//        );
-//        shared_screenBound[quadWriteBaseIdx] = screenBoundEncoded;
-//        shared_screenBound[quadWriteBaseIdx] = ivec4(0);
-//            shared_screenBound[quadWriteBaseIdx] = ivec4(screenBound);
+        shared_quadIndexOffset[quadWriteBaseIdx] = int16_t(localQuadIndex);
+    }
+}
+
+void init() {
+    QuadBatchInfo batchMetadata = ssbo_quadBatchInfoBuffer[gl_WorkGroupID.x];
+    shared_metaFirstCount = uvec2(batchMetadata.first, batchMetadata.count);
+    vec3 chunkOffset = vec3(uvec3(batchMetadata.offsetEncoded) >> uvec3(0u, 8u, 16u) & uvec3(255u));
+    chunkOffset = chunkOffset * 16.0 + uval_originOffset;
+    shared_chunkOffset = chunkOffset;
+}
+
+void clear() {
+    shared_quadCount = 0u;
+    uint xd = gl_LocalInvocationID.x << 1u;
+    shared_quadIndexOffset[xd] = int16_t(-1);
+    shared_quadIndexOffset[xd + 1u] = int16_t(-1);
+}
+
+void main() {
+    init();
+    clear();
+
+    uint setupIter = (shared_metaFirstCount.y + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
+
+    for (uint i = 0u; i < setupIter; i++) {
+        setup(i * gl_WorkGroupSize.x);
     }
 
     barrier();
 
-    if (gl_LocalInvocationID.x < shared_quadCount) {
-        rasterize();
+    uint rasterizeIter = (shared_quadCount + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
+
+    for (uint i = 0u; i < rasterizeIter; i++) {
+        rasterize(i * gl_WorkGroupSize.x);
     }
 }

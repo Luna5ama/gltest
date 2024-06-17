@@ -14,13 +14,13 @@ class PointBatchInfo(
     val pointSampleCount: Int
 )
 
-@Struct(sizeAlignment = 1L, size = 8L)
+@Struct(sizeAlignment = 1L, size = 12L)
 class QuadBatchInfo(
     val first: Int,
+    val count: Int,
     val offsetX : Byte,
     val offsetY : Byte,
     val offsetZ : Byte,
-    val count: Byte,
 )
 
 @Struct(sizeAlignment = 1L, size = 16L)
