@@ -1,0 +1,140 @@
+#version 460 core
+
+#extension GL_NV_mesh_shader : enable
+
+#include "../GlobalCamera.glsl"
+
+#define BOX_PER_GROUP 8
+#define VERT_PER_BOX 8
+#define PRIM_PER_BOX 12
+
+#define VERT_COUNT BOX_PER_GROUP * VERT_PER_BOX
+#define PRIM_COUNT BOX_PER_GROUP * PRIM_PER_BOX
+
+layout(local_size_x = BOX_PER_GROUP, local_size_y = 1, local_size_z = 1) in;
+
+layout(max_vertices = VERT_COUNT, max_primitives = PRIM_COUNT) out;
+layout(triangles) out;
+
+struct CullTestCommand {
+    uint chunkIndex;
+    uint chunkOffsetEncoded;
+};
+
+layout(std430) restrict readonly buffer CullTestCommandBuffer {
+    uint first;
+    uint count;
+    uint chunkCount;
+    uint _padding1;
+    CullTestCommand commands[];
+} ssbo_cullTestCommandBuffer;
+
+uniform vec3 uval_originOffset;
+
+layout(location = 0) perprimitiveNV out PrimData {
+    uint chunkIndex;
+} primDataOut[];
+
+const uvec3 CHUNK_OFFSET_BITMASK = (uvec3(1u) << uvec3(13u, 6u, 13u)) - uvec3(1u);
+const uvec3 CHUNK_OFFSET_BITSHIFT = uvec3(0u, 13u, 13u + 6u);
+
+const vec3 BOX_VERT_POS[8] = {
+    vec3(-1.0, -1.0, -1.0),
+    vec3(17.0, -1.0, -1.0),
+    vec3(-1.0, -1.0, 17.0),
+    vec3(17.0, -1.0, 17.0),
+    vec3(-1.0, 17.0, -1.0),
+    vec3(17.0, 17.0, -1.0),
+    vec3(-1.0, 17.0, 17.0),
+    vec3(17.0, 17.0, 17.0)
+};
+
+const uint BOX_INDICES[36] = {
+// Bottom face
+0, 1, 2,
+2, 1, 3,
+// Top face
+4, 5, 6,
+6, 5, 7,
+// Front face
+2, 3, 6,
+6, 3, 7,
+// Back face
+0, 1, 4,
+4, 1, 5,
+// Left face
+0, 2, 4,
+4, 2, 6,
+// Right face
+1, 3, 5,
+5, 3, 7
+};
+
+void main() {
+    if (gl_GlobalInvocationID.x >= ssbo_cullTestCommandBuffer.chunkCount) {
+        gl_PrimitiveCountNV = 0u;
+        return;
+    }
+
+    uint batchIndex = gl_GlobalInvocationID.x;
+    CullTestCommand cullCommand = ssbo_cullTestCommandBuffer.commands[batchIndex];
+
+    uvec3 chunkOffsetEncoded = uvec3(cullCommand.chunkOffsetEncoded);
+    chunkOffsetEncoded = (chunkOffsetEncoded >> CHUNK_OFFSET_BITSHIFT) & CHUNK_OFFSET_BITMASK;
+    vec3 chunkOffset = vec3(chunkOffsetEncoded);
+    chunkOffset = chunkOffset * 16.0 + uval_originOffset;
+
+    uint vertBaseIdx = gl_LocalInvocationID.x * 8u;
+
+    uint vertIdx1 = vertBaseIdx;
+    uint vertIdx2 = vertBaseIdx + 1u;
+    uint vertIdx3 = vertBaseIdx + 2u;
+    uint vertIdx4 = vertBaseIdx + 3u;
+    uint vertIdx5 = vertBaseIdx + 4u;
+    uint vertIdx6 = vertBaseIdx + 5u;
+    uint vertIdx7 = vertBaseIdx + 6u;
+    uint vertIdx8 = vertBaseIdx + 7u;
+
+    vec4 pos1 = ubo_cameraDefault.combined * vec4(BOX_VERT_POS[0] + chunkOffset, 1.0);
+    vec4 pos2 = ubo_cameraDefault.combined * vec4(BOX_VERT_POS[1] + chunkOffset, 1.0);
+    vec4 pos3 = ubo_cameraDefault.combined * vec4(BOX_VERT_POS[2] + chunkOffset, 1.0);
+    vec4 pos4 = ubo_cameraDefault.combined * vec4(BOX_VERT_POS[3] + chunkOffset, 1.0);
+    vec4 pos5 = ubo_cameraDefault.combined * vec4(BOX_VERT_POS[4] + chunkOffset, 1.0);
+    vec4 pos6 = ubo_cameraDefault.combined * vec4(BOX_VERT_POS[5] + chunkOffset, 1.0);
+    vec4 pos7 = ubo_cameraDefault.combined * vec4(BOX_VERT_POS[6] + chunkOffset, 1.0);
+    vec4 pos8 = ubo_cameraDefault.combined * vec4(BOX_VERT_POS[7] + chunkOffset, 1.0);
+
+    gl_MeshVerticesNV[vertIdx1].gl_Position = pos1;
+    gl_MeshVerticesNV[vertIdx2].gl_Position = pos2;
+    gl_MeshVerticesNV[vertIdx3].gl_Position = pos3;
+    gl_MeshVerticesNV[vertIdx4].gl_Position = pos4;
+    gl_MeshVerticesNV[vertIdx5].gl_Position = pos5;
+    gl_MeshVerticesNV[vertIdx6].gl_Position = pos6;
+    gl_MeshVerticesNV[vertIdx7].gl_Position = pos7;
+    gl_MeshVerticesNV[vertIdx8].gl_Position = pos8;
+
+    uint primBaseIdx = gl_LocalInvocationID.x * PRIM_PER_BOX;
+
+    primDataOut[primBaseIdx].chunkIndex = cullCommand.chunkIndex;
+    primDataOut[primBaseIdx + 1].chunkIndex = cullCommand.chunkIndex;
+    primDataOut[primBaseIdx + 2].chunkIndex = cullCommand.chunkIndex;
+    primDataOut[primBaseIdx + 3].chunkIndex = cullCommand.chunkIndex;
+    primDataOut[primBaseIdx + 4].chunkIndex = cullCommand.chunkIndex;
+    primDataOut[primBaseIdx + 5].chunkIndex = cullCommand.chunkIndex;
+    primDataOut[primBaseIdx + 6].chunkIndex = cullCommand.chunkIndex;
+    primDataOut[primBaseIdx + 7].chunkIndex = cullCommand.chunkIndex;
+    primDataOut[primBaseIdx + 8].chunkIndex = cullCommand.chunkIndex;
+    primDataOut[primBaseIdx + 9].chunkIndex = cullCommand.chunkIndex;
+    primDataOut[primBaseIdx + 10].chunkIndex = cullCommand.chunkIndex;
+    primDataOut[primBaseIdx + 11].chunkIndex = cullCommand.chunkIndex;
+
+    uint indicesBaseIdx = gl_LocalInvocationID.x * PRIM_PER_BOX * 3u;
+
+    for (uint i = 0u; i < 36u; i++) {
+        gl_PrimitiveIndicesNV[indicesBaseIdx + i] = vertBaseIdx + BOX_INDICES[i];
+    }
+
+    if (gl_LocalInvocationID.x == 0) {
+        gl_PrimitiveCountNV = min(ssbo_cullTestCommandBuffer.chunkCount - (gl_WorkGroupID.x * BOX_PER_GROUP), BOX_PER_GROUP) * PRIM_PER_BOX;
+    }
+}

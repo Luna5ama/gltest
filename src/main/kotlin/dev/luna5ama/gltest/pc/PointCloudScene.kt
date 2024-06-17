@@ -58,10 +58,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
     val overdrawCounterTex = register(TextureObject.Texture2D())
     val basic = register(Basic())
 
-    val hwVsPipeline = register(HWVertexShaderPipeline(this))
-    val hwMsPipeline = register(HWMeshShaderPipeline(this))
-    val swQuadPipeline = register(SWQuadPipeline(this))
-//    val swPointPipeline = register(SWPointPipeline(this))
+    val terrainGeometryRenderer = register(TerrainGeometryRenderer(this))
 
     init {
         runCatching {
@@ -123,13 +120,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
             }
         }
     }
-
-    private val hwVsDrawTimer = GPUTimer(100)
-    private val hwMsDrawTimer = GPUTimer(100)
-    private val swDrawTimer = GPUTimer(100)
     private val shadingTimer = GPUTimer(2000)
-    private val printTimer = TickTimer()
-    private val updateTimer = TickTimer()
 
     override suspend fun renderFrame() {
 //        exitProcess(0)
@@ -140,29 +131,9 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
         updateRes()
         clear()
 
-        if (updateTimer.tickAndReset(10)) {
-            terrainMeshData.updateBatchMeta()
-        }
-        glDebugGroup("HW Draw") { hwDraw() }
-        glDebugGroup("HW2SW Blit") {
-            vbuffer.blitHW2SW()
-        }
-        glDebugGroup("SW Draw") { swDraw() }
-        glDebugGroup("SW2HW Blit") {
-            vbuffer.blitSW2HW()
-            vbuffer.fbo.blitTo(fboGroup.input.fbo, GL_DEPTH_BUFFER_BIT, GL_NEAREST)
-            vbuffer.fbo.blitTo(fboGroup.output.fbo, GL_DEPTH_BUFFER_BIT, GL_NEAREST)
-        }
+        glDebugGroup("Geometry") { terrainGeometryRenderer.draw() }
         glDebugGroup("Shading") { shading() }
         glDebugGroup("Buffer blit") { bufferBlit() }
-
-
-        if (printTimer.tickAndReset(3000)) {
-            println("HW Draw: %.2f ms".format(hwMsDrawTimer.averageMS() + hwVsDrawTimer.averageMS()))
-            println("SW Draw: %.2f ms".format(swDrawTimer.averageMS()))
-            println("Total: %.2f ms".format(swDrawTimer.averageMS() + hwVsDrawTimer.averageMS() + hwMsDrawTimer.averageMS()))
-            println()
-        }
 
         glBlitNamedFramebuffer(
             fboGroup.input.fbo.id, 0,
@@ -170,39 +141,6 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
             0, 0, fboGroup.output.fbo.width, fboGroup.output.fbo.height,
             GL_COLOR_BUFFER_BIT, GL_NEAREST
         )
-    }
-
-
-    private suspend fun hwDraw() {
-        vbuffer.fbo.bind()
-        vbuffer.fbo.setDrawBufferAll()
-
-        glEnable(GL_DEPTH_TEST)
-        glDepthFunc(GL_LEQUAL)
-        glEnable(GL_CULL_FACE)
-        glCullFace(GL_BACK)
-
-        if (hwVsPipeline.batchCount > 0) {
-            hwVsDrawTimer.begin()
-            hwVsPipeline.draw()
-            hwVsDrawTimer.end()
-        }
-        if (hwMsPipeline.batchCount > 0) {
-            hwMsDrawTimer.begin()
-            hwMsPipeline.draw()
-            hwMsDrawTimer.end()
-        }
-    }
-
-    private suspend fun swDraw() {
-        swDrawTimer.begin()
-
-        swQuadPipeline.draw()
-//        swPointPipeline.draw()
-
-        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT or GL_SHADER_STORAGE_BARRIER_BIT)
-
-        swDrawTimer.end()
     }
 
     fun bindSWDrawShader(program: ShaderProgram) {
@@ -231,6 +169,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
             sampler(textures.blockAlbedo)
             sampler(textures.lightMap)
             sampler(fboGroup.inputBindings)
+            sampler(vbuffer.samplerBindings)
 
             image(vbuffer.imageBindings)
             image("uimg_output", fboGroup.output.colorTex)
@@ -288,7 +227,6 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
     }
 
     private fun clear() {
-
         if (overdrawDebug) overdrawCounterTex.clearImage(GL_RGBA_INTEGER, GL_UNSIGNED_INT, Ptr.NULL)
     }
 

@@ -1,0 +1,121 @@
+#version 460 core
+
+#if FLAG_TYPE == uint8_t
+#extension GL_NV_gpu_shader5 : enable
+#elif FLAG_TYPE == uint16_t
+#extension GL_AMD_gpu_shader_int16 : enable
+#endif
+
+#extension GL_KHR_shader_subgroup_ballot : enable
+
+#include "../GlobalCamera.glsl"
+
+layout(local_size_x = 1024, local_size_y = 1, local_size_z = 1) in;
+
+layout(std430) restrict readonly buffer ChunkOffsetData {
+    uint ssbo_chunkOffsetData[];
+};
+
+struct DrawElementsIndirectCommand {
+    uint count;
+    uint instanceCount;
+    uint firstIndex;
+    int baseVertex;
+    uint baseInstance;
+};
+
+layout(std430) restrict readonly buffer InputIndirectBuffer {
+    uint commandCount;
+    uint padding1;
+    uint padding2;
+    uint padding3;
+    DrawElementsIndirectCommand commands[];
+} ssbo_inputIndirectBuffer;
+
+layout(std430) restrict buffer OutputIndirectBuffer {
+    uint commandCount;
+    uint padding1;
+    uint padding2;
+    uint padding3;
+    DrawElementsIndirectCommand commands[];
+} ssbo_outputIndirectBuffer;
+
+layout(std430) restrict readonly buffer VisibleBuffer {
+    uint chunkCount;
+    FLAG_TYPE states[];
+} ssbo_visibleBuffer;
+
+uniform vec3 uval_originOffset;
+
+const uvec3 CHUNK_OFFSET_BITMASK = (uvec3(1u) << uvec3(13u, 6u, 13u)) - uvec3(1u);
+const uvec3 CHUNK_OFFSET_BITSHIFT = uvec3(0u, 13u, 13u + 6u);
+
+shared uint shared_spinlock = 0u;
+shared uint shared_commandCount = 0u;
+
+void main() {
+    uint initalCommandCount = ssbo_inputIndirectBuffer.commandCount;
+    uint loopCount = (initalCommandCount + gl_WorkGroupSize.x - 1) / gl_WorkGroupSize.x;
+
+    for (uint i = 0; i < loopCount; i++) {
+        uint index = i * gl_WorkGroupSize.x + gl_LocalInvocationID.x;
+        uint commandIndex = 0u;
+        if (index < initalCommandCount) {
+            #if CULL_PASS != 0
+            DrawElementsIndirectCommand command = ssbo_inputIndirectBuffer.commands[index];
+            uint chunkIndex = command.baseInstance;
+            uvec3 chunkOffsetEncoded = uvec3(ssbo_chunkOffsetData[chunkIndex]);
+            chunkOffsetEncoded = (chunkOffsetEncoded >> CHUNK_OFFSET_BITSHIFT) & CHUNK_OFFSET_BITMASK;
+            vec3 chunkOffset = vec3(chunkOffsetEncoded);
+            chunkOffset = chunkOffset * 16.0 + uval_originOffset;
+            #endif
+
+            #if CULL_PASS == 1
+//            bool isCameraChunk = dot(chunkOffset, chunkOffset) < 1024.0;
+            bool isCameraChunk = false;
+            bool last = bool(ssbo_visibleBuffer.states[chunkIndex + ssbo_visibleBuffer.chunkCount]) || isCameraChunk;
+            commandIndex = uint(-int(last));
+            #elif CULL_PASS == 2
+            bool last = bool(ssbo_visibleBuffer.states[chunkIndex + ssbo_visibleBuffer.chunkCount]);
+            bool curr = bool(ssbo_visibleBuffer.states[chunkIndex]);
+            commandIndex = uint(-int(!last && curr));
+            #elif CULL_PASS == 3
+//            bool isCameraChunk = dot(chunkOffset, chunkOffset) < 1024.0;
+            bool isCameraChunk = false;
+            bool curr = bool(ssbo_visibleBuffer.states[chunkIndex]) || isCameraChunk;
+            commandIndex = uint(-int(curr));
+            #else
+            commandIndex = 0xFFFFFFFFu;
+            #endif
+        }
+
+        uvec4 ballot = subgroupBallot(commandIndex != 0u);
+        uint subgroupCount = subgroupBallotBitCount(ballot);
+
+        uint shared_commandBaseIdx;
+
+        if (subgroupElect()) {
+//            uint unlocked = gl_SubgroupID << 1u;
+//            uint locked = unlocked + 1u;
+//            while(atomicCompSwap(shared_spinlock, unlocked, locked) != unlocked) {}
+//            shared_commandBaseIdx = shared_commandCount;
+//            shared_commandCount += subgroupCount;
+//            atomicExchange(shared_spinlock, (locked + 1u) % (gl_NumSubgroups << 1u));
+            shared_commandBaseIdx = atomicAdd(shared_commandCount, subgroupCount);
+        }
+
+        shared_commandBaseIdx = subgroupBroadcastFirst(shared_commandBaseIdx);
+
+        if (commandIndex != 0u) {
+            commandIndex &= index;
+            uint writeIndex = shared_commandBaseIdx + subgroupBallotExclusiveBitCount(ballot);
+            ssbo_outputIndirectBuffer.commands[writeIndex] = ssbo_inputIndirectBuffer.commands[commandIndex];
+        }
+    }
+
+    barrier();
+
+    if (gl_LocalInvocationID.x == 0) {
+        ssbo_outputIndirectBuffer.commandCount = shared_commandCount;
+    }
+}

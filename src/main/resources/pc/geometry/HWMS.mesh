@@ -76,10 +76,10 @@ void writeVertexData() {
     vertDataOut[writeIdx3].bCoord = vec4(0.0, 0.0, 1.0, 0.0);
     vertDataOut[writeIdx4].bCoord = vec4(0.0, 0.0, 0.0, 1.0);
 
-    vertDataOut[writeIdx1].depth = pos1.z;
-    vertDataOut[writeIdx2].depth = pos2.z;
-    vertDataOut[writeIdx3].depth = pos3.z;
-    vertDataOut[writeIdx4].depth = pos4.z;
+    vertDataOut[writeIdx1].depth = pos1.w;
+    vertDataOut[writeIdx2].depth = pos2.w;
+    vertDataOut[writeIdx3].depth = pos3.w;
+    vertDataOut[writeIdx4].depth = pos4.w;
 }
 
 void writeIndices() {

@@ -25,9 +25,15 @@ class VisibilityBuffer(private val scene: PointCloudScene) : IGLObjContainer by 
     val depthTex = register(TextureObject.Texture2D()).apply {
         label("VBuffer.Depth")
     }
+    val normalizedDepthTex = register(TextureObject.Texture2D()).apply {
+        label("VBuffer.NormalizedDepth")
+    }
 
     val fbo = register(FramebufferObject()).apply {
         label("VBuffer.FBO")
+    }
+    val nDepthFbo = register(FramebufferObject()).apply {
+        label("VBuffer.NDepthFBO")
     }
 
     val imageBindings = listOf(
@@ -37,24 +43,13 @@ class VisibilityBuffer(private val scene: PointCloudScene) : IGLObjContainer by 
     val samplerBindings = listOf(
         ShaderBindingSpecs.Sampler("usam_vBufferTex1", dataTex1),
         ShaderBindingSpecs.Sampler("usam_vBufferTex2", dataTex2),
-        ShaderBindingSpecs.Sampler("usam_vBufferDepth", depthTex)
+        ShaderBindingSpecs.Sampler("usam_vBufferDepth", depthTex),
+        ShaderBindingSpecs.Sampler("usam_vBufferNormalizedDepth", normalizedDepthTex)
     )
     private val buffer = register(BufferObject.Immutable()).apply {
         label("VBuffer.DepthQuadIndex")
     }
     val bufferBinding = ShaderBindingSpecs.Buffer("VBufferDepthQuadIndex", buffer, BufferTarget.ShaderStorage)
-
-    private val sw2hwShader = register(ShaderProgram(
-        ShaderSource.Vert("pc/Blit.vert"),
-        ShaderSource.Frag("pc/vbuffer/SW2HW.frag")
-    )).apply {
-        label("VBuffer.SW2HW")
-    }
-    private val hw2swShader = register(ShaderProgram(
-        ShaderSource.Comp("pc/vbuffer/HW2SW.comp")
-    )).apply {
-        label("VBuffer.HW2SW")
-    }
 
     fun update() {
         if (scene.fboGroup.combined.sizeBit != depthTex.sizeBit) {
@@ -74,10 +69,22 @@ class VisibilityBuffer(private val scene: PointCloudScene) : IGLObjContainer by 
                 allocate(1, ImageFormat.Depth32FNV, scene.camera.screenWidth, scene.camera.screenHeight)
                 nearestClampEdge()
             }
+
+            normalizedDepthTex.apply {
+                destroy()
+                allocate(1, ImageFormat.Depth32F, scene.camera.screenWidth, scene.camera.screenHeight)
+                nearestClampEdge()
+            }
+
             fbo.apply {
                 destroyFbo()
                 attachNonLayered(dataTex2, GL_COLOR_ATTACHMENT0)
                 attachNonLayered(depthTex, GL_DEPTH_ATTACHMENT)
+            }
+
+            nDepthFbo.apply {
+                destroyFbo()
+                attachNonLayered(normalizedDepthTex, GL_DEPTH_ATTACHMENT)
             }
 
             buffer.apply {
@@ -86,43 +93,20 @@ class VisibilityBuffer(private val scene: PointCloudScene) : IGLObjContainer by 
             }
         }
 
+        clear()
+    }
+
+    fun clear() {
         MemoryStack {
             val ptr = malloc(4).ptr
-            ptr.setFloat(Float.POSITIVE_INFINITY)
+            ptr.setFloat(scene.camera.farPlane)
             buffer.clear(GL_R32UI, GL_RED_INTEGER, GL_UNSIGNED_INT, ptr)
             depthTex.clearImage(GL_DEPTH_COMPONENT, GL_FLOAT, ptr)
         }
 
         dataTex1.clearImage(GL_RGBA_INTEGER, GL_UNSIGNED_INT, Ptr.NULL)
         dataTex2.clearImage(GL_RGBA_INTEGER, GL_UNSIGNED_INT, Ptr.NULL)
-    }
 
-    fun blitSW2HW() {
-        glEnable(GL_DEPTH_TEST)
-        glDepthFunc(GL_ALWAYS)
-        glDisable(GL_DEPTH_CLAMP)
-
-        sw2hwShader.bind()
-        sw2hwShader.applyBinding {
-            sampler(samplerBindings)
-            buffer(bufferBinding)
-            buffer(scene.camera.uboBinding)
-        }
-        fbo.bind()
-        scene.basic.drawQuad()
-    }
-
-    fun blitHW2SW() {
-        hw2swShader.bind()
-        hw2swShader.applyBinding {
-            sampler(samplerBindings)
-            image(imageBindings)
-            buffer(bufferBinding)
-        }
-        glDispatchCompute(
-            (scene.camera.screenSize.x + 15) / 16,
-            (scene.camera.screenSize.y + 15) / 16,
-            1
-        )
+        nDepthFbo.clearDepth(1.0f)
     }
 }

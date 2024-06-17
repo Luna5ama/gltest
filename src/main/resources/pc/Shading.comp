@@ -15,7 +15,7 @@ layout(rgba16f) uniform writeonly image2D uimg_output;
 uniform sampler2D usam_blockAlbedoAtlas;
 uniform sampler2D usam_lightMap;
 
-uniform sampler2D usam_mainFbo_inputDepth;
+uniform sampler2D usam_vBufferDepth;
 
 layout(std430) restrict readonly buffer QuadPosDataBuffer {
     uint ssbo_quadPosDataBuffer[];
@@ -47,15 +47,13 @@ vec4 readPos(uint idx) {
     return vec4(data);
 }
 
-const float FLOAT_POS_INF = uintBitsToFloat(0x7F800000u);
-
 void main() {
     ivec2 centerCoord = ivec2(gl_GlobalInvocationID.xy);
     if (any(greaterThanEqual(centerCoord, outputSize))) {
         return;
     }
-    float linearDepth = texelFetch(usam_mainFbo_inputDepth, centerCoord, 0).r;
-    if (linearDepth == FLOAT_POS_INF) {
+    float linearDepth = texelFetch(usam_vBufferDepth, centerCoord, 0).r;
+    if (linearDepth == ubo_cameraDefault.planeZ.y) {
         return;
     }
 

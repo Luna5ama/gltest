@@ -14,7 +14,8 @@ import dev.luna5ama.kmogus.Arr
 import dev.luna5ama.kmogus.ensureCapacity
 import kotlin.math.min
 
-class SWQuadPipeline(scene: PointCloudScene) : TerrainDrawPipeline<SWQuadPipeline.UpdateContextImpl>(scene) {
+class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) :
+    TerrainDrawPipeline<SWQuadPipeline.UpdateContextImpl>(scene, renderer) {
     private val batchInfoBuffer = register(BufferObject.Immutable()).apply {
         label("SWQuad.BatchInfoBuffer")
     }
@@ -23,8 +24,8 @@ class SWQuadPipeline(scene: PointCloudScene) : TerrainDrawPipeline<SWQuadPipelin
 
     private val quadDrawShader = register(
         ShaderProgram(
-            ShaderSource.Comp("pc/vbuffer/SWQuad.comp") {
-                define("BATCH_SIZE", scene.terrainMeshData.batchSize)
+            ShaderSource.Comp("pc/geometry/SWQuad.comp") {
+                define("BATCH_SIZE", renderer.threadBatchSize)
                 if (scene.overdrawDebug) {
                     define("OVERDRAW_DEBUG")
                 }
@@ -78,7 +79,7 @@ class SWQuadPipeline(scene: PointCloudScene) : TerrainDrawPipeline<SWQuadPipelin
         override fun add(chunkInfo: TerrainMeshData.ChunkInfo) {
             var quadIdx = 0
             while (quadIdx < chunkInfo.quadCount) {
-                val batchQuadCount = min(chunkInfo.quadCount - quadIdx, scene.terrainMeshData.batchSize)
+                val batchQuadCount = min(chunkInfo.quadCount - quadIdx, renderer.threadBatchSize)
 
                 uploadBuffer.ensureCapacity((batchCount + 1L) * sizeof(QuadBatchInfo), false)
                 val struct = QuadBatchInfo(uploadBuffer.ptr + batchCount * sizeof(QuadBatchInfo))

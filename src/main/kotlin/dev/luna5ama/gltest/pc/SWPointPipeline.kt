@@ -17,7 +17,8 @@ import org.joml.Vector4f
 import kotlin.math.abs
 import kotlin.math.min
 
-class SWPointPipeline(scene: PointCloudScene) : TerrainDrawPipeline<SWPointPipeline.UpdateContextImpl>(scene) {
+class SWPointPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) :
+    TerrainDrawPipeline<SWPointPipeline.UpdateContextImpl>(scene, renderer) {
     private val batchInfoBuffer = register(BufferObject.Immutable())
 
     val bufferBinding = ShaderBindingSpecs.Buffer("PointBatchInfoBuffer", batchInfoBuffer, BufferTarget.ShaderStorage)
@@ -114,8 +115,8 @@ class SWPointPipeline(scene: PointCloudScene) : TerrainDrawPipeline<SWPointPipel
 
         pointDrawShader = register(
             ShaderProgram(
-                ShaderSource.Comp("pc/vbuffer/PointDraw.comp") {
-                    define("BATCH_SIZE", scene.terrainMeshData.batchSize)
+                ShaderSource.Comp("pc/geometry/PointDraw.comp") {
+                    define("BATCH_SIZE", renderer.threadBatchSize)
                     define("UNROLLED_CODE", xd)
                     if (scene.overdrawDebug) {
                         define("OVERDRAW_DEBUG")
@@ -169,10 +170,10 @@ class SWPointPipeline(scene: PointCloudScene) : TerrainDrawPipeline<SWPointPipel
         val uploadBuffer = Arr.malloc(0L)
 
         override fun add(chunkInfo: TerrainMeshData.ChunkInfo) {
-            val sampleCountPow2 = scene.terrainMeshData.sampleCountArray[chunkInfo.listIndex]
+            val sampleCountPow2 = renderer.sampleCountArray[chunkInfo.listIndex]
             var quadIdx = 0
             val sampleCount = 1 shl abs(sampleCountPow2).toInt()
-            val count = if (sampleCountPow2 > 0) scene.terrainMeshData.batchSize else scene.terrainMeshData.batchSize * sampleCount
+            val count = if (sampleCountPow2 > 0) renderer.threadBatchSize else renderer.threadBatchSize * sampleCount
 
             while (quadIdx < chunkInfo.quadCount) {
                 uploadBuffer.ensureCapacity((batchCount + 1L) * sizeof(PointBatchInfo), false)

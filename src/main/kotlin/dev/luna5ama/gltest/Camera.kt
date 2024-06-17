@@ -1,6 +1,7 @@
 package dev.luna5ama.gltest
 
 import dev.fastmc.common.MathUtil
+import dev.fastmc.common.TickTimer
 import dev.fastmc.common.toRadians
 import dev.luna5ama.glwrapper.ShaderBindingSpecs
 import dev.luna5ama.glwrapper.api.GL_DYNAMIC_STORAGE_BIT

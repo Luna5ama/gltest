@@ -59,8 +59,6 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
         label("QuadDrawHW.chunkOffsetData")
     }
 
-    val batchSize = if (GLWrapper.instance.vendor == GpuVendor.NVIDIA) 96 else 128
-
     val bufferBindings = listOf(
         ShaderBindingSpecs.Buffer("QuadPosDataBuffer", quadPosDataBuffer, BufferTarget.ShaderStorage),
         ShaderBindingSpecs.Buffer("QuadTexCoordDataBuffer", quadTexCoordDataBuffer, BufferTarget.ShaderStorage),
@@ -69,8 +67,6 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
         ShaderBindingSpecs.Buffer("QuadAttribIndexBuffer", quadAttribIndexBuffer, BufferTarget.ShaderStorage),
         ShaderBindingSpecs.Buffer("ChunkOffsetData", chunkOffsetData, BufferTarget.ShaderStorage)
     )
-
-    var chunkIndices: IntArray
 
     var totalQuadCount = 0
         private set
@@ -85,10 +81,8 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
                 readData(dir)
             }
         }
-        chunkIndices = IntArray(chunkinfos.size) { it }
         val attribDataSize = quadTexCoordDataBuffer.size + quadExtraAttribDataBuffer.size
         val bufferUsage = quadPosDataBuffer.size + attribDataSize + quadPosIndexBuffer.size + quadAttribIndexBuffer.size
-        println("Using batch size: $batchSize")
         println(
             "Quad pos data: %.2f MB"
                 .format(quadPosDataBuffer.size / 1024.0 / 1024.0)
@@ -478,229 +472,6 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
         }
     }
 
-    private val printTimer = TickTimer()
-    private val frustumCullingFlags = Array(chunkinfos.size) {
-        MutableBoolean(true)
-    }
-    val sampleCountArray = FloatArray(chunkinfos.size)
-
-    suspend fun updateBatchMeta() {
-//        val print = false
-        val print = printTimer.tickAndReset(3000)
-//        if (print) {
-//            println()
-//        }
-
-        coroutineScope {
-            launch(Dispatchers.Default) {
-                sortChunks(print)
-            }
-            launch(Dispatchers.Default) {
-                calcSampleCount()
-            }
-            launch(Dispatchers.Default) {
-                doFrustumCulling()
-            }
-        }
-
-//        if (print) {
-//            println("Min sample count: ${sampleCountArray.min()}")
-//            println("Average sample count: ${sampleCountArray.average()}")
-//            println("Max sample count: ${sampleCountArray.max()}")
-//        }
-
-        scene.hwVsPipeline.startUpdate().use { hwVs ->
-            scene.hwMsPipeline.startUpdate().use { hwMs ->
-                scene.swQuadPipeline.startUpdate().use { swQuad ->
-//                    scene.swPointPipeline.startUpdate().use { swPoint ->
-                    for (i in chunkIndices) {
-                        val chunkInfo = chunkinfos[i]
-                        if (!frustumCullingFlags[chunkInfo.listIndex].value) continue
-                        if (sampleCountArray[chunkInfo.listIndex] > 4.0f) {
-                            if (!scene.gameInstance.toggle1) {
-                                if (!scene.gameInstance.toggle3) {
-                                    hwMs.add(chunkInfo)
-                                } else {
-                                    hwVs.add(chunkInfo)
-                                }
-                            }
-                        } else {
-                            if (!scene.gameInstance.toggle2) {
-                                swQuad.add(chunkInfo)
-                            }
-                        }
-                    }
-
-                    scene.hwVsPipeline.endUpdate(hwVs)
-                    scene.hwMsPipeline.endUpdate(hwMs)
-                    scene.swQuadPipeline.endUpdate(swQuad)
-//                        scene.swPointPipeline.endUpdate(swPoint)
-//                    }
-                }
-            }
-        }
-
-        if (print) {
-            println("HW VS: ${chunkCountString(scene.hwVsPipeline)}")
-            println("HW MS: ${chunkCountString(scene.hwMsPipeline)}")
-            println("SW Quad: ${chunkCountString(scene.swQuadPipeline)}")
-//            println("SW Point: ${chunkCountString(scene.swPointPipeline)}")
-            println()
-        }
-    }
-
-    private fun chunkCountString(pipeline: TerrainDrawPipeline<*>): String {
-        return "${pipeline.quadCount} quads, ${pipeline.chunkCount}(${pipeline.batchCount})/${chunkinfos.size} chunks"
-    }
-
-    private fun CoroutineScope.calcSampleCount() {
-        ParallelUtils.splitListIndex(
-            chunkinfos.size,
-            blockForEach = { start, end ->
-                launch {
-                    val areaCalc = QuadAreaCalc()
-                    for (i in start until end) {
-                        val chunkInfo = chunkinfos[i]
-                        val area = areaCalc.calc(chunkInfo)
-                        sampleCountArray[chunkInfo.listIndex] = area
-                    }
-                }
-            }
-        )
-    }
-
-    private val distanceSqs = IntArray(chunkIndices.size)
-    private suspend fun sortChunks(print: Boolean) {
-        coroutineScope {
-            ParallelUtils.splitListIndex(
-                chunkIndices.size,
-                blockForEach = { start, end ->
-                    launch {
-                        val originOffsetX = (PointCloudScene.originX - scene.camera.pos.x).floorToInt()
-                        val originOffsetY = (PointCloudScene.originY - scene.camera.pos.y).floorToInt()
-                        val originOffsetZ = (PointCloudScene.originZ - scene.camera.pos.z).floorToInt()
-                        for (i in start until end) {
-                            val chunkInfo = chunkinfos[i]
-                            val offset = chunkOffsets[chunkInfo.chunkIndex]
-                            val dx = offset.x * 16 + originOffsetX
-                            val dy = offset.y * 16 + originOffsetY
-                            val dz = offset.z * 16 + originOffsetZ
-                            distanceSqs[i] = (dx * dx + dy * dy + dz * dz)
-                        }
-                    }
-                }
-            )
-        }
-
-//        if (print) {
-//            println("Min distance ${sqrt(distanceSqs.min().toDouble())}")
-//        }
-
-        IntIntrosort.sort(chunkIndices, distanceSqs)
-    }
-
-    private fun CoroutineScope.doFrustumCulling() {
-        val frustumCull = FrustumIntersection(scene.camera.combined, false)
-        ParallelUtils.splitListIndex(
-            chunkIndices.size,
-            blockForEach = { start, end ->
-                launch {
-                    for (i in start until end) {
-                        val chunkInfo = chunkinfos[chunkIndices[i]]
-                        frustumCullingFlags[chunkInfo.listIndex].setValue(
-                            frustumCull.testAab(
-                                (chunkInfo.minX - scene.camera.pos.x).toFloat(),
-                                (chunkInfo.minY - scene.camera.pos.y).toFloat(),
-                                (chunkInfo.minZ - scene.camera.pos.z).toFloat(),
-                                (chunkInfo.maxX - scene.camera.pos.x).toFloat(),
-                                (chunkInfo.maxY - scene.camera.pos.y).toFloat(),
-                                (chunkInfo.maxZ - scene.camera.pos.z).toFloat()
-                            )
-                        )
-                    }
-                }
-            }
-        )
-    }
-
-    private inner class QuadAreaCalc {
-        private val rotateMatrix = Matrix4f()
-        private val vec3f1 = Vector3f()
-        private val vec3f2 = Vector3f()
-
-        private val point1 = Vector4f()
-        private val point2 = Vector4f()
-        private val point3 = Vector4f()
-        private val point4 = Vector4f()
-
-        private fun setPoint() {
-            point1.set(-0.5f, -0.5f, 0.0f, 1.0f)
-            point2.set(0.5f, -0.5f, 0.0f, 1.0f)
-            point3.set(0.5f, 0.5f, 0.0f, 1.0f)
-            point4.set(-0.5f, 0.5f, 0.0f, 1.0f)
-        }
-
-        fun calc(chunkInfo: ChunkInfo): Float {
-            vec3f1.set(
-                0.0f.coerceIn(
-                    (chunkInfo.minX - scene.camera.pos.x).toFloat(),
-                    (chunkInfo.maxX - scene.camera.pos.x).toFloat()
-                ),
-                0.0f.coerceIn(
-                    (chunkInfo.minY - scene.camera.pos.y).toFloat(),
-                    (chunkInfo.maxY - scene.camera.pos.y).toFloat()
-                ),
-                0.0f.coerceIn(
-                    (chunkInfo.minZ - scene.camera.pos.z).toFloat(),
-                    (chunkInfo.maxZ - scene.camera.pos.z).toFloat()
-                )
-            )
-            if (vec3f1.lengthSquared() < 32 * 32) {
-                return 114514.0f
-            }
-
-            vec3f1.mul(-1.0f)
-            vec3f2.set(1.0f, 1.0f, 1.0f)
-            rotateMatrix.identity()
-            rotateMatrix.rotationTowards(vec3f1, vec3f2)
-            vec3f1.mul(-1.0f)
-
-            setPoint()
-            rotateMatrix.transform(point1)
-            rotateMatrix.transform(point2)
-            rotateMatrix.transform(point3)
-            rotateMatrix.transform(point4)
-            point1.add(vec3f1.x(), vec3f1.y(), vec3f1.z(), 0.0f)
-            point2.add(vec3f1.x(), vec3f1.y(), vec3f1.z(), 0.0f)
-            point3.add(vec3f1.x(), vec3f1.y(), vec3f1.z(), 0.0f)
-            point4.add(vec3f1.x(), vec3f1.y(), vec3f1.z(), 0.0f)
-
-            scene.camera.noJitterCombined.transformProject(point1)
-            scene.camera.noJitterCombined.transformProject(point2)
-            scene.camera.noJitterCombined.transformProject(point3)
-            scene.camera.noJitterCombined.transformProject(point4)
-
-            point1.mul(0.5f, 0.5f, 0.5f, 1.0f).add(0.5f, 0.5f, 0.5f, 0.0f)
-            point2.mul(0.5f, 0.5f, 0.5f, 1.0f).add(0.5f, 0.5f, 0.5f, 0.0f)
-            point3.mul(0.5f, 0.5f, 0.5f, 1.0f).add(0.5f, 0.5f, 0.5f, 0.0f)
-            point4.mul(0.5f, 0.5f, 0.5f, 1.0f).add(0.5f, 0.5f, 0.5f, 0.0f)
-
-            point1.mul(scene.camera.screenWidth.toFloat(), scene.camera.screenHeight.toFloat(), 1.0f, 1.0f)
-            point2.mul(scene.camera.screenWidth.toFloat(), scene.camera.screenHeight.toFloat(), 1.0f, 1.0f)
-            point3.mul(scene.camera.screenWidth.toFloat(), scene.camera.screenHeight.toFloat(), 1.0f, 1.0f)
-            point4.mul(scene.camera.screenWidth.toFloat(), scene.camera.screenHeight.toFloat(), 1.0f, 1.0f)
-
-            val minX = min(min(point1.x(), point2.x()), min(point3.x(), point4.x()))
-            val minY = min(min(point1.y(), point2.y()), min(point3.y(), point4.y()))
-            val maxX = min(max(point1.x(), point2.x()), max(point3.x(), point4.x()))
-            val maxY = min(max(point1.y(), point2.y()), max(point3.y(), point4.y()))
-
-            val maxEdge = max(maxX - minX, maxY - minY)
-
-            return maxEdge
-        }
-    }
-
     class ChunkInfoCSVEntry(
         val chunkX: Int,
         val chunkY: Int,
@@ -721,6 +492,7 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
         val maxZ = minZ + 16
 
         val offset get() = chunkOffsets[chunkIndex]
+        val offsetEncoded get() = (offset.x and xBits) or (offset.y and yBits shl 13) or (offset.z shl (13 + 6))
     }
 
     companion object {
@@ -729,6 +501,9 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
         const val SIZE_XZ = 512
         const val ORIGIN = 128
         const val TOTAL_CHUNKS = SIZE_XZ * SIZE_XZ * SIZE_Y
+
+            private const val xBits = (1 shl 13) - 1
+            private const val yBits = (1 shl 6) - 1
     }
 
     data class PosKey(val x: Long, val y: Long, val z: Long)

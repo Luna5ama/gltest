@@ -49,6 +49,7 @@ class FboGroup(private val scene: AbstractScene) : IGLObjContainer by IGLObjCont
         swapFbo.update()
         mainFbo.update()
 
+        glColorMask(true, true, true, true)
 
         mainFbo.fbo.bind()
         glViewport(0, 0, scene.camera.screenWidth, scene.camera.screenHeight)

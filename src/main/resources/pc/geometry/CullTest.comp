@@ -1,0 +1,211 @@
+#version 460 core
+
+#extension GL_KHR_shader_subgroup_ballot : enable
+
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+
+#include "../GlobalCamera.glsl"
+#include "../utils/SWRUtils.glsl"
+
+uniform sampler2D usam_vBufferDepth;
+
+struct CullTestCommand {
+    uint chunkIndex;
+    uint chunkOffsetEncoded;
+};
+
+layout(std430) restrict readonly buffer CullTestCommandBuffer {
+    uint first;
+    uint count;
+    uint chunkCount;
+    uint _padding2;
+    CullTestCommand commands[];
+} ssbo_cullTestCommandBuffer;
+
+layout(std430) restrict writeonly buffer VisibleBuffer {
+    uint chunkCount;
+    FLAG_TYPE states[];
+} ssbo_visibleBuffer;
+
+layout(std430) restrict writeonly buffer TempBuffer {
+    uint stuff[];
+} ssbo_tempBuffer;
+
+uniform vec3 uval_originOffset;
+uniform vec4 uval_viewportSize;
+uniform ivec2 uval_viewportSizeI;
+
+const uvec3 CHUNK_OFFSET_BITMASK = (uvec3(1u) << uvec3(13u, 6u, 13u)) - uvec3(1u);
+const uvec3 CHUNK_OFFSET_BITSHIFT = uvec3(0u, 13u, 13u + 6u);
+
+const vec3 BOX_VERT_POS[8] = {
+vec3(-1.0, -1.0, -1.0), // 0
+vec3(17.0, -1.0, -1.0), // 1
+vec3(-1.0, -1.0, 17.0), // 2
+vec3(17.0, -1.0, 17.0), // 3
+vec3(-1.0, 17.0, -1.0), // 4
+vec3(17.0, 17.0, -1.0), // 5
+vec3(-1.0, 17.0, 17.0), // 6
+vec3(17.0, 17.0, 17.0)// 7
+};
+
+const uint BOX_VERT_INDICES[24] = {
+// Left face
+0, 2, 4, 6,
+// Right face
+1, 5, 3, 7,
+// Bottom face
+0, 1, 2, 3,
+// Top face
+4, 6, 5, 7,
+// Back face
+1, 0, 5, 4,
+// Front face
+3, 7, 2, 6
+};
+
+const uint TRIANGLE_VERT_INDICES[6] = {
+0, 1, 2, 2, 1, 3
+};
+
+shared uint shared_chunkIndex;
+shared uint shared_visible;
+shared ivec4 shared_screenBounds;
+shared vec3 tValues[8];
+
+float min3(vec3 v) {
+    return min(v.x, min(v.y, v.z));
+}
+
+const float EPSILON = 1e-6;
+
+void main() {
+    if (gl_LocalInvocationIndex == 0u) {
+        shared_screenBounds = ivec4(0);
+        CullTestCommand command = ssbo_cullTestCommandBuffer.commands[gl_WorkGroupID.x];
+        shared_chunkIndex = command.chunkIndex;
+        uvec3 chunkOffsetEncoded = uvec3(command.chunkOffsetEncoded);
+        chunkOffsetEncoded = (chunkOffsetEncoded >> CHUNK_OFFSET_BITSHIFT) & CHUNK_OFFSET_BITMASK;
+        vec3 chunkOffset = vec3(chunkOffsetEncoded);
+        chunkOffset = chunkOffset * 16.0 + uval_originOffset;
+
+        uint indicesBaseIdx = gl_WorkGroupID.y * 4u;
+
+        vec3 pos1 = BOX_VERT_POS[BOX_VERT_INDICES[indicesBaseIdx + 0]] + chunkOffset;
+        vec3 pos2 = BOX_VERT_POS[BOX_VERT_INDICES[indicesBaseIdx + 1]] + chunkOffset;
+        vec3 pos3 = BOX_VERT_POS[BOX_VERT_INDICES[indicesBaseIdx + 2]] + chunkOffset;
+        vec3 pos4 = BOX_VERT_POS[BOX_VERT_INDICES[indicesBaseIdx + 3]] + chunkOffset;
+
+        vec4 clipPos1 = ubo_cameraDefault.combined * vec4(pos1, 1.0);
+        vec4 clipPos2 = ubo_cameraDefault.combined * vec4(pos2, 1.0);
+        vec4 clipPos3 = ubo_cameraDefault.combined * vec4(pos3, 1.0);
+        vec4 clipPos4 = ubo_cameraDefault.combined * vec4(pos4, 1.0);
+
+        vec4 clipPosX = vec4(clipPos1.x, clipPos2.x, clipPos3.x, clipPos4.x);
+        vec4 clipPosY = vec4(clipPos1.y, clipPos2.y, clipPos3.y, clipPos4.y);
+        vec4 clipPosZ = vec4(clipPos1.z, clipPos2.z, clipPos3.z, clipPos4.z);
+        vec4 clipPosW = vec4(clipPos1.w, clipPos2.w, clipPos3.w, clipPos4.w);
+
+        if (any(lessThanEqual(abs(clipPosW), vec4(EPSILON)))
+        || all(greaterThanEqual(abs(clipPosX) - EPSILON, clipPosW))
+        && all(greaterThanEqual(abs(clipPosX) - EPSILON, clipPosW))
+        && all(greaterThanEqual(abs(clipPosX) - EPSILON, clipPosW))
+        && all(greaterThanEqual(abs(clipPosX) - EPSILON, clipPosW))) {
+            shared_screenBounds.x = -1;
+            return;
+        }
+
+        vec2 screenPos1 = clipPos1.xy / clipPos1.w;
+        vec2 screenPos2 = clipPos2.xy / clipPos2.w;
+        vec2 screenPos3 = clipPos3.xy / clipPos3.w;
+        vec2 screenPos4 = clipPos4.xy / clipPos4.w;
+
+        screenPos1 = screenPos1 * 0.5 + 0.5;
+        screenPos2 = screenPos2 * 0.5 + 0.5;
+        screenPos3 = screenPos3 * 0.5 + 0.5;
+        screenPos4 = screenPos4 * 0.5 + 0.5;
+
+        vec4 screenBound = clamp(
+            vec4(
+                min(min(screenPos1.xy, screenPos2.xy), min(screenPos3.xy, screenPos4.xy)),
+                max(max(screenPos1.xy, screenPos2.xy), max(screenPos3.xy, screenPos4.xy))
+            ), 0.0, 1.0
+        );
+
+        if (any(lessThanEqual(screenBound.zw - screenBound.xy, vec2(0.0)))) {
+            shared_screenBounds.x = -1;
+            return;
+        }
+
+        screenBound *= uval_viewportSize.xyxy;
+        vec4 boundRounded = vec4(floor(screenBound.xy), ceil(screenBound.zw));
+        screenBound = boundRounded * uval_viewportSize.zwzw;
+
+        vec2 texelNF = boundRounded.zw - boundRounded.xy;
+        vec2 invTexelN = 1.0 / texelNF;
+        ivec4 boundRoundedInt = ivec4(boundRounded);
+
+        vec3 t1bMx, t1bMy;
+        swr_calcBarycentricGrad(screenBound, invTexelN, screenPos1.xy, screenPos2.xy, screenPos3.xy, tValues[0], t1bMx, t1bMy, tValues[1], tValues[2]);
+        tValues[0] += (tValues[1] + tValues[2]) * 0.5;
+        tValues[3] = vec3(clipPosW.x, clipPosW.y, clipPosW.z);
+
+        vec3 t2bMx, t2bMy;
+        swr_calcBarycentricGrad(screenBound, invTexelN, screenPos3.xy, screenPos2.xy, screenPos4.xy, tValues[4], t2bMx, t2bMy, tValues[5], tValues[6]);
+        tValues[4] += (tValues[5] + tValues[6]) * 0.5;
+        tValues[7] = vec3(clipPosW.z, clipPosW.y, clipPosW.w);
+
+        shared_screenBounds = boundRoundedInt;
+        shared_visible = 0u;
+
+        ivec2 boundSize = shared_screenBounds.zw - shared_screenBounds.xy;
+        ssbo_tempBuffer.stuff[gl_WorkGroupID.x] = boundSize.x * boundSize.y;
+
+        if (boundSize.x * boundSize.y >= (uval_viewportSizeI.x * uval_viewportSizeI.y) >> 4) {
+            shared_visible = 1u;
+            ssbo_visibleBuffer.states[shared_chunkIndex] = FLAG_TYPE(1u);
+        }
+    }
+
+    barrier();
+
+    if (shared_screenBounds.x == -1) {
+        return;
+    }
+
+    ivec2 boundSize = shared_screenBounds.zw - shared_screenBounds.xy;
+    uint totalPixels = boundSize.x * boundSize.y;
+    uint totalPixelsPerThread = (totalPixels + gl_WorkGroupSize.x - 1) / gl_WorkGroupSize.x;
+
+    vec3 t1bBase = tValues[0];
+    vec3 t1bDx = tValues[1];
+    vec3 t1bDy = tValues[2];
+    vec3 t1bZ = tValues[3];
+
+    vec3 t2bBase = tValues[4];
+    vec3 t2bDx = tValues[5];
+    vec3 t2bDy = tValues[6];
+    vec3 t2bZ = tValues[7];
+
+    for (uint i = 0u; i < totalPixelsPerThread; i++) {
+        if (shared_visible == 1u) break;
+        uint pixelIdx = gl_LocalInvocationID.x * totalPixelsPerThread + i;
+        if (pixelIdx >= totalPixels) break;
+
+        ivec2 pixelXYI = ivec2(pixelIdx % boundSize.x, pixelIdx / boundSize.x);
+        vec2 pixelXY = vec2(pixelXYI);
+        ivec2 pixelPosI = shared_screenBounds.xy + pixelXYI;
+
+        vec3 t1b = t1bBase + t1bDx * pixelXY.x + t1bDy * pixelXY.y;
+        vec3 t2b = t2bBase + t2bDx * pixelXY.x + t2bDy * pixelXY.y;
+        float srcDepth1 = dot(t1bZ, t1b);
+        float srcDepth2 = dot(t2bZ, t2b);
+        float dstDepth = texelFetch(usam_vBufferDepth, pixelPosI, 0).r;
+
+        if (min3(t1b) >= 0.0 && srcDepth1 < dstDepth || min3(t2b) >= 0.0 && srcDepth2 < dstDepth) {
+            shared_visible = 1u;
+            ssbo_visibleBuffer.states[shared_chunkIndex] = FLAG_TYPE(1u);
+            break;
+        }
+    }
+}

@@ -3,7 +3,7 @@
 #extension GL_NV_shader_atomic_int64 : enable
 #define CUTOUT
 
-#include "VBuffers.glsl"
+#include "../vbuffer/VBuffers.glsl"
 #include "../GlobalCamera.glsl"
 #include "../utils/SWRUtils.glsl"
 
@@ -120,7 +120,12 @@ void main() {
     pos3 = vec3(pos34.xy, pos3.z);
     pos4 = vec3(pos34.zw, pos4.z);
 
-    vec4 screenBound = clamp(vec4(min(min(pos1.xy, pos2.xy), min(pos3.xy, pos4.xy)), max(max(pos1.xy, pos2.xy), max(pos3.xy, pos4.xy))), 0.0, 1.0);
+    vec4 screenBound = clamp(
+        vec4(
+            min(min(pos1.xy, pos2.xy), min(pos3.xy, pos4.xy)),
+            max(max(pos1.xy, pos2.xy), max(pos3.xy, pos4.xy))
+        ), 0.0, 1.0
+    );
     screenBound *= uval_viewportSize.xyxy;
     vec4 boundRounded = vec4(floor(screenBound.xy), ceil(screenBound.zw));
     screenBound = boundRounded * uval_viewportSize.zwzw;
