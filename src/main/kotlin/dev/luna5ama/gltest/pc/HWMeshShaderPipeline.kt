@@ -8,7 +8,9 @@ import dev.luna5ama.gltest.terrain.register
 import dev.luna5ama.glwrapper.ShaderBindingSpecs
 import dev.luna5ama.glwrapper.ShaderProgram
 import dev.luna5ama.glwrapper.ShaderSource
+import dev.luna5ama.glwrapper.api.GL_CULL_FACE
 import dev.luna5ama.glwrapper.api.GL_DYNAMIC_STORAGE_BIT
+import dev.luna5ama.glwrapper.api.glDisable
 import dev.luna5ama.glwrapper.api.glDrawMeshTasksNV
 import dev.luna5ama.glwrapper.enums.BufferTarget
 import dev.luna5ama.glwrapper.objects.BufferObject
@@ -101,6 +103,11 @@ class HWMeshShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRend
                 (PointCloudScene.originX - scene.camera.pos.x - 0.5).toFloat(),
                 (PointCloudScene.originY - scene.camera.pos.y - 1.62).toFloat(),
                 (PointCloudScene.originZ - scene.camera.pos.z - 0.5).toFloat()
+            )
+            uniform4f(
+                "uval_viewportSize",
+                scene.camera.screenSize.x.toFloat(), scene.camera.screenSize.y.toFloat(),
+                1.0f / scene.camera.screenSize.x.toFloat(), 1.0f / scene.camera.screenSize.y.toFloat()
             )
         }
     }

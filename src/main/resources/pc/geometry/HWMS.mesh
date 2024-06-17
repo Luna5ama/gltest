@@ -1,5 +1,5 @@
 #version 460 core
-
+#extension GL_KHR_shader_subgroup_ballot : enable
 #extension GL_NV_mesh_shader : enable
 
 #include "../GlobalCamera.glsl"
@@ -16,6 +16,8 @@ layout(std430) restrict readonly buffer QuadPosDataBuffer {
 layout(std430) restrict readonly buffer QuadPosIndexBuffer {
     uint ssbo_quadPosIndexBuffer[];
 };
+
+uniform vec4 uval_viewportSize;
 
 vec4 readPos(uint idx) {
     uint data1 = ssbo_quadPosDataBuffer[idx];
@@ -37,7 +39,19 @@ layout(location = 0) out VertData {
 
 const vec4 coordConvert = vec4(2.51773861295491E-4);
 
-void writeVertexData() {
+float min4(vec4 v) {
+    return min(min(v.x, v.y), min(v.z, v.w));
+}
+
+float max4(vec4 v) {
+    return max(max(v.x, v.y), max(v.z, v.w));
+}
+
+bool writeVertexData() {
+    if (gl_GlobalInvocationID.x >= dataIn.quadCount) {
+        return false;
+    }
+
     uint quadIndex = dataIn.quadStartIndex + gl_GlobalInvocationID.x;
 
     uint vertWriteIdxBase = gl_LocalInvocationID.x << 2u;
@@ -51,6 +65,8 @@ void writeVertexData() {
     vertDataOut[writeIdx2].quadIndex = quadIndex;
     vertDataOut[writeIdx3].quadIndex = quadIndex;
     vertDataOut[writeIdx4].quadIndex = quadIndex;
+
+    uint survived = 1;
 
     uint quadPosDataIdx = ssbo_quadPosIndexBuffer[quadIndex] * 6u;
     vec4 posX = readPos(quadPosDataIdx);
@@ -66,6 +82,29 @@ void writeVertexData() {
     vec4 pos3 = ubo_cameraDefault.combined * vec4(posX.z, posY.z, posZ.z, 1.0);
     vec4 pos4 = ubo_cameraDefault.combined * vec4(posX.w, posY.w, posZ.w, 1.0);
 
+    survived = survived & uint(determinant(mat3(pos1.xyw, pos2.xyw, pos3.xyw)) > 0.0);
+
+    posX = vec4(pos1.x, pos2.x, pos3.x, pos4.x);
+    posY = vec4(pos1.y, pos2.y, pos3.y, pos4.y);
+    posZ = vec4(pos1.w, pos2.w, pos3.w, pos4.w);
+
+    vec4 posZInv = 1.0 / posZ;
+
+    posX *= posZInv;
+    posY *= posZInv;
+
+    posX = posX * 0.5 + 0.5;
+    posY = posY * 0.5 + 0.5;
+
+    vec4 screenBoundF = clamp(
+        vec4(
+            min4(posX), min4(posY),
+            max4(posX), max4(posY)
+        ), 0.0, 1.0
+    );
+    screenBoundF *= uval_viewportSize.xyxy;
+    survived = survived & uint(!any(equal(round(screenBoundF.xy), round(screenBoundF.zw))));
+
     gl_MeshVerticesNV[writeIdx1].gl_Position = pos1;
     gl_MeshVerticesNV[writeIdx2].gl_Position = pos2;
     gl_MeshVerticesNV[writeIdx3].gl_Position = pos3;
@@ -80,10 +119,12 @@ void writeVertexData() {
     vertDataOut[writeIdx2].depth = pos2.w;
     vertDataOut[writeIdx3].depth = pos3.w;
     vertDataOut[writeIdx4].depth = pos4.w;
+
+    return bool(survived);
 }
 
-void writeIndices() {
-    uint primitiveIdxBase = gl_LocalInvocationID.x * 6;
+void writeIndices(uint localQuadIndex) {
+    uint primitiveIdxBase = localQuadIndex * 6;
     uint vertIdxBase = gl_LocalInvocationID.x << 2;
 
     gl_PrimitiveIndicesNV[primitiveIdxBase + 0] = vertIdxBase + 0;
@@ -96,12 +137,16 @@ void writeIndices() {
 }
 
 void main() {
-    if (gl_GlobalInvocationID.x < dataIn.quadCount) {
-        writeVertexData();
-        writeIndices();
+    bool survived = writeVertexData();
+    uvec4 ballot = subgroupBallot(survived);
+    uint subgroupCount = subgroupBallotBitCount(ballot);
+
+    if (survived) {
+        uint localQuadIndex = subgroupBallotExclusiveBitCount(ballot);
+        writeIndices(localQuadIndex);
     }
 
     if (gl_LocalInvocationID.x == 0) {
-        gl_PrimitiveCountNV = min((dataIn.quadCount - (gl_WorkGroupID.x << 4u)) << 1u, 32u);
+        gl_PrimitiveCountNV = subgroupCount * 2;
     }
 }
