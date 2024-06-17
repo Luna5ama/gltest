@@ -161,19 +161,20 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
                     for (i in chunkIndices) {
                         val chunkInfo = scene.terrainMeshData.chunkinfos[i]
                         if (!frustumCullingFlags[chunkInfo.listIndex].value) continue
-                        if (sampleCountArray[chunkInfo.listIndex] > 4.0f) {
-                            if (!scene.gameInstance.toggle1) {
-                                if (!scene.gameInstance.toggle3) {
-                                    hwMs.add(chunkInfo)
-                                } else {
-                                    hwVs.add(chunkInfo)
-                                }
-                            }
-                        } else {
-                            if (!scene.gameInstance.toggle2) {
-                                swQuad.add(chunkInfo)
-                            }
-                        }
+//                        if (sampleCountArray[chunkInfo.listIndex] > 4.0f) {
+//                            if (!scene.gameInstance.toggle1) {
+//                                if (!scene.gameInstance.toggle3) {
+//                                    hwMs.add(chunkInfo)
+//                                } else {
+//                                    hwVs.add(chunkInfo)
+//                                }
+//                            }
+//                        } else {
+//                            if (!scene.gameInstance.toggle2) {
+//                                swQuad.add(chunkInfo)
+//                            }
+//                        }
+                        swQuad.add(chunkInfo)
                     }
 
                     hwVsPipeline.endUpdate(hwVs)
