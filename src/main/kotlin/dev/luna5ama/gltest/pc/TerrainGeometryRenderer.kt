@@ -107,7 +107,7 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
         visibleBuffer.copyTo(visibleBuffer, 4L, 4L + visibleFlagLen, visibleFlagLen)
         visibleBuffer.clear(GL_R8UI, 4L, visibleFlagLen, GL_RED_INTEGER, GL_UNSIGNED_BYTE, Ptr.NULL)
 
-        glDebugGroup("HW Draw") { hwDraw() }
+//        glDebugGroup("HW Draw") { hwDraw() }
         glDebugGroup("HW2SW Blit") {
             blitHW2SW()
         }

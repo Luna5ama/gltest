@@ -78,10 +78,16 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
         Runtime.getRuntime().addShutdownHook(Thread {
             saveCameraPos()
         })
+        dumpShaderAsm(terrainGeometryRenderer.swQuadPipeline.quadDrawShader, "SWQuad.txt")
     }
 
     override fun destroy() {
         saveCameraPos()
+    }
+
+    override fun reloadShaders() {
+        super.reloadShaders()
+        dumpShaderAsm(terrainGeometryRenderer.swQuadPipeline.quadDrawShader, "SWQuad")
     }
 
     private fun saveCameraPos() {

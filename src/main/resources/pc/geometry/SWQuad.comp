@@ -85,13 +85,13 @@ float max4(vec4 v) {
 shared uint shared_quadCount = 0u;
 shared uint shared_quadIndices[BATCH_SIZE];
 
-shared uvec2 shared_posXs[BATCH_SIZE];
-shared uvec2 shared_posYs[BATCH_SIZE];
+//shared uvec2 shared_posXs[BATCH_SIZE];
+//shared uvec2 shared_posYs[BATCH_SIZE];
 //shared vec4 shared_posXs[BATCH_SIZE];
 //shared vec4 shared_posYs[BATCH_SIZE];
 
-shared vec4 shared_posZs[BATCH_SIZE];
-shared uvec2 shared_screenBound[BATCH_SIZE];
+//shared vec4 shared_posZs[BATCH_SIZE];
+//shared uvec2 shared_screenBound[BATCH_SIZE];
 
 const vec4 coordConvert = vec4(2.51773861295491E-4);
 
@@ -106,10 +106,6 @@ bool setup(out uint quadIndex, out vec4 posX, out vec4 posY, out vec4 posZ, out 
 
     if (gl_LocalInvocationID.x >= metaCount) {
         return false;
-    }
-
-    if (gl_LocalInvocationID.x == 0) {
-        atomicAdd(ssbo_tempBuffer.count2, metaCount);
     }
 
     quadIndex = metaFirst + gl_LocalInvocationID.x;
@@ -129,30 +125,13 @@ bool setup(out uint quadIndex, out vec4 posX, out vec4 posY, out vec4 posZ, out 
     vec3 pos3 = (ubo_cameraDefault.combined * vec4(posX.z, posY.z, posZ.z, 1.0)).xyw;
     vec3 pos4 = (ubo_cameraDefault.combined * vec4(posX.w, posY.w, posZ.w, 1.0)).xyw;
 
-//    vec4 pos12 = vec4(pos1.xy, pos2.xy);
-//    vec4 pos34 = vec4(pos3.xy, pos4.xy);
-//
-//    vec4 posZInv = 1.0 / vec4(pos1.z, pos2.z, pos3.z, pos4.z);
-//
-//    pos12 = pos12 * posZInv.xxyy;
-//    pos34 = pos34 * posZInv.zzww;
-//
-//    if (any(lessThanEqual(vec4(pos1.z, pos2.z, pos3.z, pos4.z), vec4(0.0)))
-//    || determinant(mat2(pos34.xy - pos12.xy, pos12.zw - pos12.xy)) >= 0.0) {
-//        return false;
-//    }
-//
-//    pos12 = pos12 * 0.5 + 0.5;
-//    pos34 = pos34 * 0.5 + 0.5;
+    if (determinant(mat3(pos1, pos2, pos3)) <= 0.0) {
+        return false;
+    }
 
     posX = vec4(pos1.x, pos2.x, pos3.x, pos4.x);
     posY = vec4(pos1.y, pos2.y, pos3.y, pos4.y);
     posZ = vec4(pos1.z, pos2.z, pos3.z, pos4.z);
-
-    if (any(lessThanEqual(vec4(pos1.z, pos2.z, pos3.z, pos4.z), vec4(0.0)))
-   /* || determinant(mat2(pos34.xy - pos12.xy, pos12.zw - pos12.xy)) >= 0.0*/) {
-        return false;
-    }
 
     vec4 posZInv = 1.0 / posZ;
 
@@ -179,31 +158,84 @@ bool setup(out uint quadIndex, out vec4 posX, out vec4 posY, out vec4 posZ, out 
 }
 
 void rasterize() {
+    QuadBatchInfo batchMetadata = ssbo_quadBatchInfoBuffer[gl_WorkGroupID.x];
+    uint metaEncoded = batchMetadata.encoded_count_offsets;
+    uint metaFirst = batchMetadata.first;
+    uint metaCount = ((metaEncoded >> 24u) & 0xFFu) + 1u;
+
+    vec3 chunkOffset = vec3(uvec3(metaEncoded) >> uvec3(0u, 8u, 16u) & uvec3(255u));
+    chunkOffset = chunkOffset * 16.0 + uval_originOffset;
+
     uint localQuadIndex = gl_LocalInvocationID.x;
-    uvec2 screenBoundEncode = shared_screenBound[localQuadIndex];
-    ivec4 screenBound = ivec4(
-        int(screenBoundEncode.x & 0xFFFFu),
-        int(screenBoundEncode.x >> 16u),
-        int(screenBoundEncode.y & 0xFFFFu),
-        int(screenBoundEncode.y >> 16u)
+//    uvec2 screenBoundEncode = shared_screenBound[localQuadIndex];
+//    ivec4 screenBound = ivec4(
+//        int(screenBoundEncode.x & 0xFFFFu),
+//        int(screenBoundEncode.x >> 16u),
+//        int(screenBoundEncode.y & 0xFFFFu),
+//        int(screenBoundEncode.y >> 16u)
+//    );
+//    vec4 screenBoundF = vec4(screenBound);
+//    vec2 texelNF = screenBoundF.zw - screenBoundF.xy;
+//    vec2 invTexelN = 1.0 / texelNF;
+//    screenBoundF *= uval_viewportSize.zwzw;
+
+//    uvec2 unpackTempX = shared_posXs[localQuadIndex];
+//    vec4 posXs = vec4(unpackUnorm2x16(unpackTempX.x), unpackUnorm2x16(unpackTempX.y));
+//    uvec2 unpackTempY = shared_posYs[localQuadIndex];
+//    vec4 posYs = vec4(unpackUnorm2x16(unpackTempY.x), unpackUnorm2x16(unpackTempY.y));
+//    vec4 posXs = shared_posXs[localQuadIndex];
+//    vec4 posYs = shared_posYs[localQuadIndex];
+//    vec4 posZs = shared_posZs[localQuadIndex];
+
+
+//    uint quadIndex = metaFirst + gl_LocalInvocationID.x;
+    uint quadIndex = shared_quadIndices[localQuadIndex];
+
+    uint quadPosDataIdx = ssbo_quadPosIndexBuffer[quadIndex] * 6u;
+
+    vec4 posXs = readPos(quadPosDataIdx);
+    vec4 posYs = readPos(quadPosDataIdx + 2u);
+    vec4 posZs = readPos(quadPosDataIdx + 4u);
+
+    posXs = posXs * coordConvert + chunkOffset.x;
+    posYs = posYs * coordConvert + chunkOffset.y;
+    posZs = posZs * coordConvert + chunkOffset.z;
+
+    vec3 pos1 = (ubo_cameraDefault.combined * vec4(posXs.x, posYs.x, posZs.x, 1.0)).xyw;
+    vec3 pos2 = (ubo_cameraDefault.combined * vec4(posXs.y, posYs.y, posZs.y, 1.0)).xyw;
+    vec3 pos3 = (ubo_cameraDefault.combined * vec4(posXs.z, posYs.z, posZs.z, 1.0)).xyw;
+    vec3 pos4 = (ubo_cameraDefault.combined * vec4(posXs.w, posYs.w, posZs.w, 1.0)).xyw;
+
+    posXs = vec4(pos1.x, pos2.x, pos3.x, pos4.x);
+    posYs = vec4(pos1.y, pos2.y, pos3.y, pos4.y);
+    posZs = vec4(pos1.z, pos2.z, pos3.z, pos4.z);
+
+    vec4 posZInv = 1.0 / posZs;
+
+    posXs *= posZInv;
+    posYs *= posZInv;
+
+    posXs = posXs * 0.5 + 0.5;
+    posYs = posYs * 0.5 + 0.5;
+
+    vec4 screenBoundF = clamp(
+        vec4(
+            min4(posXs), min4(posYs),
+            max4(posXs), max4(posYs)
+        ), 0.0, 1.0
     );
-    vec4 screenBoundF = vec4(screenBound);
+    screenBoundF *= uval_viewportSize.xyxy;
+    ivec4 screenBound = ivec4(floor(screenBoundF.xy), ceil(screenBoundF.zw));
+    screenBoundF = vec4(screenBound);
     vec2 texelNF = screenBoundF.zw - screenBoundF.xy;
     vec2 invTexelN = 1.0 / texelNF;
     screenBoundF *= uval_viewportSize.zwzw;
 
-    uvec2 unpackTempX = shared_posXs[localQuadIndex];
-    vec4 posXs = vec4(unpackUnorm2x16(unpackTempX.x), unpackUnorm2x16(unpackTempX.y));
-    uvec2 unpackTempY = shared_posYs[localQuadIndex];
-    vec4 posYs = vec4(unpackUnorm2x16(unpackTempY.x), unpackUnorm2x16(unpackTempY.y));
-//    vec4 posXs = shared_posXs[localQuadIndex];
-//    vec4 posYs = shared_posYs[localQuadIndex];
-    vec4 posZs = shared_posZs[localQuadIndex];
+    pos1 = vec3(posXs.x, posYs.x, posZs.x);
+    pos2 = vec3(posXs.y, posYs.y, posZs.y);
+    pos3 = vec3(posXs.z, posYs.z, posZs.z);
+    pos4 = vec3(posXs.w, posYs.w, posZs.w);
 
-    vec3 pos1 = vec3(posXs.x, posYs.x, posZs.x);
-    vec3 pos2 = vec3(posXs.y, posYs.y, posZs.y);
-    vec3 pos3 = vec3(posXs.z, posYs.z, posZs.z);
-    vec3 pos4 = vec3(posXs.w, posYs.w, posZs.w);
 
     vec3 t1bBase, t1bMx, t1bMy, t1bDx, t1bDy;
     swr_calcBarycentricGrad(screenBoundF, invTexelN, pos1.xy, pos2.xy, pos3.xy, t1bBase, t1bMx, t1bMy, t1bDx, t1bDy);
@@ -214,8 +246,6 @@ void rasterize() {
     swr_calcBarycentricGrad(screenBoundF, invTexelN, pos3.xy, pos4.xy, pos1.xy, t2bBase, t2bMx, t2bMy, t2bDx, t2bDy);
     t2bBase += (t2bDx + t2bDy) * 0.5;
     t2bDy -= t2bDx * texelNF.x;
-
-    uint quadIndex = shared_quadIndices[localQuadIndex];
 
     i64vec4 valueVec;
     ivec4 outputCoord;
@@ -311,7 +341,7 @@ void main() {
 
     if (subgroupElect()) {
         quadWriteBaseIdx = atomicAdd(shared_quadCount, subgroupCount);
-        atomicAdd(ssbo_tempBuffer.count1, subgroupCount);
+//        atomicAdd(ssbo_tempBuffer.count1, subgroupCount);
     }
 
     quadWriteBaseIdx = subgroupBroadcastFirst(quadWriteBaseIdx);
@@ -321,14 +351,14 @@ void main() {
         shared_quadIndices[quadWriteBaseIdx] = quadIndex;
 //        shared_posXs[quadWriteBaseIdx] = posX;
 //        shared_posYs[quadWriteBaseIdx] = posY;
-        shared_posXs[quadWriteBaseIdx] = uvec2(packUnorm2x16(posX.xy), packUnorm2x16(posX.zw));
-        shared_posYs[quadWriteBaseIdx] = uvec2(packUnorm2x16(posY.xy), packUnorm2x16(posY.zw));
-        shared_posZs[quadWriteBaseIdx] = posZ;
-        uvec2 screenBoundEncoded = uvec2(
-            screenBound.x & 0xFFFFu | (screenBound.y & 0xFFFFu) << 16u,
-            screenBound.z & 0xFFFFu | (screenBound.w & 0xFFFFu) << 16u
-        );
-        shared_screenBound[quadWriteBaseIdx] = screenBoundEncoded;
+//        shared_posXs[quadWriteBaseIdx] = uvec2(packUnorm2x16(posX.xy), packUnorm2x16(posX.zw));
+//        shared_posYs[quadWriteBaseIdx] = uvec2(packUnorm2x16(posY.xy), packUnorm2x16(posY.zw));
+//        shared_posZs[quadWriteBaseIdx] = posZ;
+//        uvec2 screenBoundEncoded = uvec2(
+//            screenBound.x & 0xFFFFu | (screenBound.y & 0xFFFFu) << 16u,
+//            screenBound.z & 0xFFFFu | (screenBound.w & 0xFFFFu) << 16u
+//        );
+//        shared_screenBound[quadWriteBaseIdx] = screenBoundEncoded;
 //        shared_screenBound[quadWriteBaseIdx] = ivec4(0);
 //            shared_screenBound[quadWriteBaseIdx] = ivec4(screenBound);
     }

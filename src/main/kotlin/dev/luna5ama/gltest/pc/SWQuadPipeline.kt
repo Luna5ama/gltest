@@ -18,8 +18,8 @@ import kotlin.math.min
 
 class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) :
     TerrainDrawPipeline<SWQuadPipeline.UpdateContextImpl>(scene, renderer) {
-    private val batchSize = renderer.threadBatchSize
-//    private val batchSize = 64
+//    private val batchSize = renderer.threadBatchSize
+    private val batchSize = 128
 
     private val batchInfoBuffer = register(BufferObject.Immutable()).apply {
         label("SWQuad.BatchInfoBuffer")
@@ -27,7 +27,7 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
 
     val bufferBinding = ShaderBindingSpecs.Buffer("QuadBatchInfoBuffer", batchInfoBuffer, BufferTarget.ShaderStorage)
 
-    private val quadDrawShader = register(
+    val quadDrawShader = register(
         ShaderProgram(
             ShaderSource.Comp("pc/geometry/SWQuad.comp") {
                 define("BATCH_SIZE", batchSize)
