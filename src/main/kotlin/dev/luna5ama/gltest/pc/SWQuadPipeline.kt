@@ -30,6 +30,7 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
     val quadDrawShader = register(
         ShaderProgram(
             ShaderSource.Comp("pc/geometry/SWQuad.comp") {
+                define("uint_least8_t", renderer.visibilityFlagType.glslTypeName)
                 define("BATCH_SIZE", batchSize)
                 if (scene.overdrawDebug) {
                     define("OVERDRAW_DEBUG")
@@ -88,15 +89,15 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
         }
         glDispatchCompute(batchCount, 1, 1)
 
-        if (printTimer.tickAndReset(3000L)) {
-            glMemoryBarrier(GL_BUFFER_UPDATE_BARRIER_BIT)
-            MemoryStack {
-                val arr = malloc(8L)
-                val ptr = arr.ptr
-                glGetNamedBufferSubData(tempBuffer.id, 0, arr.len, ptr)
-                println("${ptr.getInt()}/${ptr.getInt(4)}")
-            }
-        }
+//        if (printTimer.tickAndReset(3000L)) {
+//            glMemoryBarrier(GL_BUFFER_UPDATE_BARRIER_BIT)
+//            MemoryStack {
+//                val arr = malloc(8L)
+//                val ptr = arr.ptr
+//                glGetNamedBufferSubData(tempBuffer.id, 0, arr.len, ptr)
+//                println("${ptr.getInt()}/${ptr.getInt(4)}")
+//            }
+//        }
     }
 
     inner class UpdateContextImpl : UpdateContext() {

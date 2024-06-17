@@ -83,19 +83,11 @@ float max4(vec4 v) {
 }
 
 shared uint shared_quadCount = 0u;
-shared uint shared_quadIndices[BATCH_SIZE];
-
-//shared uvec2 shared_posXs[BATCH_SIZE];
-//shared uvec2 shared_posYs[BATCH_SIZE];
-//shared vec4 shared_posXs[BATCH_SIZE];
-//shared vec4 shared_posYs[BATCH_SIZE];
-
-//shared vec4 shared_posZs[BATCH_SIZE];
-//shared uvec2 shared_screenBound[BATCH_SIZE];
+shared uint_least8_t shared_quadIndicesOffset[BATCH_SIZE];
 
 const vec4 coordConvert = vec4(2.51773861295491E-4);
 
-bool setup(out uint quadIndex, out vec4 posX, out vec4 posY, out vec4 posZ, out uvec4 screenBound) {
+bool setup(out vec4 posX, out vec4 posY, out vec4 posZ, out uvec4 screenBound) {
     QuadBatchInfo batchMetadata = ssbo_quadBatchInfoBuffer[gl_WorkGroupID.x];
     uint metaEncoded = batchMetadata.encoded_count_offsets;
     uint metaFirst = batchMetadata.first;
@@ -108,7 +100,9 @@ bool setup(out uint quadIndex, out vec4 posX, out vec4 posY, out vec4 posZ, out 
         return false;
     }
 
-    quadIndex = metaFirst + gl_LocalInvocationID.x;
+    uint survived = 1;
+
+    uint quadIndex = metaFirst + gl_LocalInvocationID.x;
 
     uint quadPosDataIdx = ssbo_quadPosIndexBuffer[quadIndex] * 6u;
 
@@ -125,9 +119,10 @@ bool setup(out uint quadIndex, out vec4 posX, out vec4 posY, out vec4 posZ, out 
     vec3 pos3 = (ubo_cameraDefault.combined * vec4(posX.z, posY.z, posZ.z, 1.0)).xyw;
     vec3 pos4 = (ubo_cameraDefault.combined * vec4(posX.w, posY.w, posZ.w, 1.0)).xyw;
 
-    if (determinant(mat3(pos1, pos2, pos3)) <= 0.0) {
-        return false;
-    }
+//    if (determinant(mat3(pos1, pos2, pos3)) <= 0.0) {
+//        survived = false;
+//    }
+    survived = survived & uint(determinant(mat3(pos1, pos2, pos3)) > 0.0);
 
     posX = vec4(pos1.x, pos2.x, pos3.x, pos4.x);
     posY = vec4(pos1.y, pos2.y, pos3.y, pos4.y);
@@ -150,11 +145,9 @@ bool setup(out uint quadIndex, out vec4 posX, out vec4 posY, out vec4 posZ, out 
     screenBoundF *= uval_viewportSize.xyxy;
     screenBound = uvec4(floor(screenBoundF.xy), ceil(screenBoundF.zw));
 
-    if (any(equal(round(screenBoundF.xy), round(screenBoundF.zw)))) {
-        return false;
-    }
+    survived = survived & uint(!any(equal(round(screenBoundF.xy), round(screenBoundF.zw))));
 
-    return true;
+    return bool(survived);
 }
 
 void rasterize() {
@@ -167,29 +160,7 @@ void rasterize() {
     chunkOffset = chunkOffset * 16.0 + uval_originOffset;
 
     uint localQuadIndex = gl_LocalInvocationID.x;
-//    uvec2 screenBoundEncode = shared_screenBound[localQuadIndex];
-//    ivec4 screenBound = ivec4(
-//        int(screenBoundEncode.x & 0xFFFFu),
-//        int(screenBoundEncode.x >> 16u),
-//        int(screenBoundEncode.y & 0xFFFFu),
-//        int(screenBoundEncode.y >> 16u)
-//    );
-//    vec4 screenBoundF = vec4(screenBound);
-//    vec2 texelNF = screenBoundF.zw - screenBoundF.xy;
-//    vec2 invTexelN = 1.0 / texelNF;
-//    screenBoundF *= uval_viewportSize.zwzw;
-
-//    uvec2 unpackTempX = shared_posXs[localQuadIndex];
-//    vec4 posXs = vec4(unpackUnorm2x16(unpackTempX.x), unpackUnorm2x16(unpackTempX.y));
-//    uvec2 unpackTempY = shared_posYs[localQuadIndex];
-//    vec4 posYs = vec4(unpackUnorm2x16(unpackTempY.x), unpackUnorm2x16(unpackTempY.y));
-//    vec4 posXs = shared_posXs[localQuadIndex];
-//    vec4 posYs = shared_posYs[localQuadIndex];
-//    vec4 posZs = shared_posZs[localQuadIndex];
-
-
-//    uint quadIndex = metaFirst + gl_LocalInvocationID.x;
-    uint quadIndex = shared_quadIndices[localQuadIndex];
+    uint quadIndex = metaFirst + uint(shared_quadIndicesOffset[localQuadIndex]);
 
     uint quadPosDataIdx = ssbo_quadPosIndexBuffer[quadIndex] * 6u;
 
@@ -329,10 +300,9 @@ void rasterize() {
 }
 
 void main() {
-    uint quadIndex;
     vec4 posX, posY, posZ;
     uvec4 screenBound;
-    bool survived = setup(quadIndex, posX, posY, posZ, screenBound);
+    bool survived = setup(posX, posY, posZ, screenBound);
 
     uvec4 ballot = subgroupBallot(survived);
     uint subgroupCount = subgroupBallotBitCount(ballot);
@@ -348,7 +318,7 @@ void main() {
 
     if (survived) {
         quadWriteBaseIdx += subgroupBallotExclusiveBitCount(ballot);
-        shared_quadIndices[quadWriteBaseIdx] = quadIndex;
+        shared_quadIndicesOffset[quadWriteBaseIdx] = uint_least8_t(gl_LocalInvocationID.x);
 //        shared_posXs[quadWriteBaseIdx] = posX;
 //        shared_posYs[quadWriteBaseIdx] = posY;
 //        shared_posXs[quadWriteBaseIdx] = uvec2(packUnorm2x16(posX.xy), packUnorm2x16(posX.zw));

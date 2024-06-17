@@ -32,7 +32,7 @@ import kotlin.math.min
 class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by IGLObjContainer.Impl() {
     val visibilityFlagType = when {
         scene.gameInstance.glCapabilities.GL_NV_gpu_shader5 -> {
-            VisibilityFlagType.INT32
+            VisibilityFlagType.INT8
         }
 
         scene.gameInstance.glCapabilities.GL_AMD_gpu_shader_int16 -> {

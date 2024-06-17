@@ -87,7 +87,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
 
     override fun reloadShaders() {
         super.reloadShaders()
-        dumpShaderAsm(terrainGeometryRenderer.swQuadPipeline.quadDrawShader, "SWQuad")
+        dumpShaderAsm(terrainGeometryRenderer.swQuadPipeline.quadDrawShader, "SWQuad.txt")
     }
 
     private fun saveCameraPos() {
