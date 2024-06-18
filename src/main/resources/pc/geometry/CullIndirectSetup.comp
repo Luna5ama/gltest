@@ -41,7 +41,7 @@ layout(std430) restrict buffer OutputIndirectBuffer {
 } ssbo_outputIndirectBuffer;
 
 layout(std430) restrict readonly buffer VisibleBuffer {
-    uint chunkCount;
+    uint lastOffset;
     FLAG_TYPE states[];
 } ssbo_visibleBuffer;
 
@@ -73,10 +73,10 @@ void main() {
             #if CULL_PASS == 1
 //            bool isCameraChunk = dot(chunkOffset, chunkOffset) < 1024.0;
             bool isCameraChunk = false;
-            bool last = bool(ssbo_visibleBuffer.states[chunkIndex + ssbo_visibleBuffer.chunkCount]) || isCameraChunk;
+            bool last = bool(ssbo_visibleBuffer.states[chunkIndex + ssbo_visibleBuffer.lastOffset]) || isCameraChunk;
             commandIndex = uint(-int(last));
             #elif CULL_PASS == 2
-            bool last = bool(ssbo_visibleBuffer.states[chunkIndex + ssbo_visibleBuffer.chunkCount]);
+            bool last = bool(ssbo_visibleBuffer.states[chunkIndex + ssbo_visibleBuffer.lastOffset]);
             bool curr = bool(ssbo_visibleBuffer.states[chunkIndex]);
             commandIndex = uint(-int(!last && curr));
             #elif CULL_PASS == 3

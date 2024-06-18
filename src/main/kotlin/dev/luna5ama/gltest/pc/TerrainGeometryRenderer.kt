@@ -64,13 +64,15 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
     }
     val visibleBufferBinding = ShaderBindingSpecs.Buffer("VisibleBuffer", visibleBuffer, BufferTarget.ShaderStorage)
 
+    private val visibleBufferStateLen1: Long
+
     init {
-        val chunkCount = scene.terrainMeshData.chunkOffsets.size
-        val len = chunkCount * 2L * visibilityFlagType.byteSize + 4L
+        visibleBufferStateLen1 = (scene.terrainMeshData.chunkOffsets.size * visibilityFlagType.byteSize + 63L) / 64 * 64L
+        val len = 4L + visibleBufferStateLen1 * 2
         visibleBuffer.allocate(len, Ptr.NULL, 0)
         MemoryStack {
             val ptr = malloc(4L).ptr
-            ptr.setInt(chunkCount)
+            ptr.setInt((visibleBufferStateLen1 / visibilityFlagType.byteSize).toInt())
             visibleBuffer.clear(GL_R32UI, 0L, 4L, GL_RED_INTEGER, GL_UNSIGNED_INT, ptr)
         }
     }
@@ -97,16 +99,31 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
         label("VBuffer.HW2SW")
     }
 
+    private val visibleBufferUpdateShader = register(
+        ShaderProgram(ShaderSource.Comp("pc/geometry/VisibleBufferUpdate.comp") {
+            define("COPY_LEN_SHIFT",  (2 - visibilityFlagType.byteSize.countTrailingZeroBits()) + 2)
+        })
+    ).apply {
+        label("VisibleBufferUpdate")
+    }
+
     var chunkIndices = IntArray(scene.terrainMeshData.chunkinfos.size) { it }
 
     suspend fun draw() {
         if (updateTimer.tickAndReset(10)) {
             updateBatchMeta()
         }
-        val chunkCount = scene.terrainMeshData.chunkOffsets.size.toLong()
-        val visibleFlagLen = chunkCount * visibilityFlagType.byteSize
-        visibleBuffer.copyTo(visibleBuffer, 4L, 4L + visibleFlagLen, visibleFlagLen)
-        visibleBuffer.clear(GL_R8UI, 4L, visibleFlagLen, GL_RED_INTEGER, GL_UNSIGNED_BYTE, Ptr.NULL)
+//        val chunkCount = scene.terrainMeshData.chunkOffsets.size.toLong()
+//        val visibleFlagLen = chunkCount * visibilityFlagType.byteSize
+//        visibleBuffer.copyTo(visibleBuffer, 4L, 4L + visibleFlagLen, visibleFlagLen)
+//        visibleBuffer.clear(GL_R8UI, 4L, visibleFlagLen, GL_RED_INTEGER, GL_UNSIGNED_BYTE, Ptr.NULL)
+
+        visibleBufferUpdateShader.bind()
+        visibleBufferUpdateShader.applyBinding {
+            buffer(visibleBufferBinding)
+        }
+        val bytesPerGroup = 16 * 128
+        glDispatchCompute(((visibleBufferStateLen1 + bytesPerGroup - 1) / bytesPerGroup).toInt(), 1, 1)
 
         glDebugGroup("HW Draw") { hwDraw() }
         glDebugGroup("HW2SW Blit") {
@@ -245,12 +262,12 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
                         val chunkInfo = scene.terrainMeshData.chunkinfos[chunkIndices[i]]
                         frustumCullingFlags[chunkInfo.listIndex].setValue(
                             frustumCull.testAab(
-                                (chunkInfo.minX - scene.camera.pos.x).toFloat(),
-                                (chunkInfo.minY - scene.camera.pos.y).toFloat(),
-                                (chunkInfo.minZ - scene.camera.pos.z).toFloat(),
-                                (chunkInfo.maxX - scene.camera.pos.x).toFloat(),
-                                (chunkInfo.maxY - scene.camera.pos.y).toFloat(),
-                                (chunkInfo.maxZ - scene.camera.pos.z).toFloat()
+                                (chunkInfo.minX - scene.camera.pos.x - 1.0).toFloat(),
+                                (chunkInfo.minY - scene.camera.pos.y - 1.0).toFloat(),
+                                (chunkInfo.minZ - scene.camera.pos.z - 1.0).toFloat(),
+                                (chunkInfo.maxX - scene.camera.pos.x + 1.0).toFloat(),
+                                (chunkInfo.maxY - scene.camera.pos.y + 1.0).toFloat(),
+                                (chunkInfo.maxZ - scene.camera.pos.z + 1.0).toFloat()
                             )
                         )
                     }

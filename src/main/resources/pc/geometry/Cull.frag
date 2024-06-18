@@ -9,7 +9,7 @@
 layout(early_fragment_tests) in;
 
 layout(std430) restrict writeonly buffer VisibleBuffer {
-    uint chunkCount;
+    uint lastOffset;
     FLAG_TYPE states[];
 } ssbo_visibleBuffer;
 

@@ -1,0 +1,18 @@
+#version 460 core
+#pragma optionNV (unroll all)
+
+layout(local_size_x = 128, local_size_y = 1, local_size_z = 1) in;
+
+layout(std430) restrict buffer VisibleBuffer {
+    uint lastOffset;
+    uvec4 states[];
+} ssbo_visibleBuffer;
+
+void main() {
+    uint lastOffset4Byte = ssbo_visibleBuffer.lastOffset >> COPY_LEN_SHIFT;
+    if (gl_GlobalInvocationID.x >= lastOffset4Byte) {
+        return;
+    }
+    ssbo_visibleBuffer.states[gl_GlobalInvocationID.x + lastOffset4Byte] = ssbo_visibleBuffer.states[gl_GlobalInvocationID.x];
+    ssbo_visibleBuffer.states[gl_GlobalInvocationID.x] = uvec4(0u);
+}
