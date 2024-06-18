@@ -1,6 +1,6 @@
 package dev.luna5ama.gltest.pc
 
-import dev.luna5ama.gltest.glDebugGroup
+import dev.fastmc.common.ParallelUtils
 import dev.luna5ama.gltest.structs.DrawElementsIndirectCommand
 import dev.luna5ama.gltest.structs.sizeof
 import dev.luna5ama.gltest.terrain.register
@@ -12,13 +12,18 @@ import dev.luna5ama.glwrapper.enums.BufferTarget
 import dev.luna5ama.glwrapper.objects.BufferObject
 import dev.luna5ama.glwrapper.objects.VertexArrayObject
 import dev.luna5ama.kmogus.Arr
-import dev.luna5ama.kmogus.MemoryStack
 import dev.luna5ama.kmogus.Ptr
 import dev.luna5ama.kmogus.ensureCapacity
+import dev.luna5ama.kmogus.memcpy
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.min
 
 class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) :
-    TerrainDrawPipeline<HWVertexShaderPipeline.UpdateContextImpl>(scene, renderer) {
+    TerrainDrawPipeline(scene, renderer) {
     private val vao = register(VertexArrayObject())
     private val indirectSetupShaders = List(4) { register(IndirectSetupShader(it)) }
     private val drawShader = register(
@@ -68,42 +73,108 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
         vao.attachEbo(elementBuffer)
     }
 
-    override fun startUpdate(): UpdateContextImpl {
-        return UpdateContextImpl()
-    }
+    override suspend fun update(chunks: List<TerrainMeshData.ChunkInfo>) {
+        val structSize = sizeof(DrawElementsIndirectCommand)
+        Arr.malloc(chunks.size * structSize).use { indirectCmdUpload ->
+            val quadCountGlobal = AtomicInteger(0)
+            val localBuffers = List(ParallelUtils.CPU_THREADS) { Arr.malloc(0L) }
+            val localBatchCounts = IntArray(ParallelUtils.CPU_THREADS)
+            var threadIndexCounter = 0
 
-    override fun endUpdate(context: UpdateContextImpl) {
-        batchCount = context.batchCount
-        quadCount = context.quadCount
-        chunkCount = context.chunkCount
+            coroutineScope {
+                ParallelUtils.splitListIndex(
+                    chunks.size,
+                    blockForEach = { start, end ->
+                        val threadIndex = threadIndexCounter++
+                        launch(Dispatchers.Default) {
+                            val localBuffer = localBuffers[threadIndex]
+                            localBuffer.ensureCapacity((end - start) * structSize, false)
+                            var quadCountLocal = 0
+                            var localBatchCount = 0
 
-        if (context.batchCount == 0) return
-        context.indirectCmdUpload.ptr.setInt(context.batchCount)
-        val indirctCmdLen = 16L + context.batchCount * sizeof(DrawElementsIndirectCommand)
-        if (inputIndirectBuffer.size < indirctCmdLen) {
-            inputIndirectBuffer.destroy()
-            inputIndirectBuffer.allocate(indirctCmdLen, context.indirectCmdUpload.ptr, GL_DYNAMIC_STORAGE_BIT)
-            outputIndirectBuffer.destroy()
-            outputIndirectBuffer.allocate(indirctCmdLen, Ptr.NULL, 0)
-        } else {
-            inputIndirectBuffer.invalidate()
-            inputIndirectBuffer.upload(0L, indirctCmdLen, context.indirectCmdUpload.ptr)
+                            for (i in start until end) {
+                                val chunkInfo = chunks[i]
+                                var quadIdx = 0
+                                while (quadIdx < chunkInfo.quadCount) {
+                                    val batchQuadCount = min(chunkInfo.quadCount - quadIdx, BATCH_MAX_QUAD)
+
+                                    localBuffer.ensureCapacity((localBatchCount + 1L) * structSize, false)
+                                    val structOffset = localBatchCount * structSize
+                                    val struct = DrawElementsIndirectCommand(localBuffer.ptr + structOffset)
+                                    struct.count = batchQuadCount * 6
+                                    struct.instanceCount = 1
+                                    struct.firstIndex = 0
+                                    struct.baseVertex = (chunkInfo.startIndex + quadIdx) * 4
+                                    struct.baseInstance = chunkInfo.chunkIndex
+
+                                    quadIdx += batchQuadCount
+                                    localBatchCount++
+                                }
+
+//                                val ctcBaseOffset = renderer.cullPipeline.ctcBufferBaseOffset
+//                                val ctcLen = sizeof(CullTestCommand)
+//                                cullTestCommandUploadBuffer.ensureCapacity(
+//                                    ctcBaseOffset + (chunkCount + 1L) * ctcLen,
+//                                    false
+//                                )
+//                                val ctcStruct = CullTestCommand(cullTestCommandUploadBuffer.ptr + ctcBaseOffset + chunkCount * ctcLen)
+//                                ctcStruct.chunkIndex = chunkInfo.chunkIndex
+//                                ctcStruct.chunkOffsetEncoded = chunkInfo.offsetEncoded
+
+                                quadCountLocal += chunkInfo.quadCount
+                            }
+
+                            localBatchCounts[threadIndex] = localBatchCount
+                            quadCountGlobal.addAndGet(quadCountLocal)
+                        }
+                    }
+                )
+            }
+
+            batchCount = 0
+            localBuffers.forEachIndexed { index, arr ->
+                val localBatchCount = localBatchCounts[index]
+                indirectCmdUpload.ensureCapacity(16L + (batchCount + localBatchCount) * structSize, false)
+                memcpy(arr.ptr, 0L, indirectCmdUpload.ptr, 16L + batchCount * structSize, localBatchCount * structSize)
+                batchCount += localBatchCount
+            }
+
+            localBuffers.forEach { it.free() }
+
+            quadCount = quadCountGlobal.get()
+            chunkCount = chunks.size
+
+            if (batchCount == 0) return
+
+            withContext(scene.gameInstance.mainContext) {
+                indirectCmdUpload.ptr.setInt(batchCount)
+                val indirectCmdLen = 16L + batchCount * structSize
+                if (inputIndirectBuffer.size < indirectCmdLen) {
+                    inputIndirectBuffer.destroy()
+                    inputIndirectBuffer.allocate(indirectCmdLen, indirectCmdUpload.ptr, GL_DYNAMIC_STORAGE_BIT)
+                    outputIndirectBuffer.destroy()
+                    outputIndirectBuffer.allocate(indirectCmdLen, Ptr.NULL, 0)
+                } else {
+                    inputIndirectBuffer.invalidate()
+                    inputIndirectBuffer.upload(0L, indirectCmdLen, indirectCmdUpload.ptr)
+                }
+
+//                renderer.cullPipeline.setupIndirect(context.cullTestCommandUploadBuffer.ptr, context.batchCount)
+//                val baseOffset = renderer.cullPipeline.ctcBufferBaseOffset
+//                val cullTestCommandLen = baseOffset + context.batchCount * sizeof(CullTestCommand)
+//                if (cullTestCommandBuffer.size < cullTestCommandLen) {
+//                    cullTestCommandBuffer.destroy()
+//                    cullTestCommandBuffer.allocate(
+//                        cullTestCommandLen,
+//                        context.cullTestCommandUploadBuffer.ptr,
+//                        GL_DYNAMIC_STORAGE_BIT
+//                    )
+//                } else {
+//                    cullTestCommandBuffer.invalidate()
+//                    cullTestCommandBuffer.upload(0, cullTestCommandLen, context.cullTestCommandUploadBuffer.ptr)
+//                }
+            }
         }
-
-//        renderer.cullPipeline.setupIndirect(context.cullTestCommandUploadBuffer.ptr, context.batchCount)
-//        val baseOffset = renderer.cullPipeline.ctcBufferBaseOffset
-//        val cullTestCommandLen = baseOffset + context.batchCount * sizeof(CullTestCommand)
-//        if (cullTestCommandBuffer.size < cullTestCommandLen) {
-//            cullTestCommandBuffer.destroy()
-//            cullTestCommandBuffer.allocate(
-//                cullTestCommandLen,
-//                context.cullTestCommandUploadBuffer.ptr,
-//                GL_DYNAMIC_STORAGE_BIT
-//            )
-//        } else {
-//            cullTestCommandBuffer.invalidate()
-//            cullTestCommandBuffer.upload(0, cullTestCommandLen, context.cullTestCommandUploadBuffer.ptr)
-//        }
     }
 
     override fun draw() {
@@ -157,7 +228,7 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
 //                }
 ////            }
 //        } else {
-            drawPass(inputIndirectBuffer)
+        drawPass(inputIndirectBuffer)
 //        }
     }
 
@@ -210,47 +281,6 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
                 (PointCloudScene.originZ - scene.camera.pos.z - 0.5).toFloat()
             )
             glDispatchCompute(1, 1, 1)
-        }
-    }
-
-    inner class UpdateContextImpl : UpdateContext() {
-        val indirectCmdUpload = Arr.malloc(0L)
-//        val cullTestCommandUploadBuffer = Arr.malloc(0L)
-
-        override fun add(chunkInfo: TerrainMeshData.ChunkInfo) {
-            var quadIdx = 0
-            while (quadIdx < chunkInfo.quadCount) {
-                val batchQuadCount = min(chunkInfo.quadCount - quadIdx, BATCH_MAX_QUAD)
-
-                indirectCmdUpload.ensureCapacity(16L + (batchCount + 1L) * sizeof(DrawElementsIndirectCommand), false)
-                val structOffset = batchCount * sizeof(DrawElementsIndirectCommand)
-                val struct = DrawElementsIndirectCommand(indirectCmdUpload.ptr + 16L + structOffset)
-                struct.count = batchQuadCount * 6
-                struct.instanceCount = 1
-                struct.firstIndex = 0
-                struct.baseVertex = (chunkInfo.startIndex + quadIdx) * 4
-                struct.baseInstance = chunkInfo.chunkIndex
-
-                quadIdx += batchQuadCount
-                batchCount++
-            }
-
-//            val ctcBaseOffset = renderer.cullPipeline.ctcBufferBaseOffset
-//            val ctcLen = sizeof(CullTestCommand)
-//            cullTestCommandUploadBuffer.ensureCapacity(
-//                ctcBaseOffset + (chunkCount + 1L) * ctcLen,
-//                false
-//            )
-//            val ctcStruct = CullTestCommand(cullTestCommandUploadBuffer.ptr + ctcBaseOffset + chunkCount * ctcLen)
-//            ctcStruct.chunkIndex = chunkInfo.chunkIndex
-//            ctcStruct.chunkOffsetEncoded = chunkInfo.offsetEncoded
-
-            chunkCount++
-            quadCount += chunkInfo.quadCount
-        }
-
-        override fun close() {
-            indirectCmdUpload.free()
         }
     }
 

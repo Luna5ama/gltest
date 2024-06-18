@@ -1,24 +1,25 @@
 package dev.luna5ama.gltest.pc
 
-import dev.luna5ama.gltest.structs.CullTestCommand
-import dev.luna5ama.gltest.structs.DrawMeshTasksIndirectCommandNV
+import dev.fastmc.common.ParallelUtils
 import dev.luna5ama.gltest.structs.MeshShaderBatchInfo
 import dev.luna5ama.gltest.structs.sizeof
 import dev.luna5ama.gltest.terrain.register
 import dev.luna5ama.glwrapper.ShaderBindingSpecs
 import dev.luna5ama.glwrapper.ShaderProgram
 import dev.luna5ama.glwrapper.ShaderSource
-import dev.luna5ama.glwrapper.api.GL_CULL_FACE
 import dev.luna5ama.glwrapper.api.GL_DYNAMIC_STORAGE_BIT
-import dev.luna5ama.glwrapper.api.glDisable
 import dev.luna5ama.glwrapper.api.glDrawMeshTasksNV
 import dev.luna5ama.glwrapper.enums.BufferTarget
 import dev.luna5ama.glwrapper.objects.BufferObject
 import dev.luna5ama.kmogus.Arr
-import dev.luna5ama.kmogus.ensureCapacity
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.util.concurrent.atomic.AtomicInteger
 
 class HWMeshShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) :
-    TerrainDrawPipeline<HWMeshShaderPipeline.UpdateContextImpl>(scene, renderer) {
+    TerrainDrawPipeline(scene, renderer) {
     private val drawShaders = List(4) { register(DrawShader(it)) }
     private val batchInfoBuffer = register(BufferObject.Immutable()).apply {
         label("HWMS.BatchInfoBuffer")
@@ -30,24 +31,62 @@ class HWMeshShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRend
 //        label("HWMS.CullTestCommandBuffer")
 //    }
 
-    override fun startUpdate(): UpdateContextImpl {
-        return UpdateContextImpl()
-    }
+    override suspend fun update(chunks: List<TerrainMeshData.ChunkInfo>) {
+        Arr.malloc(chunks.size * sizeof(MeshShaderBatchInfo)).use { batchInfoUploadBuffer ->
+            val quadCountGlobal = AtomicInteger(0)
 
-    override fun endUpdate(context: UpdateContextImpl) {
-        batchCount = context.batchCount
-        quadCount = context.quadCount
-        chunkCount = context.chunkCount
+            coroutineScope {
+                ParallelUtils.splitListIndex(
+                    chunks.size,
+                    blockForEach = { start, end ->
+                        launch(Dispatchers.Default) {
+                            var quadCountLocal = 0
+                            for (i in start until end) {
+                                val chunkInfo = chunks[i]
+                                val chunkOffsetEncoded = chunkInfo.offsetEncoded
 
-        if (context.batchCount == 0) return
-        val batchInfoLen = context.batchCount * sizeof(MeshShaderBatchInfo)
-        if (batchInfoBuffer.size < batchInfoLen) {
-            batchInfoBuffer.destroy()
-            batchInfoBuffer.allocate(batchInfoLen, context.batchInfoUploadBuffer.ptr, GL_DYNAMIC_STORAGE_BIT)
-        } else {
-            batchInfoBuffer.invalidate()
-            batchInfoBuffer.upload(0L, batchInfoLen, context.batchInfoUploadBuffer.ptr)
-        }
+                                val struct =
+                                    MeshShaderBatchInfo(batchInfoUploadBuffer.ptr + i * sizeof(MeshShaderBatchInfo))
+                                struct.chunkIndex = chunkInfo.chunkIndex
+                                struct.quadStartIndex = chunkInfo.startIndex
+                                struct.quadCount = chunkInfo.quadCount
+                                struct.chunkOffsetEncoded = chunkOffsetEncoded
+
+//                                 val ctcBaseOffset = 16L
+//                                val ctcLen = sizeof(CullTestCommand)
+//                                cullTestCommandUploadBuffer.ensureCapacity(
+//                                    ctcBaseOffset + (batchCount + 1L) * ctcLen,
+//                                    false
+//                                )
+//                                val ctcStruct =
+//                                    CullTestCommand(cullTestCommandUploadBuffer.ptr + ctcBaseOffset + batchCount * ctcLen)
+//                                ctcStruct.chunkIndex = chunkInfo.chunkIndex
+//                                ctcStruct.chunkOffsetEncoded = chunkOffsetEncoded
+
+                                quadCountLocal += chunkInfo.quadCount
+                            }
+                            quadCountGlobal.addAndGet(quadCountLocal)
+                        }
+                    }
+                )
+            }
+
+            batchCount = chunks.size
+            quadCount = quadCountGlobal.get()
+            chunkCount = chunks.size
+
+            if (batchCount == 0) return
+
+            withContext(scene.gameInstance.mainContext) {
+                val batchInfoLen = batchCount * sizeof(MeshShaderBatchInfo)
+                if (batchInfoBuffer.size < batchInfoLen) {
+                    batchInfoBuffer.destroy()
+                    batchInfoBuffer.allocate(batchInfoLen, batchInfoUploadBuffer.ptr, GL_DYNAMIC_STORAGE_BIT)
+                } else {
+                    batchInfoBuffer.invalidate()
+                    batchInfoBuffer.upload(0L, batchInfoLen, batchInfoUploadBuffer.ptr)
+                }
+            }
 
 //        renderer.cullPipeline.setupIndirect(context.cullTestCommandUploadBuffer.ptr, context.batchCount)
 //        val baseOffset = renderer.cullPipeline.ctcBufferBaseOffset
@@ -59,6 +98,7 @@ class HWMeshShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRend
 //            cullTestCommandBuffer.invalidate()
 //            cullTestCommandBuffer.upload(0, cullTestCommandLen, context.cullTestCommandUploadBuffer.ptr)
 //        }
+        }
     }
 
     override fun draw() {
@@ -109,41 +149,6 @@ class HWMeshShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRend
                 scene.camera.screenSize.x.toFloat(), scene.camera.screenSize.y.toFloat(),
                 1.0f / scene.camera.screenSize.x.toFloat(), 1.0f / scene.camera.screenSize.y.toFloat()
             )
-        }
-    }
-
-    inner class UpdateContextImpl : UpdateContext() {
-        val batchInfoUploadBuffer = Arr.malloc(0L)
-        val cullTestCommandUploadBuffer = Arr.malloc(0L)
-
-        override fun add(chunkInfo: TerrainMeshData.ChunkInfo) {
-            val chunkOffsetEncoded = chunkInfo.offsetEncoded
-
-            batchInfoUploadBuffer.ensureCapacity((batchCount + 1L) * sizeof(MeshShaderBatchInfo), false)
-            val struct = MeshShaderBatchInfo(batchInfoUploadBuffer.ptr + batchCount * sizeof(MeshShaderBatchInfo))
-            struct.chunkIndex = chunkInfo.chunkIndex
-            struct.quadStartIndex = chunkInfo.startIndex
-            struct.quadCount = chunkInfo.quadCount
-            struct.chunkOffsetEncoded = chunkOffsetEncoded
-
-//            val ctcBaseOffset = 16L
-//            val ctcLen = sizeof(CullTestCommand)
-//            cullTestCommandUploadBuffer.ensureCapacity(
-//                ctcBaseOffset + (batchCount + 1L) * ctcLen,
-//                false
-//            )
-//            val ctcStruct = CullTestCommand(cullTestCommandUploadBuffer.ptr + ctcBaseOffset + batchCount * ctcLen)
-//            ctcStruct.chunkIndex = chunkInfo.chunkIndex
-//            ctcStruct.chunkOffsetEncoded = chunkOffsetEncoded
-
-            batchCount++
-            chunkCount++
-            quadCount += chunkInfo.quadCount
-        }
-
-        override fun close() {
-            batchInfoUploadBuffer.free()
-            cullTestCommandUploadBuffer.free()
         }
     }
 }

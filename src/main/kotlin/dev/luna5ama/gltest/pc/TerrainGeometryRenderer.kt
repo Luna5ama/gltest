@@ -67,7 +67,8 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
     private val visibleBufferStateLen1: Long
 
     init {
-        visibleBufferStateLen1 = (scene.terrainMeshData.chunkOffsets.size * visibilityFlagType.byteSize + 63L) / 64 * 64L
+        visibleBufferStateLen1 =
+            (scene.terrainMeshData.chunkOffsets.size * visibilityFlagType.byteSize + 63L) / 64 * 64L
         val len = 4L + visibleBufferStateLen1 * 2
         visibleBuffer.allocate(len, Ptr.NULL, 0)
         MemoryStack {
@@ -101,7 +102,7 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
 
     private val visibleBufferUpdateShader = register(
         ShaderProgram(ShaderSource.Comp("pc/geometry/VisibleBufferUpdate.comp") {
-            define("COPY_LEN_SHIFT",  (2 - visibilityFlagType.byteSize.countTrailingZeroBits()) + 2)
+            define("COPY_LEN_SHIFT", (2 - visibilityFlagType.byteSize.countTrailingZeroBits()) + 2)
         })
     ).apply {
         label("VisibleBufferUpdate")
@@ -172,40 +173,37 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
             }
         }
 
-        hwVsPipeline.startUpdate().use { hwVs ->
-            hwMsPipeline.startUpdate().use { hwMs ->
-                swQuadPipeline.startUpdate().use { swQuad ->
-//                    scene.swPointPipeline.startUpdate().use { swPoint ->
-                    for (i in chunkIndices) {
-                        val chunkInfo = scene.terrainMeshData.chunkinfos[i]
-                        if (!frustumCullingFlags[chunkInfo.listIndex].value) continue
-                        if (sampleCountArray[chunkInfo.listIndex] > 4.0f) {
-                            if (!scene.gameInstance.toggle1) {
-                                if (!scene.gameInstance.toggle3) {
-                                    hwMs.add(chunkInfo)
-                                } else {
-                                    hwVs.add(chunkInfo)
-                                }
-                            }
-                        } else {
-                            if (!scene.gameInstance.toggle2) {
-                                swQuad.add(chunkInfo)
-                            }
-                        }
-//                        swQuad.add(chunkInfo)
-                    }
+        val hwVs = mutableListOf<ChunkInfo>()
+        val hwMs = mutableListOf<ChunkInfo>()
+        val swQuad = mutableListOf<ChunkInfo>()
+//        val swPoint = mutableListOf<ChunkInfo>()
 
-                    hwVsPipeline.endUpdate(hwVs)
-                    hwMsPipeline.endUpdate(hwMs)
-                    swQuadPipeline.endUpdate(swQuad)
-//                        scene.swPointPipeline.endUpdate(swPoint)
-//                    }
+        for (i in chunkIndices) {
+            val chunkInfo = scene.terrainMeshData.chunkinfos[i]
+            if (!frustumCullingFlags[chunkInfo.listIndex].value) continue
+            if (sampleCountArray[chunkInfo.listIndex] > 4.0f) {
+                if (!scene.gameInstance.toggle1) {
+                    if (!scene.gameInstance.toggle3) {
+                        hwVs.add(chunkInfo)
+                    } else {
+                        hwMs.add(chunkInfo)
+                    }
+                }
+            } else {
+                if (!scene.gameInstance.toggle2) {
+                    swQuad.add(chunkInfo)
                 }
             }
         }
+
+        coroutineScope {
+            launch(Dispatchers.Default) { hwVsPipeline.update(hwVs) }
+            launch(Dispatchers.Default) { hwMsPipeline.update(hwMs) }
+            launch(Dispatchers.Default) { swQuadPipeline.update(swQuad) }
+        }
     }
 
-    private fun chunkCountString(pipeline: TerrainDrawPipeline<*>): String {
+    private fun chunkCountString(pipeline: TerrainDrawPipeline): String {
         return "${pipeline.quadCount} quads, ${pipeline.chunkCount}(${pipeline.batchCount})/${scene.terrainMeshData.chunkinfos.size} chunks"
     }
 

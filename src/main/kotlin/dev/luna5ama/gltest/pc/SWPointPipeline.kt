@@ -1,24 +1,16 @@
 package dev.luna5ama.gltest.pc
 
-import dev.luna5ama.gltest.structs.PointBatchInfo
-import dev.luna5ama.gltest.structs.QuadBatchInfo
-import dev.luna5ama.gltest.structs.sizeof
 import dev.luna5ama.gltest.terrain.register
 import dev.luna5ama.glwrapper.ShaderBindingSpecs
 import dev.luna5ama.glwrapper.ShaderProgram
 import dev.luna5ama.glwrapper.ShaderSource
-import dev.luna5ama.glwrapper.api.GL_DYNAMIC_STORAGE_BIT
 import dev.luna5ama.glwrapper.api.glDispatchCompute
 import dev.luna5ama.glwrapper.enums.BufferTarget
 import dev.luna5ama.glwrapper.objects.BufferObject
-import dev.luna5ama.kmogus.Arr
-import dev.luna5ama.kmogus.ensureCapacity
 import org.joml.Vector4f
-import kotlin.math.abs
-import kotlin.math.min
 
 class SWPointPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) :
-    TerrainDrawPipeline<SWPointPipeline.UpdateContextImpl>(scene, renderer) {
+    TerrainDrawPipeline(scene, renderer) {
     private val batchInfoBuffer = register(BufferObject.Immutable())
 
     val bufferBinding = ShaderBindingSpecs.Buffer("PointBatchInfoBuffer", batchInfoBuffer, BufferTarget.ShaderStorage)
@@ -128,28 +120,32 @@ class SWPointPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer)
         }
     }
 
-    override fun startUpdate(): UpdateContextImpl {
-        return UpdateContextImpl()
+    override suspend fun update(chunks: List<TerrainMeshData.ChunkInfo>) {
+
     }
 
-    override fun endUpdate(context: UpdateContextImpl) {
-        batchCount = context.batchCount
-        chunkCount = context.chunkCount
-        quadCount = context.quadCount
-
-        if (context.batchCount == 0) return
-
-        val quadMetaLen = context.batchCount * sizeof(QuadBatchInfo)
-        if (quadMetaLen > 0) {
-            if (batchInfoBuffer.size < quadMetaLen) {
-                batchInfoBuffer.destroy()
-                batchInfoBuffer.allocate(quadMetaLen, context.uploadBuffer.ptr, GL_DYNAMIC_STORAGE_BIT)
-            } else {
-                batchInfoBuffer.invalidate()
-                batchInfoBuffer.upload(0L, quadMetaLen, context.uploadBuffer.ptr)
-            }
-        }
-    }
+//    override fun startUpdate(): UpdateContextImpl {
+//        return UpdateContextImpl()
+//    }
+//
+//    override fun endUpdate(context: UpdateContextImpl) {
+//        batchCount = context.batchCount
+//        chunkCount = context.chunkCount
+//        quadCount = context.quadCount
+//
+//        if (context.batchCount == 0) return
+//
+//        val quadMetaLen = context.batchCount * sizeof(QuadBatchInfo)
+//        if (quadMetaLen > 0) {
+//            if (batchInfoBuffer.size < quadMetaLen) {
+//                batchInfoBuffer.destroy()
+//                batchInfoBuffer.allocate(quadMetaLen, context.uploadBuffer.ptr, GL_DYNAMIC_STORAGE_BIT)
+//            } else {
+//                batchInfoBuffer.invalidate()
+//                batchInfoBuffer.upload(0L, quadMetaLen, context.uploadBuffer.ptr)
+//            }
+//        }
+//    }
 
     override fun draw() {
         if (batchCount == 0) return
@@ -166,34 +162,34 @@ class SWPointPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer)
         glDispatchCompute(batchCount, 1, 1)
     }
 
-    inner class UpdateContextImpl : UpdateContext() {
-        val uploadBuffer = Arr.malloc(0L)
-
-        override fun add(chunkInfo: TerrainMeshData.ChunkInfo) {
-            val sampleCountPow2 = renderer.sampleCountArray[chunkInfo.listIndex]
-            var quadIdx = 0
-            val sampleCount = 1 shl abs(sampleCountPow2).toInt()
-            val count = if (sampleCountPow2 > 0) renderer.threadBatchSize else renderer.threadBatchSize * sampleCount
-
-            while (quadIdx < chunkInfo.quadCount) {
-                uploadBuffer.ensureCapacity((batchCount + 1L) * sizeof(PointBatchInfo), false)
-                val struct = PointBatchInfo(uploadBuffer.ptr + batchCount * sizeof(PointBatchInfo))
-                val batchQuadCount = min(chunkInfo.quadCount - quadIdx, count)
-                struct.first = chunkInfo.startIndex + quadIdx
-                struct.count = batchQuadCount
-                struct.offsetX = chunkInfo.offset.x.toByte()
-                struct.offsetY = chunkInfo.offset.y.toByte()
-                struct.offsetZ = chunkInfo.offset.z.toByte()
-                struct.pointSampleCount = sampleCountPow2.toInt()
-                quadIdx += batchQuadCount
-                batchCount++
-            }
-            chunkCount++
-            quadCount += chunkInfo.quadCount
-        }
-
-        override fun close() {
-            uploadBuffer.free()
-        }
-    }
+//    inner class UpdateContextImpl : UpdateContext() {
+//        val uploadBuffer = Arr.malloc(0L)
+//
+//        override fun add(chunkInfo: TerrainMeshData.ChunkInfo) {
+//            val sampleCountPow2 = renderer.sampleCountArray[chunkInfo.listIndex]
+//            var quadIdx = 0
+//            val sampleCount = 1 shl abs(sampleCountPow2).toInt()
+//            val count = if (sampleCountPow2 > 0) renderer.threadBatchSize else renderer.threadBatchSize * sampleCount
+//
+//            while (quadIdx < chunkInfo.quadCount) {
+//                uploadBuffer.ensureCapacity((batchCount + 1L) * sizeof(PointBatchInfo), false)
+//                val struct = PointBatchInfo(uploadBuffer.ptr + batchCount * sizeof(PointBatchInfo))
+//                val batchQuadCount = min(chunkInfo.quadCount - quadIdx, count)
+//                struct.first = chunkInfo.startIndex + quadIdx
+//                struct.count = batchQuadCount
+//                struct.offsetX = chunkInfo.offset.x.toByte()
+//                struct.offsetY = chunkInfo.offset.y.toByte()
+//                struct.offsetZ = chunkInfo.offset.z.toByte()
+//                struct.pointSampleCount = sampleCountPow2.toInt()
+//                quadIdx += batchQuadCount
+//                batchCount++
+//            }
+//            chunkCount++
+//            quadCount += chunkInfo.quadCount
+//        }
+//
+//        override fun close() {
+//            uploadBuffer.free()
+//        }
+//    }
 }
