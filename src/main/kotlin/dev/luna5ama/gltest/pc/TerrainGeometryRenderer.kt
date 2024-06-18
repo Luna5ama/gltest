@@ -82,7 +82,7 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
     private val hwMsDrawTimer = GPUTimer(100)
     private val swDrawTimer = GPUTimer(100)
     private val printTimer = TickTimer()
-    private val updateTimer = TickTimer()
+    val updateTimer = TickTimer()
 
     private val sw2hwShader = register(
         ShaderProgram(
@@ -111,7 +111,7 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
     var chunkIndices = IntArray(scene.terrainMeshData.chunkinfos.size) { it }
 
     suspend fun draw() {
-        if (updateTimer.tickAndReset(10)) {
+        if (updateTimer.tickAndReset(5)) {
             updateBatchMeta()
         }
 //        val chunkCount = scene.terrainMeshData.chunkOffsets.size.toLong()
@@ -411,6 +411,7 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
             (scene.camera.screenSize.y + 15) / 16,
             1
         )
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT or GL_SHADER_STORAGE_BARRIER_BIT)
     }
 
     enum class VisibilityFlagType(val glslTypeName: String, val byteSize: Int) {

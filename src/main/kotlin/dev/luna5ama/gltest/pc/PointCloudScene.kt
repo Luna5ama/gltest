@@ -253,6 +253,8 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
                 camera.pos.x = -514.0
                 camera.pos.y = 1024.0
                 camera.pos.z = -95.0
+
+                terrainGeometryRenderer.updateTimer.reset(-9999L)
             }
 
             keyboard.pressing(GLFW_KEY_F8) -> {
@@ -268,6 +270,8 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
                 camera.pos.x = -256.0
                 camera.pos.y = 485.0
                 camera.pos.z = -275.0
+
+                terrainGeometryRenderer.updateTimer.reset(-9999L)
             }
 
             keyboard.pressing(GLFW_KEY_F9) -> {
@@ -283,6 +287,8 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
                 camera.pos.x = 508.0
                 camera.pos.y = 270.0
                 camera.pos.z = -435.0
+
+                terrainGeometryRenderer.updateTimer.reset(-9999L)
             }
 
             keyboard.pressing(GLFW_KEY_F10) -> {
@@ -298,6 +304,8 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
                 camera.pos.x = 746.0
                 camera.pos.y = 112.0
                 camera.pos.z = 768.0
+
+                terrainGeometryRenderer.updateTimer.reset(-9999L)
             }
         }
 
