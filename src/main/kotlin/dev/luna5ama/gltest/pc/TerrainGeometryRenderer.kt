@@ -143,8 +143,11 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
             println("Average sample count: ${sampleCountArray.average()}")
             println("Max sample count: ${sampleCountArray.max()}")
             println()
-            println("HW VS: ${chunkCountString(hwVsPipeline)}")
-            println("HW MS: ${chunkCountString(hwMsPipeline)}")
+            if (hwVsPipeline.batchCount > 0) {
+                println("HW VS: ${hwVsPipeline.batchCount} batches")
+            } else {
+                println("HW MS: ${hwMsPipeline.batchCount} batches")
+            }
             println("SW Quad: ${chunkCountString(swQuadPipeline)}")
 //            println("SW Point: ${chunkCountString(swPointPipeline)}")
             println()
