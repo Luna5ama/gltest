@@ -4,10 +4,7 @@ import dev.fastmc.common.ParallelUtils
 import dev.fastmc.common.TickTimer
 import dev.fastmc.common.floorToInt
 import dev.fastmc.common.sort.IntIntrosort
-import dev.luna5ama.gltest.structs.QuadExtraAttrib
-import dev.luna5ama.gltest.structs.QuadPos
-import dev.luna5ama.gltest.structs.QuadTexCoord
-import dev.luna5ama.gltest.structs.TerrainVertex
+import dev.luna5ama.gltest.structs.*
 import dev.luna5ama.gltest.terrain.IGLObjContainer
 import dev.luna5ama.gltest.terrain.register
 import dev.luna5ama.glwrapper.ShaderBindingSpecs
@@ -295,13 +292,13 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
 
                                                 for (i in 0 until quadCount) {
                                                     val v1 = TerrainVertex(tempPtr)
-                                                    tempPtr += 20L
+                                                    tempPtr += sizeof(TerrainVertex)
                                                     val v2 = TerrainVertex(tempPtr)
-                                                    tempPtr += 20L
+                                                    tempPtr += sizeof(TerrainVertex)
                                                     val v3 = TerrainVertex(tempPtr)
-                                                    tempPtr += 20L
+                                                    tempPtr += sizeof(TerrainVertex)
                                                     val v4 = TerrainVertex(tempPtr)
-                                                    tempPtr += 20L
+                                                    tempPtr += sizeof(TerrainVertex)
 
                                                     localPosIdxBufferArray[i] = addPosData(v1, v2, v3, v4)
                                                     localAttribIdxBufferArray[i] = addAttribData(v1, v2, v3, v4)

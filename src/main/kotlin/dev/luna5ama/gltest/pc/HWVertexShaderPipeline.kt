@@ -135,7 +135,13 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
             localBuffers.forEachIndexed { index, arr ->
                 val localBatchCount = localBatchCounts[index]
                 indirectCmdUpload.ensureCapacity(16L + (batchCount + localBatchCount) * structSize, false)
-                memcpy(arr.ptr, 0L, indirectCmdUpload.ptr, 16L + batchCount * structSize, localBatchCount * structSize)
+                memcpy(
+                    arr.ptr,
+                    0L,
+                    indirectCmdUpload.ptr,
+                    16L + batchCount * structSize,
+                    localBatchCount * structSize
+                )
                 batchCount += localBatchCount
             }
 
