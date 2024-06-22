@@ -215,8 +215,8 @@ void rasterize(uint baseLocalQuadIndex) {
         t2bBase += (t2bDx + t2bDy) * 0.5;
         t2bDy -= t2bDx * texelNF.x;
 
-        i64vec4 valueVec;
-        ivec4 outputCoord;
+        i64vec3 valueVec;
+        ivec3 outputCoord;
         vec3 t1b = t1bBase;
         vec3 t2b = t2bBase;
 
@@ -249,19 +249,15 @@ void rasterize(uint baseLocalQuadIndex) {
                     );
                     vec2 texCoord1 = vec2(dot(texCoordX.xyz, t1b), dot(texCoordY.xyz, t1b));
                     vec2 texCoord2 = vec2(dot(texCoordX.zwx, t2b), dot(texCoordY.zwx, t2b));
-                    outputCoord.w = int(textureLod(usam_blockAlbedoAtlas, texCoord1, 0.0).a > 0.5) |
-                    (int(textureLod(usam_blockAlbedoAtlas, texCoord2, 0.0).a > 0.5) << 1);
                     #endif
 
-
                     #ifdef CUTOUT
-                    if (min3(t1b) >= 0.0 && bool(outputCoord.w & 1) && valueVec.y <= valueVec.x)
+                    if (min3(t1b) >= 0.0 && texture(usam_blockAlbedoAtlas, texCoord1).a > 0.5 && valueVec.y <= valueVec.x)
                     #else
                     if (min3(t1b) >= 0.0 && valueVec.y <= valueVec.x)
                     #endif
                     {
-                        valueVec.w = atomicMin(ssbo_vBufferDepthQuadIndex[outputCoord.z], valueVec.y);
-                        if (valueVec.w >= valueVec.y) {
+                        if (atomicMin(ssbo_vBufferDepthQuadIndex[outputCoord.z], valueVec.y) >= valueVec.y) {
                             imageStore(uimg_vBufferTex1, outputCoord.xy, uvec4(vbuffer_encodeBCoord(t1b), 0u, 0u, 0u));
                             #ifdef OVERDRAW_DEBUG
                             imageAtomicAdd(uimg_overdrawCounter, outputCoord.xy, 1u);
@@ -270,13 +266,12 @@ void rasterize(uint baseLocalQuadIndex) {
                     }
 
                     #ifdef CUTOUT
-                    if (min3(t2b) >= 0.0 && bool((outputCoord.w >> 1) & 1) && valueVec.z <= valueVec.x)
+                    if (min3(t2b) >= 0.0 && texture(usam_blockAlbedoAtlas, texCoord2).a > 0.5 && valueVec.z <= valueVec.x)
                     #else
                     if (min3(t2b) >= 0.0 && valueVec.z <= valueVec.x)
                     #endif
                     {
-                        valueVec.w = atomicMin(ssbo_vBufferDepthQuadIndex[outputCoord.z], valueVec.z);
-                        if (valueVec.w >= valueVec.z) {
+                        if (atomicMin(ssbo_vBufferDepthQuadIndex[outputCoord.z], valueVec.z) >= valueVec.z) {
                             imageStore(uimg_vBufferTex1, outputCoord.xy, uvec4(vbuffer_encodeBCoord(vec3(t2b.z, 0.0, t2b.x)), 0u, 0u, 0u));
                             #ifdef OVERDRAW_DEBUG
                             imageAtomicAdd(uimg_overdrawCounter, outputCoord.xy, 1u);
