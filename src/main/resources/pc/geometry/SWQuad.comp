@@ -28,7 +28,7 @@ layout(std430) buffer VBufferDepthQuadIndex {
 
 layout(r32ui) uniform writeonly uimage2D uimg_vBufferTex1;
 #ifdef OVERDRAW_DEBUG
-layout(r32ui) uniform writeonly uimage2D uimg_overdrawCounter;
+layout(r32ui) uniform uimage2D uimg_overdrawCounter;
 #endif
 
 struct QuadBatchInfo {
