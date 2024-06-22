@@ -92,7 +92,7 @@ float max4(vec4 v) {
 shared uvec2 shared_metaFirstCount;
 shared vec3 shared_chunkOffset;
 shared uint shared_quadCount = 0u;
-shared int16_t shared_quadIndexOffset[QUADS_PER_WORK_GROUP];
+shared uint16_t shared_quadIndexOffset[QUADS_PER_WORK_GROUP];
 
 const vec4 coordConvert = vec4(2.51773861295491E-4);
 
@@ -154,173 +154,165 @@ bool cullQuad(uint localQuadIndex) {
 
 void rasterize(uint baseLocalQuadIndex) {
     uint localQuadIndex = baseLocalQuadIndex + gl_LocalInvocationID.x;
-    if (localQuadIndex >= shared_quadCount) {
-        return;
-    }
+    if (localQuadIndex < shared_quadCount) {
 
-    int quadIndexOffset = int(shared_quadIndexOffset[localQuadIndex]);
-    if (quadIndexOffset == -1) return;
-    uint quadIndex = shared_metaFirstCount.x + uint(quadIndexOffset);
+        int quadIndexOffset = int(shared_quadIndexOffset[localQuadIndex]);
+        uint quadIndex = shared_metaFirstCount.x + uint(quadIndexOffset);
 
-    uint quadPosDataIdx = ssbo_quadPosIndexBuffer[quadIndex] * 6u;
+        uint quadPosDataIdx = ssbo_quadPosIndexBuffer[quadIndex] * 6u;
 
-    vec4 posXs = decodePos(readPosData(quadPosDataIdx));
-    vec4 posYs = decodePos(readPosData(quadPosDataIdx + 2u));
-    vec4 posZs = decodePos(readPosData(quadPosDataIdx + 4u));
+        vec4 posXs = decodePos(readPosData(quadPosDataIdx));
+        vec4 posYs = decodePos(readPosData(quadPosDataIdx + 2u));
+        vec4 posZs = decodePos(readPosData(quadPosDataIdx + 4u));
 
-    vec3 chunkOffset = shared_chunkOffset;
-    posXs = posXs * coordConvert + chunkOffset.x;
-    posYs = posYs * coordConvert + chunkOffset.y;
-    posZs = posZs * coordConvert + chunkOffset.z;
+        vec3 chunkOffset = shared_chunkOffset;
+        posXs = posXs * coordConvert + chunkOffset.x;
+        posYs = posYs * coordConvert + chunkOffset.y;
+        posZs = posZs * coordConvert + chunkOffset.z;
 
-    vec3 pos1 = (ubo_cameraDefault.combined * vec4(posXs.x, posYs.x, posZs.x, 1.0)).xyw;
-    vec3 pos2 = (ubo_cameraDefault.combined * vec4(posXs.y, posYs.y, posZs.y, 1.0)).xyw;
-    vec3 pos3 = (ubo_cameraDefault.combined * vec4(posXs.z, posYs.z, posZs.z, 1.0)).xyw;
-    vec3 pos4 = (ubo_cameraDefault.combined * vec4(posXs.w, posYs.w, posZs.w, 1.0)).xyw;
+        vec3 pos1 = (ubo_cameraDefault.combined * vec4(posXs.x, posYs.x, posZs.x, 1.0)).xyw;
+        vec3 pos2 = (ubo_cameraDefault.combined * vec4(posXs.y, posYs.y, posZs.y, 1.0)).xyw;
+        vec3 pos3 = (ubo_cameraDefault.combined * vec4(posXs.z, posYs.z, posZs.z, 1.0)).xyw;
+        vec3 pos4 = (ubo_cameraDefault.combined * vec4(posXs.w, posYs.w, posZs.w, 1.0)).xyw;
 
-    posXs = vec4(pos1.x, pos2.x, pos3.x, pos4.x);
-    posYs = vec4(pos1.y, pos2.y, pos3.y, pos4.y);
-    posZs = vec4(pos1.z, pos2.z, pos3.z, pos4.z);
+        posXs = vec4(pos1.x, pos2.x, pos3.x, pos4.x);
+        posYs = vec4(pos1.y, pos2.y, pos3.y, pos4.y);
+        posZs = vec4(pos1.z, pos2.z, pos3.z, pos4.z);
 
-    vec4 posZInv = 1.0 / posZs;
+        vec4 posZInv = 1.0 / posZs;
 
-    posXs *= posZInv;
-    posYs *= posZInv;
+        posXs *= posZInv;
+        posYs *= posZInv;
 
-    posXs = posXs * 0.5 + 0.5;
-    posYs = posYs * 0.5 + 0.5;
+        posXs = posXs * 0.5 + 0.5;
+        posYs = posYs * 0.5 + 0.5;
 
-    vec4 screenBoundF = clamp(
-        vec4(
-            min4(posXs), min4(posYs),
-            max4(posXs), max4(posYs)
-        ), 0.0, 1.0
-    );
-    screenBoundF *= uval_viewportSize.xyxy;
-    ivec4 screenBound = ivec4(floor(screenBoundF.xy), ceil(screenBoundF.zw));
-    screenBoundF = vec4(screenBound);
-    vec2 texelNF = screenBoundF.zw - screenBoundF.xy;
-    vec2 invTexelN = 1.0 / texelNF;
-    screenBoundF *= uval_viewportSize.zwzw;
+        vec4 screenBoundF = clamp(
+            vec4(
+                min4(posXs), min4(posYs),
+                max4(posXs), max4(posYs)
+            ), 0.0, 1.0
+        );
+        screenBoundF *= uval_viewportSize.xyxy;
+        ivec4 screenBound = ivec4(floor(screenBoundF.xy), ceil(screenBoundF.zw));
+        screenBoundF = vec4(screenBound);
+        vec2 texelNF = screenBoundF.zw - screenBoundF.xy;
+        vec2 invTexelN = 1.0 / texelNF;
+        screenBoundF *= uval_viewportSize.zwzw;
 
-    pos1 = vec3(posXs.x, posYs.x, posZs.x);
-    pos2 = vec3(posXs.y, posYs.y, posZs.y);
-    pos3 = vec3(posXs.z, posYs.z, posZs.z);
-    pos4 = vec3(posXs.w, posYs.w, posZs.w);
+        pos1 = vec3(posXs.x, posYs.x, posZs.x);
+        pos2 = vec3(posXs.y, posYs.y, posZs.y);
+        pos3 = vec3(posXs.z, posYs.z, posZs.z);
+        pos4 = vec3(posXs.w, posYs.w, posZs.w);
 
-    vec3 t1bBase, t1bDx, t1bDy;
-    swr_calcBarycentricGrad(screenBoundF, invTexelN, pos1.xy, pos2.xy, pos3.xy, t1bBase, t1bDx, t1bDy);
-    t1bBase += (t1bDx + t1bDy) * 0.5;
-    t1bDy -= t1bDx * texelNF.x;
+        vec3 t1bBase, t1bDx, t1bDy;
+        swr_calcBarycentricGrad(screenBoundF, invTexelN, pos1.xy, pos2.xy, pos3.xy, t1bBase, t1bDx, t1bDy);
+        t1bBase += (t1bDx + t1bDy) * 0.5;
+        t1bDy -= t1bDx * texelNF.x;
 
-    vec3 t2bBase, t2bDx, t2bDy;
-    swr_calcBarycentricGrad(screenBoundF, invTexelN, pos3.xy, pos4.xy, pos1.xy, t2bBase, t2bDx, t2bDy);
-    t2bBase += (t2bDx + t2bDy) * 0.5;
-    t2bDy -= t2bDx * texelNF.x;
+        vec3 t2bBase, t2bDx, t2bDy;
+        swr_calcBarycentricGrad(screenBoundF, invTexelN, pos3.xy, pos4.xy, pos1.xy, t2bBase, t2bDx, t2bDy);
+        t2bBase += (t2bDx + t2bDy) * 0.5;
+        t2bDy -= t2bDx * texelNF.x;
 
-    i64vec4 valueVec;
-    ivec4 outputCoord;
-    vec3 t1b = t1bBase;
-    vec3 t2b = t2bBase;
+        i64vec4 valueVec;
+        ivec4 outputCoord;
+        vec3 t1b = t1bBase;
+        vec3 t2b = t2bBase;
 
-    #ifdef CUTOUT
-    uint texCoordIdx = ssbo_quadAttribIndexBuffer[quadIndex] * 4u;
+        #ifdef CUTOUT
+        uint texCoordIdx = ssbo_quadAttribIndexBuffer[quadIndex] * 4u;
 
-    uvec4 texCoordXY = uvec4(
-        ssbo_quadTexCoordDataBuffer[texCoordIdx],
-        ssbo_quadTexCoordDataBuffer[texCoordIdx + 1u],
-        ssbo_quadTexCoordDataBuffer[texCoordIdx + 2u],
-        ssbo_quadTexCoordDataBuffer[texCoordIdx + 3u]
-    );
-    #endif
+        uvec4 texCoordXY = uvec4(
+            ssbo_quadTexCoordDataBuffer[texCoordIdx],
+            ssbo_quadTexCoordDataBuffer[texCoordIdx + 1u],
+            ssbo_quadTexCoordDataBuffer[texCoordIdx + 2u],
+            ssbo_quadTexCoordDataBuffer[texCoordIdx + 3u]
+        );
+        #endif
 
-    for (outputCoord.y = screenBound.y; outputCoord.y < screenBound.w; outputCoord.y++) {
-        for (outputCoord.x = screenBound.x; outputCoord.x < screenBound.z; outputCoord.x++) {
-            if (min3(t1b) >= 0.0 || min3(t2b) >= 0.0) {
-                outputCoord.z = outputCoord.y * uval_viewportSizeI.x + outputCoord.x;
-                valueVec.x = ssbo_vBufferDepthQuadIndex[outputCoord.z];
-                valueVec.y = (int64_t(floatBitsToInt(dot(posZs.xyz, t1b))) << 32) | int64_t(-quadIndex);
-                valueVec.z = (int64_t(floatBitsToInt(dot(posZs.zwx, t2b))) << 32) | int64_t(-quadIndex);
-                #ifdef CUTOUT
-                vec4 texCoordX = vec4(
-                    unpackUnorm2x16(texCoordXY.x),
-                    unpackUnorm2x16(texCoordXY.y)
-                );
-                vec4 texCoordY = vec4(
-                    unpackUnorm2x16(texCoordXY.z),
-                    unpackUnorm2x16(texCoordXY.w)
-                );
-                vec2 texCoord1 = vec2(dot(texCoordX.xyz, t1b), dot(texCoordY.xyz, t1b));
-                vec2 texCoord2 = vec2(dot(texCoordX.zwx, t2b), dot(texCoordY.zwx, t2b));
-                outputCoord.w = int(bool(textureLod(usam_blockAlbedoAtlas, texCoord1, 0.0).a > 0.5)) |
-                (int(bool(textureLod(usam_blockAlbedoAtlas, texCoord2, 0.0).a > 0.5)) << 1);
-                #endif
-
-                if (min3(t1b) >= 0.0) {
+        for (outputCoord.y = screenBound.y; outputCoord.y < screenBound.w; outputCoord.y++) {
+            for (outputCoord.x = screenBound.x; outputCoord.x < screenBound.z; outputCoord.x++) {
+                if (min3(t1b) >= 0.0 || min3(t2b) >= 0.0) {
+                    outputCoord.z = outputCoord.y * uval_viewportSizeI.x + outputCoord.x;
+                    valueVec.x = ssbo_vBufferDepthQuadIndex[outputCoord.z];
+                    valueVec.y = (int64_t(floatBitsToInt(dot(posZs.xyz, t1b))) << 32) | int64_t(-quadIndex);
+                    valueVec.z = (int64_t(floatBitsToInt(dot(posZs.zwx, t2b))) << 32) | int64_t(-quadIndex);
                     #ifdef CUTOUT
-                    if ((outputCoord.w & 1) == 1) {
-                        #endif
-                        if (valueVec.y <= valueVec.x) {
-                            valueVec.w = atomicMin(ssbo_vBufferDepthQuadIndex[outputCoord.z], valueVec.y);
-                            if (valueVec.w >= valueVec.y) {
-                                imageStore(uimg_vBufferTex1, outputCoord.xy, uvec4(vbuffer_encodeBCoord(t1b), 0u, 0u, 0u));
-                                #ifdef OVERDRAW_DEBUG
-                                imageAtomicAdd(uimg_overdrawCounter, outputCoord.xy, 1u);
-                                #endif
-                            }
-                        }
-                        #ifdef CUTOUT
-                    }
+                    vec4 texCoordX = vec4(
+                        unpackUnorm2x16(texCoordXY.x),
+                        unpackUnorm2x16(texCoordXY.y)
+                    );
+                    vec4 texCoordY = vec4(
+                        unpackUnorm2x16(texCoordXY.z),
+                        unpackUnorm2x16(texCoordXY.w)
+                    );
+                    vec2 texCoord1 = vec2(dot(texCoordX.xyz, t1b), dot(texCoordY.xyz, t1b));
+                    vec2 texCoord2 = vec2(dot(texCoordX.zwx, t2b), dot(texCoordY.zwx, t2b));
+                    outputCoord.w = int(textureLod(usam_blockAlbedoAtlas, texCoord1, 0.0).a > 0.5) |
+                    (int(textureLod(usam_blockAlbedoAtlas, texCoord2, 0.0).a > 0.5) << 1);
                     #endif
-                }
-                if (min3(t2b) >= 0.0) {
+
+
                     #ifdef CUTOUT
-                    if ((outputCoord.w & 2) == 2) {
-                        #endif
-                        if (valueVec.z <= valueVec.x) {
-                            valueVec.w = atomicMin(ssbo_vBufferDepthQuadIndex[outputCoord.z], valueVec.z);
-                            if (valueVec.w >= valueVec.z) {
-                                imageStore(uimg_vBufferTex1, outputCoord.xy, uvec4(vbuffer_encodeBCoord(vec3(t2b.z, 0.0, t2b.x)), 0u, 0u, 0u));
-                                #ifdef OVERDRAW_DEBUG
-                                imageAtomicAdd(uimg_overdrawCounter, outputCoord.xy, 1u);
-                                #endif
-                            }
-                        }
-                        #ifdef CUTOUT
-                    }
+                    if (min3(t1b) >= 0.0 && bool(outputCoord.w & 1) && valueVec.y <= valueVec.x)
+                    #else
+                    if (min3(t1b) >= 0.0 && valueVec.y <= valueVec.x)
                     #endif
+                    {
+                        valueVec.w = atomicMin(ssbo_vBufferDepthQuadIndex[outputCoord.z], valueVec.y);
+                        if (valueVec.w >= valueVec.y) {
+                            imageStore(uimg_vBufferTex1, outputCoord.xy, uvec4(vbuffer_encodeBCoord(t1b), 0u, 0u, 0u));
+                            #ifdef OVERDRAW_DEBUG
+                            imageAtomicAdd(uimg_overdrawCounter, outputCoord.xy, 1u);
+                            #endif
+                        }
+                    }
+
+                    #ifdef CUTOUT
+                    if (min3(t2b) >= 0.0 && bool((outputCoord.w >> 1) & 1) && valueVec.z <= valueVec.x)
+                    #else
+                    if (min3(t2b) >= 0.0 && valueVec.z <= valueVec.x)
+                    #endif
+                    {
+                        valueVec.w = atomicMin(ssbo_vBufferDepthQuadIndex[outputCoord.z], valueVec.z);
+                        if (valueVec.w >= valueVec.z) {
+                            imageStore(uimg_vBufferTex1, outputCoord.xy, uvec4(vbuffer_encodeBCoord(vec3(t2b.z, 0.0, t2b.x)), 0u, 0u, 0u));
+                            #ifdef OVERDRAW_DEBUG
+                            imageAtomicAdd(uimg_overdrawCounter, outputCoord.xy, 1u);
+                            #endif
+                        }
+                    }
                 }
+                t1b += t1bDx;
+                t2b += t2bDx;
             }
-            t1b += t1bDx;
-            t2b += t2bDx;
+            t1b += t1bDy;
+            t2b += t2bDy;
         }
-        t1b += t1bDy;
-        t2b += t2bDy;
     }
 }
 
 void setup(uint baseLocalQuadIndex) {
     uint localQuadIndex = baseLocalQuadIndex + gl_LocalInvocationID.x;
-    if (localQuadIndex >= shared_metaFirstCount.y) {
-        return;
-    }
+    if (localQuadIndex < shared_metaFirstCount.y) {
+        bool survived = cullQuad(localQuadIndex);
 
-    bool survived = cullQuad(localQuadIndex);
+        uvec4 ballot = subgroupBallot(survived);
+        uint subgroupCount = subgroupBallotBitCount(ballot);
 
-    uvec4 ballot = subgroupBallot(survived);
-    uint subgroupCount = subgroupBallotBitCount(ballot);
+        uint quadWriteBaseIdx;
 
-    uint quadWriteBaseIdx;
+        if (subgroupElect()) {
+            quadWriteBaseIdx = atomicAdd(shared_quadCount, subgroupCount);
+        }
 
-    if (subgroupElect()) {
-        quadWriteBaseIdx = atomicAdd(shared_quadCount, subgroupCount);
-    }
+        quadWriteBaseIdx = subgroupBroadcastFirst(quadWriteBaseIdx);
 
-    quadWriteBaseIdx = subgroupBroadcastFirst(quadWriteBaseIdx);
-
-    if (survived) {
-        quadWriteBaseIdx += subgroupBallotExclusiveBitCount(ballot);
-        shared_quadIndexOffset[quadWriteBaseIdx] = int16_t(localQuadIndex);
+        if (survived) {
+            quadWriteBaseIdx += subgroupBallotExclusiveBitCount(ballot);
+            shared_quadIndexOffset[quadWriteBaseIdx] = uint16_t(localQuadIndex);
+        }
     }
 }
 
@@ -335,8 +327,8 @@ void init() {
 void clear() {
     shared_quadCount = 0u;
     uint xd = gl_LocalInvocationID.x << 1u;
-    shared_quadIndexOffset[xd] = int16_t(-1);
-    shared_quadIndexOffset[xd + 1u] = int16_t(-1);
+    shared_quadIndexOffset[xd] = uint16_t(0);
+    shared_quadIndexOffset[xd + 1u] = uint16_t(0);
 }
 
 void main() {
@@ -349,6 +341,7 @@ void main() {
         setup(i * gl_WorkGroupSize.x);
     }
 
+    memoryBarrierShared();
     barrier();
 
     uint rasterizeIter = (shared_quadCount + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
