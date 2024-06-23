@@ -57,14 +57,14 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
     val swQuadPipeline = register(SWQuadPipeline(scene, this))
     //    val swPointPipeline = register(SWPointPipeline(scene, this))
 
-//    val cullPipeline = register(OcclusionCullingPipeline.VertexShader(scene, this))
+    val cullPipeline = register(OcclusionCullingPipeline.SWRaster(scene, this))
 
     val visibleBuffer = register(BufferObject.Immutable()).apply {
         label("HWMS.VisibleBuffer")
     }
     val visibleBufferBinding = ShaderBindingSpecs.Buffer("VisibleBuffer", visibleBuffer, BufferTarget.ShaderStorage)
 
-    private val visibleBufferStateLen1: Long
+    val visibleBufferStateLen1: Long
 
     init {
         visibleBufferStateLen1 =
@@ -111,20 +111,23 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
     var chunkIndices = IntArray(scene.terrainMeshData.chunkinfos.size) { it }
 
     suspend fun draw() {
-        if (updateTimer.tickAndReset(5)) {
+        if (updateTimer.tickAndReset(50)) {
             updateBatchMeta()
         }
+
+        if (!scene.gameInstance.toggle3) {
 //        val chunkCount = scene.terrainMeshData.chunkOffsets.size.toLong()
 //        val visibleFlagLen = chunkCount * visibilityFlagType.byteSize
 //        visibleBuffer.copyTo(visibleBuffer, 4L, 4L + visibleFlagLen, visibleFlagLen)
 //        visibleBuffer.clear(GL_R8UI, 4L, visibleFlagLen, GL_RED_INTEGER, GL_UNSIGNED_BYTE, Ptr.NULL)
-
-        visibleBufferUpdateShader.bind()
-        visibleBufferUpdateShader.applyBinding {
-            buffer(visibleBufferBinding)
+            visibleBufferUpdateShader.bind()
+            visibleBufferUpdateShader.applyBinding {
+                buffer(visibleBufferBinding)
+            }
+            val bytesPerGroup = 16 * 128
+            glDispatchCompute(((visibleBufferStateLen1 + bytesPerGroup - 1) / bytesPerGroup).toInt(), 1, 1)
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
         }
-        val bytesPerGroup = 16 * 128
-        glDispatchCompute(((visibleBufferStateLen1 + bytesPerGroup - 1) / bytesPerGroup).toInt(), 1, 1)
 
         glDebugGroup("HW Draw") { hwDraw() }
         glDebugGroup("HW2SW Blit") {
@@ -186,11 +189,7 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
             if (!frustumCullingFlags[chunkInfo.listIndex].value) continue
             if (sampleCountArray[chunkInfo.listIndex] > 4.0f) {
                 if (!scene.gameInstance.toggle1) {
-                    if (!scene.gameInstance.toggle3) {
-                        hwVs.add(chunkInfo)
-                    } else {
-                        hwMs.add(chunkInfo)
-                    }
+                    hwVs.add(chunkInfo)
                 }
             } else {
                 if (!scene.gameInstance.toggle2) {
@@ -239,7 +238,7 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
                         val originOffsetZ = (PointCloudScene.originZ - scene.camera.pos.z).floorToInt()
                         for (i in start until end) {
                             val chunkInfo = scene.terrainMeshData.chunkinfos[i]
-                            val offset = scene.terrainMeshData.chunkOffsets[chunkInfo.chunkIndex]
+                            val offset = chunkInfo.offset
                             val dx = offset.x * 16 + originOffsetX
                             val dy = offset.y * 16 + originOffsetY
                             val dz = offset.z * 16 + originOffsetZ

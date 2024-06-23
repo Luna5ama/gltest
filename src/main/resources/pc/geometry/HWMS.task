@@ -17,18 +17,8 @@ struct BatchInfo {
     uint chunkOffsetEncoded;
 };
 
-#if CULL_PASS == 1
-layout(std430) restrict buffer VisibleBuffer {
-    uint lastOffset;
-    FLAG_TYPE states[];
-} ssbo_visibleBuffer;
-#elif CULL_PASS == 2
-layout(std430) restrict readonly buffer VisibleBuffer {
-    uint lastOffset;
-    FLAG_TYPE states[];
-} ssbo_visibleBuffer;
-#elif CULL_PASS == 3
-layout(std430) restrict readonly buffer VisibleBuffer {
+#if CULL_PASS != 0
+layout(std430) readonly buffer VisibleBuffer {
     uint lastOffset;
     FLAG_TYPE states[];
 } ssbo_visibleBuffer;
@@ -60,17 +50,15 @@ void main() {
 
     #if CULL_PASS == 1
     bool isCameraChunk = dot(chunkOffset, chunkOffset) < 1024.0;
-    bool prev = bool(ssbo_visibleBuffer.states[batchInfo.chunkIndex]) || isCameraChunk;
-    ssbo_visibleBuffer.states[batchInfo.chunkIndex] = FLAG_TYPE(0u);
-    ssbo_visibleBuffer.states[batchInfo.chunkIndex + ssbo_visibleBuffer.lastOffset] = FLAG_TYPE(prev);
-    if (!prev) {
+    bool last = bool(ssbo_visibleBuffer.states[batchInfo.chunkIndex + ssbo_visibleBuffer.lastOffset]) || isCameraChunk;
+    if (!last) {
         gl_TaskCountNV = 0;
         return;
     }
     #elif CULL_PASS == 2
-    bool prev = bool(ssbo_visibleBuffer.states[batchInfo.chunkIndex + ssbo_visibleBuffer.lastOffset]);
+    bool last = bool(ssbo_visibleBuffer.states[batchInfo.chunkIndex + ssbo_visibleBuffer.lastOffset]);
     bool curr = bool(ssbo_visibleBuffer.states[batchInfo.chunkIndex]);
-    if (prev || !curr) {
+    if (last || !curr) {
         gl_TaskCountNV = 0;
         return;
     }

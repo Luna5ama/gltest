@@ -114,6 +114,8 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
             }
             chunkOffsetData.allocate(arr.len, arr.ptr, 0)
         }
+        val chunkIndexSet = chunkinfos.mapTo(mutableSetOf()) { it.chunkIndex }
+        println("${chunkIndexSet.size}/${chunkinfos.size} unique chunk indices")
     }
 
     private suspend fun readData(dir: File) {

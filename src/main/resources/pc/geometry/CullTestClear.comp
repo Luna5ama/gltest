@@ -1,0 +1,16 @@
+#version 460 core
+
+layout(local_size_x = 1) in;
+
+layout(std430) writeonly buffer CullTestQuadBuffer {
+    uint num_groups_x;
+    uint num_groups_y;
+    uint num_groups_z;
+    uint _padding1;
+} ssbo_cullTestQuadBuffer;
+
+void main() {
+    ssbo_cullTestQuadBuffer.num_groups_x = 1;
+    ssbo_cullTestQuadBuffer.num_groups_y = 1;
+    ssbo_cullTestQuadBuffer.num_groups_z = 1;
+}

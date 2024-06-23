@@ -1,6 +1,7 @@
 package dev.luna5ama.gltest.pc
 
 import dev.fastmc.common.TickTimer
+import dev.luna5ama.gltest.glDebugGroup
 import dev.luna5ama.gltest.structs.CullMSCommandHeader
 import dev.luna5ama.gltest.structs.DispatchIndirectCommand
 import dev.luna5ama.gltest.structs.DrawElementsIndirectCommand
@@ -13,7 +14,11 @@ import dev.luna5ama.glwrapper.api.*
 import dev.luna5ama.glwrapper.enums.BufferTarget
 import dev.luna5ama.glwrapper.objects.BufferObject
 import dev.luna5ama.glwrapper.objects.VertexArrayObject
-import dev.luna5ama.kmogus.*
+import dev.luna5ama.kmogus.MemoryStack
+import dev.luna5ama.kmogus.Ptr
+import dev.luna5ama.kmogus.byteLength
+import dev.luna5ama.kmogus.memcpy
+import kotlin.math.max
 
 abstract class OcclusionCullingPipeline(
     protected val scene: PointCloudScene,
@@ -23,7 +28,7 @@ abstract class OcclusionCullingPipeline(
 
     abstract fun setupIndirect(ptr: Ptr, count: Int)
 
-    abstract fun draw(cullTestCommandBuffer: BufferObject)
+    abstract fun draw(ctcBuffer: BufferObject, maxCount: Int)
 
     class MeshShader(scene: PointCloudScene, renderer: TerrainGeometryRenderer) :
         OcclusionCullingPipeline(scene, renderer) {
@@ -60,7 +65,7 @@ abstract class OcclusionCullingPipeline(
             struct.chunkCount = count
         }
 
-        override fun draw(cullTestCommandBuffer: BufferObject) {
+        override fun draw(ctcBuffer: BufferObject, maxCount: Int) {
             scene.vbuffer.nDepthFbo.bind()
             glDisable(GL_DEPTH_CLAMP)
             glDisable(GL_CULL_FACE)
@@ -94,10 +99,10 @@ abstract class OcclusionCullingPipeline(
             )
             cullShader.applyBinding {
                 buffer(renderer.visibleBufferBinding)
-                buffer("CullTestCommandBuffer", cullTestCommandBuffer, BufferTarget.ShaderStorage)
+                buffer("CullTestCommandBuffer", ctcBuffer, BufferTarget.ShaderStorage)
                 buffer(scene.camera.uboBinding)
             }
-            cullTestCommandBuffer.bind(GL_DRAW_INDIRECT_BUFFER)
+            ctcBuffer.bind(GL_DRAW_INDIRECT_BUFFER)
             glDrawMeshTasksIndirectNV(0L)
         }
     }
@@ -177,7 +182,7 @@ abstract class OcclusionCullingPipeline(
             struct.baseInstance = 0
         }
 
-        override fun draw(cullTestCommandBuffer: BufferObject) {
+        override fun draw(ctcBuffer: BufferObject, maxCount: Int) {
             scene.vbuffer.nDepthFbo.bind()
             glDisable(GL_DEPTH_CLAMP)
             glDisable(GL_CULL_FACE)
@@ -212,89 +217,133 @@ abstract class OcclusionCullingPipeline(
             )
             cullShader.applyBinding {
                 buffer(renderer.visibleBufferBinding)
-                buffer("CullTestCommandBuffer", cullTestCommandBuffer, BufferTarget.ShaderStorage)
+                buffer("CullTestCommandBuffer", ctcBuffer, BufferTarget.ShaderStorage)
                 buffer(scene.camera.uboBinding)
             }
-            cullTestCommandBuffer.bind(GL_DRAW_INDIRECT_BUFFER)
+            ctcBuffer.bind(GL_DRAW_INDIRECT_BUFFER)
             glDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_BYTE, 0L)
         }
     }
 
     class SWRaster(scene: PointCloudScene, renderer: TerrainGeometryRenderer) :
         OcclusionCullingPipeline(scene, renderer) {
-        private val shader = register(ShaderProgram(
+        private val subgroupSizeOptimal = max(glGetInteger(GL_SUBGROUP_SIZE_KHR), 16)
+
+        val ctqIndirectSetup = register(ShaderProgram(ShaderSource.Comp("pc/geometry/CTQIndirectSetup.comp") {
+            define("N_GROUPS", 128 / subgroupSizeOptimal)
+        })).apply {
+            label("CullSWRaster.CTQIndirectSetup")
+        }
+
+        val setupShader = register(ShaderProgram(ShaderSource.Comp("pc/geometry/CullTestSetup.comp"))).apply {
+            label("CullSWRaster.SetupShader")
+        }
+        val cullTestShader = register(ShaderProgram(
             ShaderSource.Comp("pc/geometry/CullTest.comp") {
+                define("SUBGROUP_SIZE", subgroupSizeOptimal)
                 define("FLAG_TYPE", renderer.visibilityFlagType.glslTypeName)
             }
         )).apply {
-            label("CullSWRaster.Shader")
+            label("CullSWRaster.CullTestShader")
         }
 
-        private val tempBuffer = register(BufferObject.Immutable()).apply {
-            label("CullSWRaster.TempBuffer")
+        private val ctqBuffer = register(BufferObject.Immutable()).apply {
+            label("CullSWRaster.CullTestQuadBuffer")
         }
 
-        private val tempBufferBinding = ShaderBindingSpecs.Buffer("TempBuffer", tempBuffer, BufferTarget.ShaderStorage)
-
-        init {
-            tempBuffer.allocate(60000 * 6L * 4L, Ptr.NULL, 0)
-        }
+        private val ctqBufferBinding =
+            ShaderBindingSpecs.Buffer("CullTestQuadBuffer", ctqBuffer, BufferTarget.ShaderStorage)
 
         override val ctcBufferBaseOffset: Long
-            get() = 16L
+            get() = 4 * 4L
 
         private var count = 0
 
         override fun setupIndirect(ptr: Ptr, count: Int) {
             val struct = DispatchIndirectCommand(ptr)
-            struct.num_groups_x = count
-            struct.num_groups_y = 6
+            struct.num_groups_x = (count * 6 + 127) / 128
+            struct.num_groups_y = 1
             struct.num_groups_z = 1
+            ptr.setInt(12L, count)
             this.count = count
         }
 
         private val printTimer = TickTimer()
 
-        override fun draw(cullTestCommandBuffer: BufferObject) {
-            shader.bind()
-            shader.applyBinding {
-                sampler(scene.vbuffer.samplerBindings)
-                buffer(renderer.visibleBufferBinding)
-                buffer(scene.terrainMeshData.bufferBindings)
-                buffer(scene.camera.uboBinding)
-                buffer("CullTestCommandBuffer", cullTestCommandBuffer, BufferTarget.ShaderStorage)
-                buffer(tempBufferBinding)
+        override fun draw(ctcBuffer: BufferObject, maxCount: Int) {
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT or GL_COMMAND_BARRIER_BIT)
+            val ctqLen = 16L + maxCount * 6L * 128L
+            if (ctqBuffer.size < ctqLen) {
+                ctqBuffer.destroy()
+                ctqBuffer.allocate(ctqLen, 0)
             }
-            shader.uniform3f(
-                "uval_originOffset",
-                (PointCloudScene.originX - scene.camera.pos.x - 0.5).toFloat(),
-                (PointCloudScene.originY - scene.camera.pos.y - 1.62).toFloat(),
-                (PointCloudScene.originZ - scene.camera.pos.z - 0.5).toFloat()
-            )
 
-            shader.uniform4f(
-                "uval_viewportSize",
-                scene.camera.screenSize.x.toFloat(), scene.camera.screenSize.y.toFloat(),
-                1.0f / scene.camera.screenSize.x.toFloat(), 1.0f / scene.camera.screenSize.y.toFloat()
-            )
-            shader.uniform2i("uval_viewportSizeI", scene.camera.screenSize.x, scene.camera.screenSize.y)
-            cullTestCommandBuffer.bind(GL_DISPATCH_INDIRECT_BUFFER)
-            glDispatchComputeIndirect(0L)
-//            glDispatchCompute(4, 3, 1)
-
-            glMemoryBarrier(GL_BUFFER_UPDATE_BARRIER_BIT)
-
-            if (printTimer.tickAndReset(3000)) {
-                val intArray = Arr.malloc(count * 6L * 4L).use {
-                    glGetNamedBufferSubData(tempBuffer.id, 0, it.len, it.ptr)
-                    val array = IntArray(count * 6)
-                    memcpy(it.ptr, 0L, array, 0, it.len)
-                    array
+            glDebugGroup("CullTestSetup") {
+                setupShader.bind()
+                setupShader.applyBinding {
+                    buffer(scene.camera.uboBinding)
+                    buffer("CullTestCommandBuffer", ctcBuffer, BufferTarget.ShaderStorage)
+                    buffer(ctqBufferBinding)
                 }
-                println(intArray.filter { it != 0 }.min())
-                println(intArray.average())
-                println(intArray.max())
+                setupShader.uniform3f(
+                    "uval_originOffset",
+                    (PointCloudScene.originX - scene.camera.pos.x - 0.5).toFloat(),
+                    (PointCloudScene.originY - scene.camera.pos.y - 1.62).toFloat(),
+                    (PointCloudScene.originZ - scene.camera.pos.z - 0.5).toFloat()
+                )
+
+                setupShader.uniform4f(
+                    "uval_viewportSize",
+                    scene.camera.screenSize.x.toFloat(), scene.camera.screenSize.y.toFloat(),
+                    1.0f / scene.camera.screenSize.x.toFloat(), 1.0f / scene.camera.screenSize.y.toFloat()
+                )
+                ctcBuffer.bind(GL_DISPATCH_INDIRECT_BUFFER)
+                glDispatchComputeIndirect(0L)
             }
+
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
+
+            ctqIndirectSetup.bind()
+            ctqIndirectSetup.applyBinding {
+                buffer(ctqBufferBinding)
+            }
+            glDispatchCompute(1, 1, 1)
+
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT or GL_COMMAND_BARRIER_BIT)
+
+            glDebugGroup("CullTest") {
+                cullTestShader.bind()
+                cullTestShader.applyBinding {
+                    buffer(scene.vbuffer.bufferBinding)
+                    buffer(renderer.visibleBufferBinding)
+                    buffer(ctqBufferBinding)
+                }
+                cullTestShader.uniform2i("uval_viewportSizeI", scene.camera.screenSize.x, scene.camera.screenSize.y)
+                ctqBuffer.bind(GL_DISPATCH_INDIRECT_BUFFER)
+                glDispatchComputeIndirect(0L)
+            }
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
+
+//            glMemoryBarrier(GL_BUFFER_UPDATE_BARRIER_BIT or GL_SHADER_STORAGE_BARRIER_BIT or GL_COMMAND_BARRIER_BIT)
+//            if (printTimer.tickAndReset(3000)) {
+//                MemoryStack {
+//                    val arr = malloc(4L * 4L)
+//                    val ptr = arr.ptr
+//                    glGetNamedBufferSubData(ctqBuffer.id, 0L, arr.len, ptr)
+//                    println("CTQ: ${ptr.getInt(0)}, ${ptr.getInt(4)}, ${ptr.getInt(8)}, ${ptr.getInt(12)}")
+//                    glGetNamedBufferSubData(ctcBuffer.id, 0L, arr.len, ptr)
+//                    println("CTC: ${ptr.getInt(0)}, ${ptr.getInt(4)}, ${ptr.getInt(8)}, ${ptr.getInt(12)}")
+//                }
+//
+//                val visibleBuffer = Arr.malloc(renderer.visibleBufferStateLen1).use {
+//                    glGetNamedBufferSubData(renderer.visibleBuffer.id, 4, it.len, it.ptr)
+//                    val array = ByteArray((renderer.visibleBufferStateLen1 * 4).toInt())
+//                    memcpy(it.ptr, 0L, array, 0, it.len)
+//                    array
+//                }
+//
+//                println(visibleBuffer.count { it != 0.toByte() })
+//            }
         }
     }
 }

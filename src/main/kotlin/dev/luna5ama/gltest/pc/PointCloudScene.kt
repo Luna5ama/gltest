@@ -78,7 +78,9 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
         Runtime.getRuntime().addShutdownHook(Thread {
             saveCameraPos()
         })
-        dumpShaderAsm(terrainGeometryRenderer.swQuadPipeline.quadDrawShader, "SWQuad.txt")
+//        dumpShaderAsm(terrainGeometryRenderer.swQuadPipeline.quadDrawShader, "SWQuad.txt")
+        dumpShaderAsm(terrainGeometryRenderer.cullPipeline.setupShader, "CullTestSetup.txt")
+        dumpShaderAsm(terrainGeometryRenderer.cullPipeline.cullTestShader, "CullTest.txt")
     }
 
     override fun destroy() {
@@ -87,7 +89,9 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
 
     override fun reloadShaders() {
         super.reloadShaders()
-        dumpShaderAsm(terrainGeometryRenderer.swQuadPipeline.quadDrawShader, "SWQuad.txt")
+//        dumpShaderAsm(terrainGeometryRenderer.swQuadPipeline.quadDrawShader, "SWQuad.txt")
+        dumpShaderAsm(terrainGeometryRenderer.cullPipeline.setupShader, "CullTestSetup.txt")
+        dumpShaderAsm(terrainGeometryRenderer.cullPipeline.cullTestShader, "CullTest.txt")
     }
 
     private fun saveCameraPos() {

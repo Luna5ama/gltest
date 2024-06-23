@@ -4,11 +4,7 @@
 #extension GL_NV_shader_atomic_int64 : enable
 #extension GL_KHR_shader_subgroup_ballot : enable
 
-#if uint_least8_t == uint8_t
 #extension GL_NV_gpu_shader5 : enable
-#elif uint_least8_t == uint16_t
-#extension GL_AMD_gpu_shader_int16 : enable
-#endif
 
 #define CUTOUT
 
@@ -32,9 +28,10 @@ layout(r32ui) uniform uimage2D uimg_overdrawCounter;
 #endif
 
 struct QuadBatchInfo {
+    uint chunkIndex;
     uint first;
     uint count;
-    uint offsetEncoded;
+    uint chunkOffsetEncoded;
 };
 
 #ifdef CUTOUT
@@ -49,6 +46,13 @@ layout(std430) readonly buffer QuadAttribIndexBuffer {
 };
 #endif
 
+#if CULL_PASS != 0
+layout(std430) readonly buffer VisibleBuffer {
+    uint lastOffset;
+    FLAG_TYPE states[];
+} ssbo_visibleBuffer;
+#endif
+
 layout(std430) restrict readonly buffer QuadBatchInfoBuffer {
     QuadBatchInfo ssbo_quadBatchInfoBuffer[];
 };
@@ -61,9 +65,9 @@ layout(std430) restrict readonly buffer QuadPosIndexBuffer {
     uint ssbo_quadPosIndexBuffer[];
 };
 
-layout(std430) writeonly buffer TempBuffer {
-    uint ssbo_tempBuffer[];
-};
+//layout(std430) writeonly buffer TempBuffer {
+//    uint ssbo_tempBuffer[];
+//};
 
 uvec2 readPosData(uint idx) {
     uint data1 = ssbo_quadPosDataBuffer[idx];
@@ -93,6 +97,9 @@ shared uvec2 shared_metaFirstCount;
 shared vec3 shared_chunkOffset;
 shared uint shared_quadCount = 0u;
 shared uint16_t shared_quadIndexOffset[QUADS_PER_WORK_GROUP];
+
+const uvec3 CHUNK_OFFSET_BITMASK = (uvec3(1u) << uvec3(13u, 6u, 13u)) - uvec3(1u);
+const uvec3 CHUNK_OFFSET_BITSHIFT = uvec3(0u, 13u, 13u + 6u);
 
 const vec4 coordConvert = vec4(2.51773861295491E-4);
 
@@ -146,7 +153,6 @@ bool cullQuad(uint localQuadIndex) {
     );
     screenBoundF *= uval_viewportSize.xyxy;
     uvec4 screenBound = uvec4(floor(screenBoundF.xy), ceil(screenBoundF.zw));
-
     survived = survived & uint(!any(equal(round(screenBoundF.xy), round(screenBoundF.zw))));
 
     return bool(survived);
@@ -155,7 +161,6 @@ bool cullQuad(uint localQuadIndex) {
 void rasterize(uint baseLocalQuadIndex) {
     uint localQuadIndex = baseLocalQuadIndex + gl_LocalInvocationID.x;
     if (localQuadIndex < shared_quadCount) {
-
         int quadIndexOffset = int(shared_quadIndexOffset[localQuadIndex]);
         uint quadIndex = shared_metaFirstCount.x + uint(quadIndexOffset);
 
@@ -311,12 +316,37 @@ void setup(uint baseLocalQuadIndex) {
     }
 }
 
-void init() {
+bool init() {
     QuadBatchInfo batchMetadata = ssbo_quadBatchInfoBuffer[gl_WorkGroupID.x];
+    uint chunkIndex = batchMetadata.chunkIndex;
     shared_metaFirstCount = uvec2(batchMetadata.first, batchMetadata.count);
-    vec3 chunkOffset = vec3(uvec3(batchMetadata.offsetEncoded) >> uvec3(0u, 8u, 16u) & uvec3(255u));
+    uvec3 chunkOffsetEncoded = uvec3(batchMetadata.chunkOffsetEncoded);
+    chunkOffsetEncoded = (chunkOffsetEncoded >> CHUNK_OFFSET_BITSHIFT) & CHUNK_OFFSET_BITMASK;
+    vec3 chunkOffset = vec3(chunkOffsetEncoded);
     chunkOffset = chunkOffset * 16.0 + uval_originOffset;
     shared_chunkOffset = chunkOffset;
+
+    #if CULL_PASS == 1
+    bool isCameraChunk = dot(chunkOffset, chunkOffset) < 1024.0;
+    bool last = bool(ssbo_visibleBuffer.states[chunkIndex + ssbo_visibleBuffer.lastOffset]) || isCameraChunk;
+    if (!last) {
+        return false;
+    }
+    #elif CULL_PASS == 2
+    bool last = bool(ssbo_visibleBuffer.states[chunkIndex + ssbo_visibleBuffer.lastOffset]);
+    bool curr = bool(ssbo_visibleBuffer.states[chunkIndex]);
+    if (last || !curr) {
+        return false;
+    }
+    #elif CULL_PASS == 3
+    bool isCameraChunk = dot(chunkOffset, chunkOffset) < 1024.0;
+    bool curr = bool(ssbo_visibleBuffer.states[chunkIndex]) || isCameraChunk;
+    if (!curr) {
+        return false;
+    }
+    #endif
+
+    return true;
 }
 
 void clear() {
@@ -327,7 +357,7 @@ void clear() {
 }
 
 void main() {
-    init();
+    if (!init()) return;
     clear();
 
     uint setupIter = (shared_metaFirstCount.y + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
