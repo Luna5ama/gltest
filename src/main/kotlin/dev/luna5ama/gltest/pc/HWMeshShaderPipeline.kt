@@ -31,7 +31,7 @@ class HWMeshShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRend
 //        label("HWMS.CullTestCommandBuffer")
 //    }
 
-    override suspend fun update(chunks: List<TerrainMeshData.ChunkInfo>) {
+    override suspend fun update(chunks: List<TerrainMeshData.ChunkLayerInfo>) {
         Arr.malloc(chunks.size * sizeof(MeshShaderBatchInfo)).use { batchInfoUploadBuffer ->
             val quadCountGlobal = AtomicInteger(0)
 
@@ -39,7 +39,7 @@ class HWMeshShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRend
                 ParallelUtils.splitListIndex(
                     chunks.size,
                     blockForEach = { start, end ->
-                        launch(Dispatchers.Default) {
+                        launch {
                             var quadCountLocal = 0
                             for (i in start until end) {
                                 val chunkInfo = chunks[i]
@@ -50,7 +50,6 @@ class HWMeshShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRend
                                 struct.chunkIndex = chunkInfo.chunkIndex
                                 struct.quadStartIndex = chunkInfo.startIndex
                                 struct.quadCount = chunkInfo.quadCount
-                                struct.chunkOffsetEncoded = chunkOffsetEncoded
 
 //                                 val ctcBaseOffset = 16L
 //                                val ctcLen = sizeof(CullTestCommand)
@@ -136,14 +135,8 @@ class HWMeshShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRend
                 buffer(scene.camera.uboBinding)
                 buffer(bufferBinding)
                 buffer(scene.terrainMeshData.bufferBindings)
-                buffer(renderer.visibleBufferBinding)
+                buffer(renderer.bufferBindings)
             }
-            uniform3f(
-                "uval_originOffset",
-                (PointCloudScene.originX - scene.camera.pos.x - 0.5).toFloat(),
-                (PointCloudScene.originY - scene.camera.pos.y - 1.62).toFloat(),
-                (PointCloudScene.originZ - scene.camera.pos.z - 0.5).toFloat()
-            )
             uniform4f(
                 "uval_viewportSize",
                 scene.camera.screenSize.x.toFloat(), scene.camera.screenSize.y.toFloat(),

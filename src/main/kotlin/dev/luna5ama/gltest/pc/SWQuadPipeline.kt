@@ -32,7 +32,7 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
 
     val bufferBinding = ShaderBindingSpecs.Buffer("QuadBatchInfoBuffer", batchInfoBuffer, BufferTarget.ShaderStorage)
 
-    private val drawShaders = List(4) { register(DrawShader(it)) }
+    val drawShaders = List(4) { register(DrawShader(it)) }
 
     private val tempBuffer = register(BufferObject.Immutable()).apply {
         label("SWQuad.tempBuffer")
@@ -44,7 +44,7 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
         label("SWQuad.CullTestCommandBuffer")
     }
 
-    override suspend fun update(chunks: List<TerrainMeshData.ChunkInfo>) {
+    override suspend fun update(chunks: List<TerrainMeshData.ChunkLayerInfo>) {
         val batchStructSize = sizeof(QuadBatchInfo)
         val ctcBufferBaseOffset = renderer.cullPipeline.ctcBufferBaseOffset
         val ctcStructSize = sizeof(CullTestCommand)
@@ -54,13 +54,22 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
                 val localBuffers = List(ParallelUtils.CPU_THREADS) { Arr.malloc(0L) }
                 val localBatchCounts = IntArray(ParallelUtils.CPU_THREADS)
                 var threadIndexCounter = 0
+                val ctcCount = AtomicInteger(0)
 
                 coroutineScope {
+                    launch {
+                        for (i in chunks.indices) {
+                            val chunkInfo = chunks[i]
+                            val offset = ctcCount.getAndIncrement() * ctcStructSize
+                            val ctcStruct = CullTestCommand(ctcUploadBuffer.ptr + ctcBufferBaseOffset + offset)
+                            ctcStruct.chunkIndex = chunkInfo.chunkIndex
+                        }
+                    }
                     ParallelUtils.splitListIndex(
                         chunks.size,
                         blockForEach = { start, end ->
                             val threadIndex = threadIndexCounter++
-                            launch(Dispatchers.Default) {
+                            launch {
                                 val localBuffer = localBuffers[threadIndex]
                                 localBuffer.ensureCapacity((end - start) * batchStructSize, false)
                                 var localQuadCount = 0
@@ -77,7 +86,6 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
                                         struct.chunkIndex = chunkInfo.chunkIndex
                                         struct.first = chunkInfo.startIndex + quadIdx
                                         struct.count = batchQuadCount
-                                        struct.chunkOffsetEncoded = chunkInfo.offsetEncoded
 
                                         quadIdx += batchQuadCount
                                         localBatchCount++
@@ -94,19 +102,6 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
                             }
                         }
                     )
-                }
-
-                val indicesSet = HashSet<Int>()
-
-                var ctcCount = 0
-
-                for (i in chunks.indices) {
-                    val chunkInfo = chunks[i]
-                    if (!indicesSet.add(chunkInfo.chunkIndex)) continue
-                    val ctcStruct = CullTestCommand(ctcUploadBuffer.ptr + ctcBufferBaseOffset + ctcCount * ctcStructSize)
-                    ctcStruct.chunkIndex = chunkInfo.chunkIndex
-                    ctcStruct.chunkOffsetEncoded = chunkInfo.offsetEncoded
-                    ctcCount++
                 }
 
                 batchCount = 0
@@ -130,7 +125,7 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
 
                 if (batchCount == 0) return
 
-                renderer.cullPipeline.setupIndirect(ctcUploadBuffer.ptr, ctcCount)
+                renderer.cullPipeline.setupIndirect(ctcUploadBuffer.ptr, ctcCount.get())
 
                 withContext(scene.gameInstance.mainContext) {
                     val quadMetaLen = batchCount * sizeof(QuadBatchInfo)
@@ -142,7 +137,7 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
                             batchInfoBuffer.invalidate()
                             batchInfoBuffer.upload(0L, quadMetaLen, uploadBuffer.ptr)
                         }
-                        val ctcLen = ctcBufferBaseOffset + ctcCount * ctcStructSize
+                        val ctcLen = ctcBufferBaseOffset + ctcCount.get() * ctcStructSize
                         if (ctcBuffer.size < ctcLen) {
                             ctcBuffer.destroy()
                             ctcBuffer.allocate(ctcLen, ctcUploadBuffer.ptr, GL_DYNAMIC_STORAGE_BIT)
@@ -186,9 +181,8 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
                 buffer(scene.camera.uboBinding)
                 buffer(scene.terrainMeshData.bufferBindings)
                 buffer(scene.vbuffer.bufferBinding)
-//                buffer(tempBufferBinding)
                 buffer(bufferBinding)
-                buffer(renderer.visibleBufferBinding)
+                buffer(renderer.bufferBindings)
                 image(scene.vbuffer.imageBindings)
                 image("uimg_overdrawCounter", scene.overdrawCounterTex)
             }

@@ -6,6 +6,7 @@
 #include "../vbuffer/VBuffers.glsl"
 #include "../GlobalCamera.glsl"
 #include "../utils/SWRUtils.glsl"
+#include "Chunks.glsl"
 
 layout(local_size_x = 128) in;
 
@@ -30,7 +31,6 @@ layout(std430) buffer CullTestQuadBuffer {
 
 struct CullTestCommand {
     uint chunkIndex;
-    uint chunkOffsetEncoded;
 };
 
 layout(std430) readonly buffer CullTestCommandBuffer {
@@ -85,10 +85,7 @@ bool setupCull(out CullTestQuad data) {
     CullTestCommand command = ssbo_cullTestCommandBuffer.commands[gl_GlobalInvocationID.x / 6u];
     data.screenBounds_ChunkIndex.z = command.chunkIndex;
     data.screenBounds_ChunkIndex.w = gl_GlobalInvocationID.x;
-    uvec3 chunkOffsetEncoded = uvec3(command.chunkOffsetEncoded);
-    chunkOffsetEncoded = (chunkOffsetEncoded >> CHUNK_OFFSET_BITSHIFT) & CHUNK_OFFSET_BITMASK;
-    vec3 chunkOffset = vec3(chunkOffsetEncoded);
-    chunkOffset = chunkOffset * 16.0 + uval_originOffset;
+    vec3 chunkOffset = chunks_getChunkRenderPos(data.screenBounds_ChunkIndex.z);
 
     uint indicesBaseIdx = (gl_GlobalInvocationID.x % 6u) * 4u;
 

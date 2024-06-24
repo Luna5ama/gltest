@@ -120,7 +120,7 @@ class SWPointPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer)
         }
     }
 
-    override suspend fun update(chunks: List<TerrainMeshData.ChunkInfo>) {
+    override suspend fun update(chunks: List<TerrainMeshData.ChunkLayerInfo>) {
 
     }
 
@@ -165,7 +165,7 @@ class SWPointPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer)
 //    inner class UpdateContextImpl : UpdateContext() {
 //        val uploadBuffer = Arr.malloc(0L)
 //
-//        override fun add(chunkInfo: TerrainMeshData.ChunkInfo) {
+//        override fun add(chunkInfo: TerrainMeshData.ChunkLayerInfo) {
 //            val sampleCountPow2 = renderer.sampleCountArray[chunkInfo.listIndex]
 //            var quadIdx = 0
 //            val sampleCount = 1 shl abs(sampleCountPow2).toInt()

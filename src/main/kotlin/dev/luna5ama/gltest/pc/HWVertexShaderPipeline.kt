@@ -73,7 +73,7 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
         vao.attachEbo(elementBuffer)
     }
 
-    override suspend fun update(chunks: List<TerrainMeshData.ChunkInfo>) {
+    override suspend fun update(chunks: List<TerrainMeshData.ChunkLayerInfo>) {
         val structSize = sizeof(DrawElementsIndirectCommand)
         Arr.malloc(chunks.size * structSize).use { indirectCmdUpload ->
             val quadCountGlobal = AtomicInteger(0)
@@ -254,13 +254,14 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
             sampler(scene.textures.blockAlbedo)
             buffer(scene.camera.uboBinding)
             buffer(scene.terrainMeshData.bufferBindings)
+            buffer(renderer.bufferBindings)
         }
-        drawShader.uniform3f(
-            "uval_originOffset",
-            (PointCloudScene.originX - scene.camera.pos.x - 0.5).toFloat(),
-            (PointCloudScene.originY - scene.camera.pos.y - 1.62).toFloat(),
-            (PointCloudScene.originZ - scene.camera.pos.z - 0.5).toFloat()
-        )
+//        drawShader.uniform3f(
+//            "uval_originOffset",
+//            (PointCloudScene.originX - scene.camera.pos.x - 0.5).toFloat(),
+//            (PointCloudScene.originY - scene.camera.pos.y - 1.62).toFloat(),
+//            (PointCloudScene.originZ - scene.camera.pos.z - 0.5).toFloat()
+//        )
         buffer.bind(GL_DRAW_INDIRECT_BUFFER)
         buffer.bind(GL_PARAMETER_BUFFER)
         glMultiDrawElementsIndirectCount(GL_TRIANGLES, GL_UNSIGNED_SHORT, 16L, 0L, batchCount, 0)
@@ -276,16 +277,10 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
             bind()
             applyBinding {
                 buffer(indirectBufferBindings)
-                buffer(renderer.visibleBufferBinding)
+                buffer(renderer.bufferBindings)
                 buffer(scene.terrainMeshData.bufferBindings)
                 buffer(scene.camera.uboBinding)
             }
-            uniform3f(
-                "uval_originOffset",
-                (PointCloudScene.originX - scene.camera.pos.x - 0.5).toFloat(),
-                (PointCloudScene.originY - scene.camera.pos.y - 1.62).toFloat(),
-                (PointCloudScene.originZ - scene.camera.pos.z - 0.5).toFloat()
-            )
             glDispatchCompute(1, 1, 1)
         }
     }

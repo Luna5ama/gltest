@@ -14,29 +14,26 @@ class PointBatchInfo(
     val pointSampleCount: Int
 )
 
-@Struct(sizeAlignment = 1L, size = 16L)
+@Struct(sizeAlignment = 1L, size = 12L)
 class QuadBatchInfo(
     val chunkIndex: Int,
     val first: Int,
-    val count: Int,
-    val chunkOffsetEncoded : Int,
-)
-
-@Struct(sizeAlignment = 1L, size = 16L)
-class MeshShaderBatchInfo(
-    val chunkIndex: Int,
-    val quadStartIndex: Int,
-    val quadCount: Int,
-    val chunkOffsetEncoded: Int
-)
-
-@Struct(sizeAlignment = 1L, size = 8L)
-class CullTestCommand(
-    val chunkIndex: Int,
-    val chunkOffsetEncoded: Int
+    val count: Int
 )
 
 @Struct(sizeAlignment = 1L, size = 12L)
+class MeshShaderBatchInfo(
+    val chunkIndex: Int,
+    val quadStartIndex: Int,
+    val quadCount: Int
+)
+
+@Struct(sizeAlignment = 1L, size = 4L)
+class CullTestCommand(
+    val chunkIndex: Int
+)
+
+@Struct(sizeAlignment = 1L, size = 8L)
 class CullMSCommandHeader(
     val count: Int,
     val first: Int,

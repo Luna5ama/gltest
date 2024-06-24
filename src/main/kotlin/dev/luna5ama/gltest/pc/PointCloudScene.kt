@@ -78,7 +78,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
         Runtime.getRuntime().addShutdownHook(Thread {
             saveCameraPos()
         })
-//        dumpShaderAsm(terrainGeometryRenderer.swQuadPipeline.quadDrawShader, "SWQuad.txt")
+        dumpShaderAsm(terrainGeometryRenderer.swQuadPipeline.drawShaders[0], "SWQuad0.txt")
         dumpShaderAsm(terrainGeometryRenderer.cullPipeline.setupShader, "CullTestSetup.txt")
         dumpShaderAsm(terrainGeometryRenderer.cullPipeline.cullTestShader, "CullTest.txt")
     }
@@ -89,7 +89,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
 
     override fun reloadShaders() {
         super.reloadShaders()
-//        dumpShaderAsm(terrainGeometryRenderer.swQuadPipeline.quadDrawShader, "SWQuad.txt")
+        dumpShaderAsm(terrainGeometryRenderer.swQuadPipeline.drawShaders[0], "SWQuad0.txt")
         dumpShaderAsm(terrainGeometryRenderer.cullPipeline.setupShader, "CullTestSetup.txt")
         dumpShaderAsm(terrainGeometryRenderer.cullPipeline.cullTestShader, "CullTest.txt")
     }
@@ -155,12 +155,6 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
 
     fun bindSWDrawShader(program: ShaderProgram) {
         program.bind()
-        program.uniform3f(
-            "uval_originOffset",
-            (originX - camera.pos.x - 0.5).toFloat(),
-            (originY - camera.pos.y - 1.62).toFloat(),
-            (originZ - camera.pos.z - 0.5).toFloat()
-        )
         program.uniform4f(
             "uval_viewportSize",
             camera.screenSize.x.toFloat(), camera.screenSize.y.toFloat(),
@@ -184,12 +178,6 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
             image(vbuffer.imageBindings)
             image("uimg_output", fboGroup.output.colorTex)
         }
-        shadingShader.uniform3f(
-            "uval_originOffset",
-            (originX - camera.pos.x - 0.5).toFloat(),
-            (originY - camera.pos.y - 1.62).toFloat(),
-            (originZ - camera.pos.z - 0.5).toFloat()
-        )
         shadingShader.uniform4f(
             "uval_viewportSize",
             camera.screenSize.x.toFloat(), camera.screenSize.y.toFloat(),
@@ -327,11 +315,5 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
         camera.update(x.toFloat() * 0.5f, y.toFloat() * 0.5f)
 
         frameIndex++
-    }
-
-    companion object {
-        val originX get() = -TerrainMeshData.ORIGIN * 16.0f
-        val originY get() = TerrainMeshData.MIN_CHUNK_Y * 16.0f
-        val originZ get() = -TerrainMeshData.ORIGIN * 16.0f
     }
 }

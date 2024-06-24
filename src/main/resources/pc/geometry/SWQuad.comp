@@ -11,10 +11,10 @@
 #include "../vbuffer/VBuffers.glsl"
 #include "../GlobalCamera.glsl"
 #include "../utils/SWRUtils.glsl"
+#include "Chunks.glsl"
 
 layout(local_size_x = WORKGROUP_SIZE, local_size_y = 1, local_size_z = 1) in;
 
-uniform vec3 uval_originOffset;
 uniform vec4 uval_viewportSize;
 uniform ivec2 uval_viewportSizeI;
 
@@ -31,7 +31,6 @@ struct QuadBatchInfo {
     uint chunkIndex;
     uint first;
     uint count;
-    uint chunkOffsetEncoded;
 };
 
 #ifdef CUTOUT
@@ -154,6 +153,7 @@ bool cullQuad(uint localQuadIndex) {
     screenBoundF *= uval_viewportSize.xyxy;
     uvec4 screenBound = uvec4(floor(screenBoundF.xy), ceil(screenBoundF.zw));
     survived = survived & uint(!any(equal(round(screenBoundF.xy), round(screenBoundF.zw))));
+    survived = survived & uint(all(lessThan(screenBound.zw - screenBound.xy, uvec2(16))));
 
     return bool(survived);
 }
@@ -320,10 +320,7 @@ bool init() {
     QuadBatchInfo batchMetadata = ssbo_quadBatchInfoBuffer[gl_WorkGroupID.x];
     uint chunkIndex = batchMetadata.chunkIndex;
     shared_metaFirstCount = uvec2(batchMetadata.first, batchMetadata.count);
-    uvec3 chunkOffsetEncoded = uvec3(batchMetadata.chunkOffsetEncoded);
-    chunkOffsetEncoded = (chunkOffsetEncoded >> CHUNK_OFFSET_BITSHIFT) & CHUNK_OFFSET_BITMASK;
-    vec3 chunkOffset = vec3(chunkOffsetEncoded);
-    chunkOffset = chunkOffset * 16.0 + uval_originOffset;
+    vec3 chunkOffset = chunks_getChunkRenderPos(chunkIndex);
     shared_chunkOffset = chunkOffset;
 
     #if CULL_PASS == 1

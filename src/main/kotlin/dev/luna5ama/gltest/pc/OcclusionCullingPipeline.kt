@@ -91,14 +91,8 @@ abstract class OcclusionCullingPipeline(
             glColorMask(false, false, false, false)
 
             cullShader.bind()
-            cullShader.uniform3f(
-                "uval_originOffset",
-                (PointCloudScene.originX - scene.camera.pos.x - 0.5).toFloat(),
-                (PointCloudScene.originY - scene.camera.pos.y - 1.62).toFloat(),
-                (PointCloudScene.originZ - scene.camera.pos.z - 0.5).toFloat()
-            )
             cullShader.applyBinding {
-                buffer(renderer.visibleBufferBinding)
+                buffer(renderer.bufferBindings)
                 buffer("CullTestCommandBuffer", ctcBuffer, BufferTarget.ShaderStorage)
                 buffer(scene.camera.uboBinding)
             }
@@ -209,14 +203,8 @@ abstract class OcclusionCullingPipeline(
 
             vao.bind()
             cullShader.bind()
-            cullShader.uniform3f(
-                "uval_originOffset",
-                (PointCloudScene.originX - scene.camera.pos.x - 0.5).toFloat(),
-                (PointCloudScene.originY - scene.camera.pos.y - 1.62).toFloat(),
-                (PointCloudScene.originZ - scene.camera.pos.z - 0.5).toFloat()
-            )
             cullShader.applyBinding {
-                buffer(renderer.visibleBufferBinding)
+                buffer(renderer.bufferBindings)
                 buffer("CullTestCommandBuffer", ctcBuffer, BufferTarget.ShaderStorage)
                 buffer(scene.camera.uboBinding)
             }
@@ -283,14 +271,9 @@ abstract class OcclusionCullingPipeline(
                 setupShader.applyBinding {
                     buffer(scene.camera.uboBinding)
                     buffer("CullTestCommandBuffer", ctcBuffer, BufferTarget.ShaderStorage)
+                    buffer(renderer.bufferBindings)
                     buffer(ctqBufferBinding)
                 }
-                setupShader.uniform3f(
-                    "uval_originOffset",
-                    (PointCloudScene.originX - scene.camera.pos.x - 0.5).toFloat(),
-                    (PointCloudScene.originY - scene.camera.pos.y - 1.62).toFloat(),
-                    (PointCloudScene.originZ - scene.camera.pos.z - 0.5).toFloat()
-                )
 
                 setupShader.uniform4f(
                     "uval_viewportSize",
@@ -315,7 +298,7 @@ abstract class OcclusionCullingPipeline(
                 cullTestShader.bind()
                 cullTestShader.applyBinding {
                     buffer(scene.vbuffer.bufferBinding)
-                    buffer(renderer.visibleBufferBinding)
+                    buffer(renderer.bufferBindings)
                     buffer(ctqBufferBinding)
                 }
                 cullTestShader.uniform2i("uval_viewportSizeI", scene.camera.screenSize.x, scene.camera.screenSize.y)

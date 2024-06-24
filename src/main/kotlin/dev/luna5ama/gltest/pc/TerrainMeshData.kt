@@ -1,25 +1,18 @@
 package dev.luna5ama.gltest.pc
 
 import dev.fastmc.common.ParallelUtils
-import dev.fastmc.common.TickTimer
-import dev.fastmc.common.floorToInt
-import dev.fastmc.common.sort.IntIntrosort
 import dev.luna5ama.gltest.structs.*
 import dev.luna5ama.gltest.terrain.IGLObjContainer
 import dev.luna5ama.gltest.terrain.register
 import dev.luna5ama.glwrapper.ShaderBindingSpecs
-import dev.luna5ama.glwrapper.api.GLWrapper
 import dev.luna5ama.glwrapper.api.GL_MAP_INVALIDATE_BUFFER_BIT
 import dev.luna5ama.glwrapper.api.GL_MAP_WRITE_BIT
-import dev.luna5ama.glwrapper.api.GpuVendor
 import dev.luna5ama.glwrapper.enums.BufferTarget
 import dev.luna5ama.glwrapper.objects.BufferObject
 import dev.luna5ama.kmogus.Arr
-import dev.luna5ama.kmogus.MemoryStack
 import dev.luna5ama.kmogus.asByteBuffer
 import dev.luna5ama.kmogus.memcpy
 import kotlinx.coroutines.*
-import org.apache.commons.lang3.mutable.MutableBoolean
 import org.joml.*
 import java.io.File
 import java.io.FileNotFoundException
@@ -29,40 +22,23 @@ import java.nio.file.StandardOpenOption
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicInteger
-import kotlin.math.max
 import kotlin.math.min
 
 class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer by IGLObjContainer.Impl() {
-
     private val quadPosDataBuffer = register(BufferObject.Immutable())
     private val quadTexCoordDataBuffer = register(BufferObject.Immutable())
     private val quadExtraAttribDataBuffer = register(BufferObject.Immutable())
     private val quadPosIndexBuffer = register(BufferObject.Immutable())
     private val quadAttribIndexBuffer = register(BufferObject.Immutable())
-    val chunkinfos = mutableListOf<ChunkInfo>()
-
-    val chunkOffsets = Array(TOTAL_CHUNKS) { Vector3i() }.apply {
-        var i = 0
-        for (z in 0 until SIZE_XZ) {
-            for (x in 0 until SIZE_XZ) {
-                for (y in 0 until SIZE_Y) {
-                    this[i++].set(x, y, z)
-                }
-            }
-        }
-    }
-
-    private val chunkOffsetData = register(BufferObject.Immutable()).apply {
-        label("QuadDrawHW.chunkOffsetData")
-    }
+    val chunkLayerInfo = mutableListOf<ChunkLayerInfo>()
+    val chunkPos = mutableListOf<Vector3i>()
 
     val bufferBindings = listOf(
         ShaderBindingSpecs.Buffer("QuadPosDataBuffer", quadPosDataBuffer, BufferTarget.ShaderStorage),
         ShaderBindingSpecs.Buffer("QuadTexCoordDataBuffer", quadTexCoordDataBuffer, BufferTarget.ShaderStorage),
         ShaderBindingSpecs.Buffer("QuadExtraAttribDataBuffer", quadExtraAttribDataBuffer, BufferTarget.ShaderStorage),
         ShaderBindingSpecs.Buffer("QuadPosIndexBuffer", quadPosIndexBuffer, BufferTarget.ShaderStorage),
-        ShaderBindingSpecs.Buffer("QuadAttribIndexBuffer", quadAttribIndexBuffer, BufferTarget.ShaderStorage),
-        ShaderBindingSpecs.Buffer("ChunkOffsetData", chunkOffsetData, BufferTarget.ShaderStorage)
+        ShaderBindingSpecs.Buffer("QuadAttribIndexBuffer", quadAttribIndexBuffer, BufferTarget.ShaderStorage)
     )
 
     var totalQuadCount = 0
@@ -102,20 +78,9 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
         )
         println("Quad count: $totalQuadCount")
 
-        val xBits = (1 shl 13) - 1
-        val yBits = (1 shl 6) - 1
-        MemoryStack {
-            val arr = malloc(chunkOffsets.size * 4L)
-            val ptr = arr.ptr
-            for (i in chunkOffsets.indices) {
-                val offset = chunkOffsets[i]
-                val offsetEncoded = (offset.x and xBits) or (offset.y and yBits shl 13) or (offset.z shl (13 + 6))
-                ptr.setInt(i * 4L, offsetEncoded)
-            }
-            chunkOffsetData.allocate(arr.len, arr.ptr, 0)
+        chunkLayerInfo.forEach {
+            check(chunkPos[it.chunkIndex] == it.pos) { "chunk pos mismatch" }
         }
-        val chunkIndexSet = chunkinfos.mapTo(mutableSetOf()) { it.chunkIndex }
-        println("${chunkIndexSet.size}/${chunkinfos.size} unique chunk indices")
     }
 
     private suspend fun readData(dir: File) {
@@ -123,7 +88,7 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
         val pointCount = (0 until layers).sumOf { File(dir, "terrain_vbo_$it.bin").length() } / 4L / 20L
 
         val quadCounter = AtomicInteger(0)
-        val channel = ConcurrentLinkedQueue<List<ChunkInfo>>()
+        val channel = ConcurrentLinkedQueue<List<ChunkLayerInfo>>()
 
         val quadPosDataCounter = AtomicInteger()
         val quadAttribDataCounter = AtomicInteger()
@@ -231,6 +196,15 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
         val quadPosIndexUploadBuffer = Arr.malloc(pointCount * 4L)
         val quadAttribIndexUploadBuffer = Arr.malloc(pointCount * 4L)
 
+        val chunkCounter = AtomicInteger(0)
+        val chunkIndexMap = ConcurrentHashMap<Vector3i, Int>()
+
+        fun getChunkIndex(chunkPos: Vector3i): Int {
+            return chunkIndexMap.computeIfAbsent(chunkPos) {
+                chunkCounter.getAndIncrement()
+            }
+        }
+
         coroutineScope {
             repeat(layers) {
                 launch(Dispatchers.Default) {
@@ -256,7 +230,7 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
                         blockForEach = { start, end ->
                             val readBuffer = Arr.malloc(16 * 1024 * 4L * 20L)
                             launch(Dispatchers.IO) {
-                                val chunkInfoListLocal = mutableListOf<ChunkInfo>()
+                                val chunkLayerInfoListLocal = mutableListOf<ChunkLayerInfo>()
                                 var localPosIdxBufferArray = IntArray(0)
                                 var localAttribIdxBufferArray = IntArray(0)
 
@@ -307,8 +281,6 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
                                                 }
 
                                                 val quadIndex = quadCounter.getAndAdd(quadCount)
-                                                val chunkIndex =
-                                                    (info.chunkY - MIN_CHUNK_Y) + ((info.chunkX + ORIGIN) + (info.chunkZ + ORIGIN) * SIZE_XZ) * SIZE_Y
 
                                                 memcpy(
                                                     localPosIdxBufferArray,
@@ -326,16 +298,17 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
                                                     quadCount * 4L
                                                 )
 
-                                                chunkInfoListLocal += ChunkInfo(
-                                                    chunkIndex,
-                                                    Vector3i(info.chunkX, info.chunkY, info.chunkZ),
+                                                val pos = Vector3i(info.chunkX, info.chunkY, info.chunkZ)
+                                                chunkLayerInfoListLocal += ChunkLayerInfo(
+                                                    getChunkIndex(pos),
+                                                    pos,
                                                     quadCount,
                                                     quadIndex
                                                 )
                                             }
                                         }
                                 }
-                                channel.add(chunkInfoListLocal)
+                                channel.add(chunkLayerInfoListLocal)
                                 readBuffer.free()
                             }
                         }
@@ -344,21 +317,23 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
             }
         }
 
-        println()
-
         coroutineScope {
             launch {
                 for (chunkInfoList in channel) {
-                    chunkinfos.addAll(chunkInfoList)
+                    chunkLayerInfo.addAll(chunkInfoList)
                 }
-                chunkinfos.forEachIndexed { index, chunkInfo ->
+                chunkLayerInfo.forEachIndexed { index, chunkInfo ->
                     chunkInfo.listIndex = index
+                    while (chunkPos.size <= chunkInfo.chunkIndex) {
+                        chunkPos.add(Vector3i())
+                    }
+                    chunkPos[chunkInfo.chunkIndex].set(chunkInfo.pos)
                 }
 
                 launch(Dispatchers.IO) {
                     File(dir, "pc_info.csv").bufferedWriter().use {
                         it.appendLine("listIndex,chunkIndex,chunkX,chunkY,chunkZ,quadCount,startIndex")
-                        chunkinfos.forEach { chunkInfo ->
+                        chunkLayerInfo.forEach { chunkInfo ->
                             it.appendLine("${chunkInfo.listIndex},${chunkInfo.chunkIndex},${chunkInfo.pos.x},${chunkInfo.pos.y},${chunkInfo.pos.z},${chunkInfo.quadCount},${chunkInfo.startIndex}")
                         }
                     }
@@ -401,10 +376,10 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
     private suspend fun readCData(dir: File) {
         coroutineScope {
             val infoFile = File(dir, "pc_info.csv")
-            val chunkInfoList = infoFile.useLines { sequence ->
-                sequence.drop(1).map {
+            infoFile.useLines { sequence ->
+                sequence.drop(1).mapTo(chunkLayerInfo) {
                     val parts = it.split(",")
-                    ChunkInfo(
+                    ChunkLayerInfo(
                         parts[1].toInt(),
                         Vector3i(parts[2].toInt(), parts[3].toInt(), parts[4].toInt()),
                         parts[5].toInt(),
@@ -414,8 +389,13 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
                     }
                 }.toList()
             }
-            chunkinfos.addAll(chunkInfoList)
-            totalQuadCount = chunkinfos.sumOf { it.quadCount }
+            totalQuadCount = chunkLayerInfo.sumOf { it.quadCount }
+            chunkLayerInfo.forEach {
+                while (chunkPos.size <= it.chunkIndex) {
+                    chunkPos.add(Vector3i())
+                }
+                chunkPos[it.chunkIndex].set(it.pos)
+            }
 
             val mainCtx = this.coroutineContext
 
@@ -481,7 +461,7 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
         val indexLength: Long
     )
 
-    inner class ChunkInfo(val chunkIndex: Int, val pos: Vector3i, val quadCount: Int, val startIndex: Int) {
+    inner class ChunkLayerInfo(val chunkIndex: Int, val pos: Vector3i, val quadCount: Int, val startIndex: Int) {
         var listIndex = 0
         val minX = pos.x shl 4
         val minY = pos.y shl 4
@@ -490,19 +470,33 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
         val maxY = minY + 16
         val maxZ = minZ + 16
 
-        val offset get() = chunkOffsets[chunkIndex]
-        val offsetEncoded get() = (offset.x and xBits) or (offset.y and yBits shl 13) or (offset.z shl (13 + 6))
+        val offset get() = chunkPos[chunkIndex]
+        val offsetEncoded get() = offset.encode()
+    }
+
+    private fun Vector3i.encode(): Long {
+        return ((x.toLong() + XZ_BITS_BIAS) and XZ_BITS_MASK) or
+                ((y.toLong() + Y_BITS_BIAS) and Y_BITS_MASK shl Y_BIT_SHIFT) or
+                ((z.toLong() + XZ_BITS_BIAS) shl Z_BIT_SHIFT)
     }
 
     companion object {
         const val MIN_CHUNK_Y = -4
         const val SIZE_Y = 24
         const val SIZE_XZ = 512
-        const val ORIGIN = 128
+        const val XZ_BIAS = SIZE_XZ shr 1
+        const val ORIGIN = 0
         const val TOTAL_CHUNKS = SIZE_XZ * SIZE_XZ * SIZE_Y
 
-            private const val xBits = (1 shl 13) - 1
-            private const val yBits = (1 shl 6) - 1
+        private const val XZ_BITS = 24
+        private const val Y_BITS = 16
+        private const val X_BIT_SHIFT = 0
+        private const val Y_BIT_SHIFT = X_BIT_SHIFT + XZ_BITS
+        private const val Z_BIT_SHIFT = Y_BIT_SHIFT + Y_BITS
+        private const val XZ_BITS_MASK = (1L shl XZ_BITS) - 1L
+        private const val Y_BITS_MASK = (1L shl Y_BITS) - 1L
+        private const val XZ_BITS_BIAS = (1L shl (XZ_BITS - 1))
+        private const val Y_BITS_BIAS = (1L shl (Y_BITS - 1))
     }
 
     data class PosKey(val x: Long, val y: Long, val z: Long)

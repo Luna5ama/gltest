@@ -2,10 +2,7 @@
 #define CUTOUT
 
 #include "../GlobalCamera.glsl"
-
-layout(std430) restrict readonly buffer ChunkOffsetData {
-    uint ssbo_chunkOffsetData[];
-};
+#include "Chunks.glsl"
 
 layout(std430) restrict readonly buffer QuadPosDataBuffer {
     uint ssbo_quadPosDataBuffer[];
@@ -14,8 +11,6 @@ layout(std430) restrict readonly buffer QuadPosDataBuffer {
 layout(std430) restrict readonly buffer QuadPosIndexBuffer {
     uint ssbo_quadPosIndexBuffer[];
 };
-
-uniform vec3 uval_originOffset;
 
 vec4 readPos(uint idx) {
     uint data1 = ssbo_quadPosDataBuffer[idx];
@@ -42,10 +37,7 @@ const uvec3 CHUNK_OFFSET_BITMASK = (uvec3(1u) << uvec3(13u, 6u, 13u)) - uvec3(1u
 const uvec3 CHUNK_OFFSET_BITSHIFT = uvec3(0u, 13u, 13u + 6u);
 
 void main() {
-    uvec3 chunkOffsetEncoded = uvec3(ssbo_chunkOffsetData[gl_BaseInstance]);
-    chunkOffsetEncoded = (chunkOffsetEncoded >> CHUNK_OFFSET_BITSHIFT) & CHUNK_OFFSET_BITMASK;
-    vec3 chunkOffset = vec3(chunkOffsetEncoded);
-    chunkOffset = chunkOffset * 16.0 + uval_originOffset;
+    vec3 chunkOffset = chunks_getChunkRenderPos(gl_BaseInstance);
 
     vertDataOut.quadIndex = uint(gl_VertexID) / 4;
     uint quadPosDataIdx = ssbo_quadPosIndexBuffer[vertDataOut.quadIndex] * 6u;

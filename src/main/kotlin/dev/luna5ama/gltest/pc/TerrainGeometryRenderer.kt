@@ -6,7 +6,7 @@ import dev.fastmc.common.floorToInt
 import dev.fastmc.common.sort.IntIntrosort
 import dev.luna5ama.gltest.GPUTimer
 import dev.luna5ama.gltest.glDebugGroup
-import dev.luna5ama.gltest.pc.TerrainMeshData.ChunkInfo
+import dev.luna5ama.gltest.pc.TerrainMeshData.ChunkLayerInfo
 import dev.luna5ama.gltest.terrain.IGLObjContainer
 import dev.luna5ama.gltest.terrain.register
 import dev.luna5ama.glwrapper.ShaderBindingSpecs
@@ -25,6 +25,7 @@ import org.apache.commons.lang3.mutable.MutableBoolean
 import org.joml.FrustumIntersection
 import org.joml.Matrix4f
 import org.joml.Vector3f
+import org.joml.Vector3i
 import org.joml.Vector4f
 import kotlin.math.max
 import kotlin.math.min
@@ -59,16 +60,36 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
 
     val cullPipeline = register(OcclusionCullingPipeline.SWRaster(scene, this))
 
-    val visibleBuffer = register(BufferObject.Immutable()).apply {
-        label("HWMS.VisibleBuffer")
+    private val visibleBuffer = register(BufferObject.Immutable()).apply {
+        label("Terrain.VisibleBuffer")
     }
-    val visibleBufferBinding = ShaderBindingSpecs.Buffer("VisibleBuffer", visibleBuffer, BufferTarget.ShaderStorage)
+
+    private val chunkPosData = register(BufferObject.Immutable()).apply {
+        label("Terrain.ChunkPosData")
+    }
+
+    val bufferBindings = listOf(
+        ShaderBindingSpecs.Buffer("VisibleBuffer", visibleBuffer, BufferTarget.ShaderStorage),
+        ShaderBindingSpecs.Buffer("ChunkPosData", chunkPosData, BufferTarget.ShaderStorage)
+    )
 
     val visibleBufferStateLen1: Long
 
     init {
-        visibleBufferStateLen1 =
-            (scene.terrainMeshData.chunkOffsets.size * visibilityFlagType.byteSize + 63L) / 64 * 64L
+        val terrainMeshData = scene.terrainMeshData
+        MemoryStack {
+            val arr = malloc((terrainMeshData.chunkPos.size + 2) * 16L)
+            val ptr = arr.ptr
+            for (i in terrainMeshData.chunkPos.indices) {
+                val chunkPos = terrainMeshData.chunkPos[i]
+                ptr.setInt((i + 2) * 16L, chunkPos.x)
+                ptr.setInt((i + 2) * 16L + 4L, chunkPos.y)
+                ptr.setInt((i + 2) * 16L + 8L, chunkPos.z)
+            }
+            chunkPosData.allocate(arr.len, arr.ptr, GL_DYNAMIC_STORAGE_BIT)
+        }
+
+        visibleBufferStateLen1 = (terrainMeshData.chunkPos.size * visibilityFlagType.byteSize + 63L) / 64 * 64L
         val len = 4L + visibleBufferStateLen1 * 2
         visibleBuffer.allocate(len, Ptr.NULL, 0)
         MemoryStack {
@@ -108,12 +129,28 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
         label("VisibleBufferUpdate")
     }
 
-    var chunkIndices = IntArray(scene.terrainMeshData.chunkinfos.size) { it }
+    private var chunkIndices = IntArray(scene.terrainMeshData.chunkLayerInfo.size) { it }
 
     suspend fun draw() {
-        if (updateTimer.tickAndReset(50)) {
-            updateBatchMeta()
+        MemoryStack {
+            val arr = malloc(16 + 16L)
+            val ptr = arr.ptr
+            val chunkX = scene.camera.pos.x.floorToInt() shr 4
+            val chunkY = scene.camera.pos.y.floorToInt() shr 4
+            val chunkZ = scene.camera.pos.z.floorToInt() shr 4
+            ptr.setFloatInc((scene.camera.pos.x - (chunkX shl 4)).toFloat())
+                .setFloatInc((scene.camera.pos.y - (chunkY shl 4)).toFloat())
+                .setFloatInc((scene.camera.pos.z - (chunkZ shl 4)).toFloat())
+                .setIntInc(0)
+                .setIntInc(chunkX)
+                .setIntInc(chunkY)
+                .setIntInc(chunkZ)
+                .setIntInc(0)
+            chunkPosData.invalidate(0, arr.len)
+            chunkPosData.upload(0, arr.len, arr.ptr)
         }
+
+            updateBatchMeta()
 
         if (!scene.gameInstance.toggle3) {
 //        val chunkCount = scene.terrainMeshData.chunkOffsets.size.toLong()
@@ -122,7 +159,7 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
 //        visibleBuffer.clear(GL_R8UI, 4L, visibleFlagLen, GL_RED_INTEGER, GL_UNSIGNED_BYTE, Ptr.NULL)
             visibleBufferUpdateShader.bind()
             visibleBufferUpdateShader.applyBinding {
-                buffer(visibleBufferBinding)
+                buffer(bufferBindings)
             }
             val bytesPerGroup = 16 * 128
             glDispatchCompute(((visibleBufferStateLen1 + bytesPerGroup - 1) / bytesPerGroup).toInt(), 1, 1)
@@ -141,7 +178,7 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
         }
 
         if (printTimer.tickAndReset(3000)) {
-            println("Min distance ${sqrt(distanceSqs.min().toDouble())}")
+            println("Min distance ${sqrt(sortKeys.min().toDouble())}")
             println("Min sample count: ${sampleCountArray.min()}")
             println("Average sample count: ${sampleCountArray.average()}")
             println("Max sample count: ${sampleCountArray.max()}")
@@ -161,10 +198,10 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
         }
     }
 
-    private val frustumCullingFlags = Array(scene.terrainMeshData.chunkinfos.size) {
+    private val frustumCullingFlags = Array(scene.terrainMeshData.chunkPos.size) {
         MutableBoolean(true)
     }
-    val sampleCountArray = FloatArray(scene.terrainMeshData.chunkinfos.size)
+    private val sampleCountArray = FloatArray(scene.terrainMeshData.chunkPos.size)
 
     private suspend fun updateBatchMeta() {
         coroutineScope {
@@ -179,15 +216,15 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
             }
         }
 
-        val hwVs = mutableListOf<ChunkInfo>()
-        val hwMs = mutableListOf<ChunkInfo>()
-        val swQuad = mutableListOf<ChunkInfo>()
-//        val swPoint = mutableListOf<ChunkInfo>()
+        val hwVs = mutableListOf<ChunkLayerInfo>()
+        val hwMs = mutableListOf<ChunkLayerInfo>()
+        val swQuad = mutableListOf<ChunkLayerInfo>()
+//        val swPoint = mutableListOf<ChunkLayerInfo>()
 
         for (i in chunkIndices) {
-            val chunkInfo = scene.terrainMeshData.chunkinfos[i]
-            if (!frustumCullingFlags[chunkInfo.listIndex].value) continue
-            if (sampleCountArray[chunkInfo.listIndex] > 4.0f) {
+            val chunkInfo = scene.terrainMeshData.chunkLayerInfo[i]
+            if (!frustumCullingFlags[chunkInfo.chunkIndex].value) continue
+            if (sampleCountArray[chunkInfo.chunkIndex] > 4.0f) {
                 if (!scene.gameInstance.toggle1) {
                     hwVs.add(chunkInfo)
                 }
@@ -206,68 +243,69 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
     }
 
     private fun chunkCountString(pipeline: TerrainDrawPipeline): String {
-        return "${pipeline.quadCount} quads, ${pipeline.chunkCount}(${pipeline.batchCount})/${scene.terrainMeshData.chunkinfos.size} chunks"
+        return "${pipeline.quadCount} quads, ${pipeline.chunkCount}(${pipeline.batchCount})/${scene.terrainMeshData.chunkLayerInfo.size} chunks"
     }
 
     private fun CoroutineScope.calcSampleCount() {
         ParallelUtils.splitListIndex(
-            scene.terrainMeshData.chunkinfos.size,
+            scene.terrainMeshData.chunkPos.size,
             blockForEach = { start, end ->
                 launch {
                     val areaCalc = QuadAreaCalc()
                     for (i in start until end) {
-                        val chunkInfo = scene.terrainMeshData.chunkinfos[i]
-                        val area = areaCalc.calc(chunkInfo)
-                        sampleCountArray[chunkInfo.listIndex] = area
+                        sampleCountArray[i] = areaCalc.calc(scene.terrainMeshData.chunkPos[i])
                     }
                 }
             }
         )
     }
 
-    private val distanceSqs = IntArray(chunkIndices.size)
+    private val sortKeys = IntArray(scene.terrainMeshData.chunkLayerInfo.size)
 
     private suspend fun sortChunks() {
         coroutineScope {
+            val chunkLayerInfoList = scene.terrainMeshData.chunkLayerInfo
             ParallelUtils.splitListIndex(
-                chunkIndices.size,
+                chunkLayerInfoList.size,
                 blockForEach = { start, end ->
                     launch {
-                        val originOffsetX = (PointCloudScene.originX - scene.camera.pos.x).floorToInt()
-                        val originOffsetY = (PointCloudScene.originY - scene.camera.pos.y).floorToInt()
-                        val originOffsetZ = (PointCloudScene.originZ - scene.camera.pos.z).floorToInt()
+                        val originOffsetX = scene.camera.pos.x.floorToInt()
+                        val originOffsetY = scene.camera.pos.y.floorToInt()
+                        val originOffsetZ = scene.camera.pos.z.floorToInt()
                         for (i in start until end) {
-                            val chunkInfo = scene.terrainMeshData.chunkinfos[i]
-                            val offset = chunkInfo.offset
-                            val dx = offset.x * 16 + originOffsetX
-                            val dy = offset.y * 16 + originOffsetY
-                            val dz = offset.z * 16 + originOffsetZ
-                            distanceSqs[i] = (dx * dx + dy * dy + dz * dz)
+                            val chunkInfo = chunkLayerInfoList[i]
+                            val dx = chunkInfo.pos.x * 16 + 8 - originOffsetX
+                            val dy = chunkInfo.pos.y * 16 + 8 - originOffsetY
+                            val dz = chunkInfo.pos.z * 16 + 8 - originOffsetZ
+                            sortKeys[i] = (dx * dx + dy * dy + dz * dz)
                         }
                     }
                 }
             )
         }
 
-        IntIntrosort.sort(chunkIndices, distanceSqs)
+        IntIntrosort.sort(chunkIndices, sortKeys)
     }
 
     private fun CoroutineScope.doFrustumCulling() {
         val frustumCull = FrustumIntersection(scene.camera.combined, false)
         ParallelUtils.splitListIndex(
-            chunkIndices.size,
+            scene.terrainMeshData.chunkPos.size,
             blockForEach = { start, end ->
                 launch {
                     for (i in start until end) {
-                        val chunkInfo = scene.terrainMeshData.chunkinfos[chunkIndices[i]]
-                        frustumCullingFlags[chunkInfo.listIndex].setValue(
+                        val chunkPos = scene.terrainMeshData.chunkPos[i]
+                        val worldPosX = chunkPos.x shl 4
+                        val worldPosY = chunkPos.y shl 4
+                        val worldPosZ = chunkPos.z shl 4
+                        frustumCullingFlags[i].setValue(
                             frustumCull.testAab(
-                                (chunkInfo.minX - scene.camera.pos.x - 1.0).toFloat(),
-                                (chunkInfo.minY - scene.camera.pos.y - 1.0).toFloat(),
-                                (chunkInfo.minZ - scene.camera.pos.z - 1.0).toFloat(),
-                                (chunkInfo.maxX - scene.camera.pos.x + 1.0).toFloat(),
-                                (chunkInfo.maxY - scene.camera.pos.y + 1.0).toFloat(),
-                                (chunkInfo.maxZ - scene.camera.pos.z + 1.0).toFloat()
+                                ((worldPosX - 1) - scene.camera.pos.x).toFloat(),
+                                ((worldPosY - 1) - scene.camera.pos.y).toFloat(),
+                                ((worldPosZ - 1) - scene.camera.pos.z).toFloat(),
+                                ((worldPosX + 17) - scene.camera.pos.x).toFloat(),
+                                ((worldPosY + 17) - scene.camera.pos.y).toFloat(),
+                                ((worldPosZ + 17) - scene.camera.pos.z).toFloat()
                             )
                         )
                     }
@@ -293,19 +331,22 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
             point4.set(-0.5f, 0.5f, 0.0f, 1.0f)
         }
 
-        fun calc(chunkInfo: ChunkInfo): Float {
+        fun calc(chunkPos: Vector3i): Float {
+            val worldPosX = chunkPos.x shl 4
+            val worldPosY = chunkPos.y shl 4
+            val worldPosZ = chunkPos.z shl 4
             vec3f1.set(
                 0.0f.coerceIn(
-                    (chunkInfo.minX - scene.camera.pos.x).toFloat(),
-                    (chunkInfo.maxX - scene.camera.pos.x).toFloat()
+                    (worldPosX - 1 - scene.camera.pos.x).toFloat(),
+                    (worldPosX + 17 - scene.camera.pos.x).toFloat()
                 ),
                 0.0f.coerceIn(
-                    (chunkInfo.minY - scene.camera.pos.y).toFloat(),
-                    (chunkInfo.maxY - scene.camera.pos.y).toFloat()
+                    (worldPosY - 1 - scene.camera.pos.y).toFloat(),
+                    (worldPosY + 17 - scene.camera.pos.y).toFloat()
                 ),
                 0.0f.coerceIn(
-                    (chunkInfo.minZ - scene.camera.pos.z).toFloat(),
-                    (chunkInfo.maxZ - scene.camera.pos.z).toFloat()
+                    (worldPosZ - 1 - scene.camera.pos.z).toFloat(),
+                    (worldPosZ + 17 - scene.camera.pos.z).toFloat()
                 )
             )
             if (vec3f1.lengthSquared() < 32 * 32) {
@@ -363,16 +404,16 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
         glEnable(GL_CULL_FACE)
         glCullFace(GL_BACK)
 
+        hwVsDrawTimer.begin()
         if (hwVsPipeline.batchCount > 0) {
-            hwVsDrawTimer.begin()
             hwVsPipeline.draw()
-            hwVsDrawTimer.end()
         }
+        hwVsDrawTimer.end()
+        hwMsDrawTimer.begin()
         if (hwMsPipeline.batchCount > 0) {
-            hwMsDrawTimer.begin()
             hwMsPipeline.draw()
-            hwMsDrawTimer.end()
         }
+        hwMsDrawTimer.end()
     }
 
     private fun swDraw() {
