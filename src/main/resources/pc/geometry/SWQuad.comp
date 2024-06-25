@@ -23,7 +23,6 @@ layout(std430) buffer VBufferDepthQuadIndex {
     int64_t ssbo_vBufferDepthQuadIndex[];
 };
 
-layout(r32ui) uniform writeonly uimage2D uimg_vBufferTex1;
 #ifdef OVERDRAW_DEBUG
 layout(r32ui) uniform uimage2D uimg_overdrawCounter;
 #endif
@@ -253,12 +252,13 @@ void rasterize(uint baseLocalQuadIndex) {
                     if (min3(t1b) >= 0.0 && valueVec.y >= valueVec.x)
                     #endif
                     {
+                        #ifdef OVERDRAW_DEBUG
                         if (atomicMax(ssbo_vBufferDepthQuadIndex[outputCoord.z], valueVec.y) <= valueVec.y) {
-                            imageStore(uimg_vBufferTex1, outputCoord.xy, uvec4(shared_chunkIndex, 0u, 0u, 0u));
-                            #ifdef OVERDRAW_DEBUG
                             imageAtomicAdd(uimg_overdrawCounter, outputCoord.xy, 1u);
-                            #endif
                         }
+                        #else
+                        atomicMax(ssbo_vBufferDepthQuadIndex[outputCoord.z], valueVec.y);
+                        #endif
                     }
 
                     #ifdef CUTOUT
@@ -267,12 +267,13 @@ void rasterize(uint baseLocalQuadIndex) {
                     if (min3(t2b) >= 0.0 && valueVec.z >= valueVec.x)
                     #endif
                     {
+                        #ifdef OVERDRAW_DEBUG
                         if (atomicMax(ssbo_vBufferDepthQuadIndex[outputCoord.z], valueVec.z) <= valueVec.z) {
-                            imageStore(uimg_vBufferTex1, outputCoord.xy, uvec4(shared_chunkIndex, 0u, 0u, 0u));
-                            #ifdef OVERDRAW_DEBUG
                             imageAtomicAdd(uimg_overdrawCounter, outputCoord.xy, 1u);
-                            #endif
                         }
+                        #else
+                        atomicMax(ssbo_vBufferDepthQuadIndex[outputCoord.z], valueVec.z);
+                        #endif
                     }
                 }
                 t1b += t1bDx;

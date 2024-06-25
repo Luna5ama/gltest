@@ -3,27 +3,23 @@
 
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 
-uniform usampler2D usam_vBufferTex2;
+uniform usampler2D usam_vBufferDataTex;
 uniform sampler2D usam_vBufferDepth;
 
-layout(r32ui) uniform writeonly uimage2D uimg_vBufferTex1;
 layout(std430) writeonly buffer VBufferDepthQuadIndex {
     uint64_t ssbo_vBufferDepthQuadIndex[];
 };
 
 void main() {
-    ivec2 outputSize = imageSize(uimg_vBufferTex1);
+    ivec2 outputSize = textureSize(usam_vBufferDataTex, 0);
     ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
     if (any(greaterThanEqual(coord, outputSize))) {
         return;
     }
 
-    uvec2 tex2Data = texelFetch(usam_vBufferTex2, coord, 0).xy;
-    uint quadIndex = tex2Data.x;
-    uint bCoord = tex2Data.y;
+    uint quadIndex = texelFetch(usam_vBufferDataTex, coord, 0).x;
     float depth = texelFetch(usam_vBufferDepth, coord, 0).r;
 
     uint bufferIndex = coord.y * outputSize.x + coord.x;
     ssbo_vBufferDepthQuadIndex[bufferIndex] = uint64_t(floatBitsToUint(depth)) << 32u | uint64_t(quadIndex);
-    imageStore(uimg_vBufferTex1, coord, uvec4(bCoord, 0, 0, 0));
 }

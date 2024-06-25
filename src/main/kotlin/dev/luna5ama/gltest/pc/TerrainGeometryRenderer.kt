@@ -95,9 +95,9 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
         }
     }
 
-    private val hwVsDrawTimer = GPUTimer(100)
-    private val hwMsDrawTimer = GPUTimer(100)
-    private val swDrawTimer = GPUTimer(100)
+    private val hwVsDrawTimer = GPUTimer(500)
+    private val hwMsDrawTimer = GPUTimer(500)
+    private val swDrawTimer = GPUTimer(500)
     private val printTimer = TickTimer()
     val updateTimer = TickTimer()
 
@@ -406,9 +406,6 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
     }
 
     private fun hwDraw() {
-        scene.vbuffer.fbo.bind()
-        scene.vbuffer.fbo.setDrawBufferAll()
-
         hwVsDrawTimer.begin()
         if (hwVsPipeline.batchCount > 0) {
             hwVsPipeline.draw()
@@ -468,7 +465,6 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
         hw2swShader.bind()
         hw2swShader.applyBinding {
             sampler(scene.vbuffer.samplerBindings)
-            image(scene.vbuffer.imageBindings)
             buffer(scene.vbuffer.bufferBinding)
         }
         glDispatchCompute(

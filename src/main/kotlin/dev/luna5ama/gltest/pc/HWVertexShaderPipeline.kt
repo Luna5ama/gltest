@@ -2,7 +2,6 @@ package dev.luna5ama.gltest.pc
 
 import dev.fastmc.common.ParallelUtils
 import dev.fastmc.common.TickTimer
-import dev.luna5ama.gltest.glDebugGroup
 import dev.luna5ama.gltest.structs.CullTestCommand
 import dev.luna5ama.gltest.structs.DrawElementsIndirectCommand
 import dev.luna5ama.gltest.structs.sizeof
@@ -14,7 +13,10 @@ import dev.luna5ama.glwrapper.api.*
 import dev.luna5ama.glwrapper.enums.BufferTarget
 import dev.luna5ama.glwrapper.objects.BufferObject
 import dev.luna5ama.glwrapper.objects.VertexArrayObject
-import dev.luna5ama.kmogus.*
+import dev.luna5ama.kmogus.Arr
+import dev.luna5ama.kmogus.Ptr
+import dev.luna5ama.kmogus.ensureCapacity
+import dev.luna5ama.kmogus.memcpy
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -247,31 +249,32 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
     }
 
     private fun drawPass(buffer: BufferObject.Immutable) {
-            scene.vbuffer.fbo.bind()
-            glEnable(GL_CULL_FACE)
-            glCullFace(GL_BACK)
-            glEnable(GL_DEPTH_TEST)
-            glDepthFunc(GL_GEQUAL)
-            glDepthMask(true)
-            glColorMask(true, true, true, true)
+        scene.vbuffer.fbo.bind()
+        glViewport(0, 0, scene.vbuffer.fbo.width, scene.vbuffer.fbo.height)
+        glEnable(GL_CULL_FACE)
+        glCullFace(GL_BACK)
+        glEnable(GL_DEPTH_TEST)
+        glDepthFunc(GL_GEQUAL)
+        glDepthMask(true)
+        glColorMask(true, true, true, true)
 
-            vao.bind()
-            drawShader.bind()
-            drawShader.applyBinding {
-                sampler(scene.textures.blockAlbedo)
-                buffer(scene.camera.uboBinding)
-                buffer(scene.terrainMeshData.bufferBindings)
-                buffer(renderer.bufferBindings)
-            }
+        vao.bind()
+        drawShader.bind()
+        drawShader.applyBinding {
+            sampler(scene.textures.blockAlbedo)
+            buffer(scene.camera.uboBinding)
+            buffer(scene.terrainMeshData.bufferBindings)
+            buffer(renderer.bufferBindings)
+        }
 //        drawShader.uniform3f(
 //            "uval_originOffset",
 //            (PointCloudScene.originX - scene.camera.pos.x - 0.5).toFloat(),
 //            (PointCloudScene.originY - scene.camera.pos.y - 1.62).toFloat(),
 //            (PointCloudScene.originZ - scene.camera.pos.z - 0.5).toFloat()
 //        )
-            buffer.bind(GL_DRAW_INDIRECT_BUFFER)
-            buffer.bind(GL_PARAMETER_BUFFER)
-            glMultiDrawElementsIndirectCount(GL_TRIANGLES, GL_UNSIGNED_SHORT, 16L, 0L, batchCount, 0)
+        buffer.bind(GL_DRAW_INDIRECT_BUFFER)
+        buffer.bind(GL_PARAMETER_BUFFER)
+        glMultiDrawElementsIndirectCount(GL_TRIANGLES, GL_UNSIGNED_SHORT, 16L, 0L, batchCount, 0)
     }
 
     private inner class IndirectSetupShader(cullPass: Int) : ShaderProgram(

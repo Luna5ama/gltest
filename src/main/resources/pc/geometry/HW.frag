@@ -21,7 +21,7 @@ layout(location = 0) in VertData {
     vec4 bCoord;
 } vertDataIn;
 
-layout(location = 0) out uvec2 rt_vbuffer;
+layout(location = 0) out uint rt_vbuffer;
 
 void main() {
     #ifdef CUTOUT
@@ -38,5 +38,5 @@ void main() {
 
     if (textureLod(usam_blockAlbedoAtlas, texCoord, 0.0).a <= 0.5) discard;
     #endif
-    rt_vbuffer = uvec2((vertDataIn.quadIndex << 1u) | (uint(gl_PrimitiveID) & 1u), vertDataIn.chunkIndex);
+    rt_vbuffer = (vertDataIn.quadIndex << 1u) | (uint(gl_PrimitiveID) & 1u);
 }

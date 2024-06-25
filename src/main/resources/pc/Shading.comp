@@ -10,12 +10,11 @@ layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 uniform vec4 uval_viewportSize;
 uniform vec3 uval_originOffset;
 
-layout(rg32ui) uniform readonly uimage2D uimg_vBufferTex2;
 layout(rgba16f) uniform writeonly image2D uimg_output;
 
+uniform usampler2D usam_vBufferDataTex;
 uniform sampler2D usam_blockAlbedoAtlas;
 uniform sampler2D usam_lightMap;
-
 uniform sampler2D usam_vBufferDepth;
 
 layout(std430) restrict readonly buffer QuadPosDataBuffer {
@@ -62,9 +61,9 @@ void main() {
         return;
     }
 
-    uvec2 vbufferData = imageLoad(uimg_vBufferTex2, centerCoord).xy;
+    uint quadIndex = texelFetch(usam_vBufferDataTex, centerCoord, 0).r;
 
-    uint quadPosDataIdx = ssbo_quadPosIndexBuffer[vbufferData.x >> 1u] * 6u;
+    uint quadPosDataIdx = ssbo_quadPosIndexBuffer[quadIndex >> 1u] * 6u;
 
     vec3 ndcCoord = vec3(vec2(centerCoord) + 0.5, depth);
     ndcCoord.xy *= uval_viewportSize.zw;
@@ -87,7 +86,7 @@ void main() {
     vec3 pos3Raw = vec3(posXs4.z, posYs4.z, posZs4.z);
     vec3 pos4Raw = vec3(posXs4.w, posYs4.w, posZs4.w);
 
-    float triangleSwitch = float(vbufferData.x & 1u);
+    float triangleSwitch = float(quadIndex & 1u);
 
     vec3 pos1 = mix(pos1Raw, pos3Raw, triangleSwitch) + offset;
     vec3 pos2 = mix(pos2Raw, pos4Raw, triangleSwitch) + offset;
@@ -130,7 +129,7 @@ void main() {
     swr_calcBarycentricGrad(screenBoundF, invTexelN, posCS1.xy, posCS2.xy, posCS3.xy, tbBase, tbDx, tbDy);
     tbBase += (tbDx + tbDy) * 0.5;
 
-    uint attribIdx = ssbo_quadAttribIndexBuffer[vbufferData.x >> 1];
+    uint attribIdx = ssbo_quadAttribIndexBuffer[quadIndex >> 1];
     uint texCoordIdx = attribIdx * 4u;
     vec4 texCoordXRaw = vec4(
         unpackUnorm2x16(ssbo_quadTexCoordDataBuffer[texCoordIdx]),

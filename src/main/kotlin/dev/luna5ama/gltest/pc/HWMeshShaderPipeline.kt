@@ -119,6 +119,7 @@ class HWMeshShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRend
     private fun drawPass(index: Int) {
         glDebugGroup("DrawPass-$index") {
             scene.vbuffer.fbo.bind()
+            glViewport(0, 0, scene.vbuffer.fbo.width, scene.vbuffer.fbo.height)
             glEnable(GL_CULL_FACE)
             glCullFace(GL_BACK)
             glEnable(GL_DEPTH_TEST)

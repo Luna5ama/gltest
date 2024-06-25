@@ -8,9 +8,7 @@ layout(std430) readonly buffer VBufferDepthQuadIndex {
 };
 
 #ifndef DEPTH_ONLY
-uniform usampler2D usam_vBufferTex1;
-
-layout(location = 0) out uvec2 rt_vbuffer;
+layout(location = 0) out uint rt_vbuffer;
 #endif
 
 void main() {
@@ -21,8 +19,6 @@ void main() {
     gl_FragDepth = uintBitsToFloat(uint(dataRaw >> 32));
 
     #ifndef DEPTH_ONLY
-    uint bCoord = texelFetch(usam_vBufferTex1, coord, 0).x;
-    uint quadIndex = uint(dataRaw);
-    rt_vbuffer = uvec2(quadIndex, bCoord);
+    rt_vbuffer = uint(dataRaw);
     #endif
 }
