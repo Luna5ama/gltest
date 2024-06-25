@@ -234,16 +234,15 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
         for (i in chunkIndices) {
             val chunkInfo = scene.terrainMeshData.chunkLayerInfo[i]
             if (!frustumCullingFlags[chunkInfo.chunkIndex].value) continue
-//            if (sampleCountArray[chunkInfo.chunkIndex] > 4.0f) {
-//                if (!scene.gameInstance.toggle1) {
-//                    hwVs.add(chunkInfo)
-//                }
-//            } else {
-//                if (!scene.gameInstance.toggle2) {
-//                    swQuad.add(chunkInfo)
-//                }
-//            }
-            swQuad.add(chunkInfo)
+            if (sampleCountArray[chunkInfo.chunkIndex] > 4.0f) {
+                if (!scene.gameInstance.toggle1) {
+                    hwVs.add(chunkInfo)
+                }
+            } else {
+                if (!scene.gameInstance.toggle2) {
+                    swQuad.add(chunkInfo)
+                }
+            }
         }
 
         coroutineScope {

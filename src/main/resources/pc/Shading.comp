@@ -66,7 +66,17 @@ void main() {
 
     uint quadPosDataIdx = ssbo_quadPosIndexBuffer[vbufferData.x >> 1u] * 6u;
 
-    vec3 offset = chunks_getChunkRenderPos(vbufferData.y);
+    vec3 ndcCoord = vec3(vec2(centerCoord) + 0.5, depth);
+    ndcCoord.xy *= uval_viewportSize.zw;
+    ndcCoord.xy = ndcCoord.xy * 2.0 - 1.0;
+    vec4 viewCoord = ubo_cameraDefault.invProjection * vec4(ndcCoord, 1.0);
+    viewCoord /= viewCoord.w;
+    vec4 worldCoord = ubo_cameraDefault.invModelView * viewCoord;
+    vec3 offset = worldCoord.xyz;
+
+    offset.xyz += ssbo_chunkPosData.cameraChunkLocalPos.xyz;
+    offset.xyz = floor(offset.xyz / 16.0) * 16.0;
+    offset.xyz -= ssbo_chunkPosData.cameraChunkLocalPos.xyz;
 
     vec4 posXs4 = readPos(quadPosDataIdx) * coordConvert;
     vec4 posYs4 = readPos(quadPosDataIdx + 2u) * coordConvert;
@@ -82,6 +92,12 @@ void main() {
     vec3 pos1 = mix(pos1Raw, pos3Raw, triangleSwitch) + offset;
     vec3 pos2 = mix(pos2Raw, pos4Raw, triangleSwitch) + offset;
     vec3 pos3 = mix(pos3Raw, pos1Raw, triangleSwitch) + offset;
+
+    vec3 centerPos = (pos1 + pos2 + pos3) / 3.0;
+    vec3 extraOffset = sign(round((worldCoord.xyz - centerPos) / 16.0)) * 16.0;
+    pos1 += extraOffset;
+    pos2 += extraOffset;
+    pos3 += extraOffset;
 
     vec4 posCS1 = (ubo_cameraDefault.combined * vec4(pos1, 1.0));
     vec4 posCS2 = (ubo_cameraDefault.combined * vec4(pos2, 1.0));
@@ -148,18 +164,14 @@ void main() {
 
     vec2 texCoordDy = vec2(dot(texCoordX, bCoordDy), dot(texCoordY, bCoordDy));
 
-//    vec2 invTextureSize = 1.0 / vec2(textureSize(usam_blockAlbedoAtlas, 0));
-//    vec2 tTexCoordDx = min((texCoordDx - texCoordThis), invTextureSize.x);
-//    vec2 tTexCoordDy = min((texCoordDy - texCoordThis), invTextureSize.y);
-
-    vec2 tTexCoordDx = (texCoordDx - texCoordThis) * 1.0;
-    vec2 tTexCoordDy = (texCoordDy - texCoordThis) * 1.0;
+    vec2 tTexCoordDx = (texCoordDx - texCoordThis);
+    vec2 tTexCoordDy = (texCoordDy - texCoordThis);
 
     vec2 textureSize0 = vec2(textureSize(usam_blockAlbedoAtlas, 0));
     vec2 texelDx = tTexCoordDx * textureSize0;
     vec2 texelDy = tTexCoordDy * textureSize0;
     float lod = max(dot(texelDx, texelDx), dot(texelDy, texelDy));
-    lod = clamp(0.5 * log2(lod) - 0.5, 0.0, 4.0);
+    lod = clamp(0.5 * log2(lod) - 2.0, 0.0, 4.0);
 
     vec2 invTextureSize = 1.0 / textureSize0;
     vec2 texCoordTile = floor(texCoordThis * textureSize0 / 16.0) * 16.0;
@@ -167,8 +179,6 @@ void main() {
     vec2 texCoordTileMin = (texCoordTile + 0.0 + edge) * invTextureSize;
     vec2 texCoordTileMax = (texCoordTile + 16.0 - edge) * invTextureSize;
     vec2 texCoordThisC = clamp(texCoordThis, texCoordTileMin, texCoordTileMax);
-
-//    vec2 texelPos = texCoordThis * vec2(textureSize(usam_blockAlbedoAtlas, 0));
 
     uint extraAttribIdx = attribIdx * 6u;
     vec4 lightCoordXRaw = unpackUnorm4x8(ssbo_quadExtraAttribDataBuffer[extraAttribIdx]);
@@ -194,17 +204,11 @@ void main() {
 //    vec4 colorNormal = textureGrad(usam_blockAlbedoAtlas, texCoordThisC, tTexCoordDx, tTexCoordDy);
     vec4 colorNormal = textureLod(usam_blockAlbedoAtlas, texCoordThisC, lod);
 
-//    vec4 colorFinal = mix(colorMinLod, colorNormal, float(materialID & 1u));
     vec4 colorFinal = mix(colorMinLod, colorNormal, step(0.9, colorNormal.a) * float(materialID & 1u));
-//    vec4 colorFinal = colorMinLod;
 
     colorFinal.rgb *= colorMul;
-//    colorFinal.rgb *= textureLod(usam_lightMap, lightCoord, 0.0).rgb;
+    colorFinal.rgb *= textureLod(usam_lightMap, lightCoord, 0.0).rgb;
     colorFinal.a = 1.0;
 
-//    colorFinal.x = float(centerCoord.x - screenBound.x);
-//    colorFinal.g = float(centerCoord.y - screenBound.y);
-
     imageStore(uimg_output, centerCoord, colorFinal);
-
 }

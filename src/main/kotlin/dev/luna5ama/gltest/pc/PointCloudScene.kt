@@ -317,6 +317,6 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
 
         camera.update(x.toFloat() * 0.5f, y.toFloat() * 0.5f)
 
-//        frameIndex++
+        frameIndex++
     }
 }
