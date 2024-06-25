@@ -2,6 +2,7 @@
 
 #extension GL_NV_mesh_shader : enable
 
+#include "Chunks.glsl"
 #include "../GlobalCamera.glsl"
 
 #define BOX_PER_GROUP 8
@@ -18,7 +19,6 @@ layout(triangles) out;
 
 struct CullTestCommand {
     uint chunkIndex;
-    uint chunkOffsetEncoded;
 };
 
 layout(std430) restrict readonly buffer CullTestCommandBuffer {
@@ -34,9 +34,6 @@ uniform vec3 uval_originOffset;
 layout(location = 0) perprimitiveNV out PrimData {
     uint chunkIndex;
 } primDataOut[];
-
-const uvec3 CHUNK_OFFSET_BITMASK = (uvec3(1u) << uvec3(13u, 6u, 13u)) - uvec3(1u);
-const uvec3 CHUNK_OFFSET_BITSHIFT = uvec3(0u, 13u, 13u + 6u);
 
 const vec3 BOX_VERT_POS[8] = {
     vec3(-1.0, -1.0, -1.0),
@@ -79,10 +76,7 @@ void main() {
     uint batchIndex = gl_GlobalInvocationID.x;
     CullTestCommand cullCommand = ssbo_cullTestCommandBuffer.commands[batchIndex];
 
-    uvec3 chunkOffsetEncoded = uvec3(cullCommand.chunkOffsetEncoded);
-    chunkOffsetEncoded = (chunkOffsetEncoded >> CHUNK_OFFSET_BITSHIFT) & CHUNK_OFFSET_BITMASK;
-    vec3 chunkOffset = vec3(chunkOffsetEncoded);
-    chunkOffset = chunkOffset * 16.0 + uval_originOffset;
+    vec3 chunkOffset = chunks_getChunkRenderPos(cullCommand.chunkIndex);
 
     uint vertBaseIdx = gl_LocalInvocationID.x * 8u;
 

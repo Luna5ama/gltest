@@ -25,15 +25,13 @@ class VisibilityBuffer(private val scene: PointCloudScene) : IGLObjContainer by 
     val depthTex = register(TextureObject.Texture2D()).apply {
         label("VBuffer.Depth")
     }
-    val normalizedDepthTex = register(TextureObject.Texture2D()).apply {
-        label("VBuffer.NormalizedDepth")
+
+    val depthFbo = register(FramebufferObject()).apply {
+        label("VBuffer.DepthFBO")
     }
 
     val fbo = register(FramebufferObject()).apply {
         label("VBuffer.FBO")
-    }
-    val nDepthFbo = register(FramebufferObject()).apply {
-        label("VBuffer.NDepthFBO")
     }
 
     val imageBindings = listOf(
@@ -43,8 +41,7 @@ class VisibilityBuffer(private val scene: PointCloudScene) : IGLObjContainer by 
     val samplerBindings = listOf(
         ShaderBindingSpecs.Sampler("usam_vBufferTex1", dataTex1),
         ShaderBindingSpecs.Sampler("usam_vBufferTex2", dataTex2),
-        ShaderBindingSpecs.Sampler("usam_vBufferDepth", depthTex),
-        ShaderBindingSpecs.Sampler("usam_vBufferNormalizedDepth", normalizedDepthTex)
+        ShaderBindingSpecs.Sampler("usam_vBufferDepth", depthTex)
     )
     private val buffer = register(BufferObject.Immutable()).apply {
         label("VBuffer.DepthQuadIndex")
@@ -66,12 +63,6 @@ class VisibilityBuffer(private val scene: PointCloudScene) : IGLObjContainer by 
 
             depthTex.apply {
                 destroy()
-                allocate(1, ImageFormat.Depth32FNV, scene.camera.screenWidth, scene.camera.screenHeight)
-                nearestClampEdge()
-            }
-
-            normalizedDepthTex.apply {
-                destroy()
                 allocate(1, ImageFormat.Depth32F, scene.camera.screenWidth, scene.camera.screenHeight)
                 nearestClampEdge()
             }
@@ -82,9 +73,9 @@ class VisibilityBuffer(private val scene: PointCloudScene) : IGLObjContainer by 
                 attachNonLayered(depthTex, GL_DEPTH_ATTACHMENT)
             }
 
-            nDepthFbo.apply {
+            depthFbo.apply {
                 destroyFbo()
-                attachNonLayered(normalizedDepthTex, GL_DEPTH_ATTACHMENT)
+                attachNonLayered(depthTex, GL_DEPTH_ATTACHMENT)
             }
 
             buffer.apply {
@@ -97,16 +88,11 @@ class VisibilityBuffer(private val scene: PointCloudScene) : IGLObjContainer by 
     }
 
     fun clear() {
-        MemoryStack {
-            val ptr = malloc(4).ptr
-            ptr.setFloat(scene.camera.farPlane)
-            buffer.clear(GL_R32UI, GL_RED_INTEGER, GL_UNSIGNED_INT, ptr)
-            depthTex.clearImage(GL_DEPTH_COMPONENT, GL_FLOAT, ptr)
-        }
+        buffer.clear(GL_R32UI, GL_RED_INTEGER, GL_UNSIGNED_INT, Ptr.NULL)
 
         dataTex1.clearImage(GL_RGBA_INTEGER, GL_UNSIGNED_INT, Ptr.NULL)
         dataTex2.clearImage(GL_RGBA_INTEGER, GL_UNSIGNED_INT, Ptr.NULL)
 
-        nDepthFbo.clearDepth(1.0f)
+        fbo.clearDepth(0.0f)
     }
 }

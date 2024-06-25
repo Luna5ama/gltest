@@ -1,6 +1,9 @@
 package dev.luna5ama.gltest.pc
 
 import dev.fastmc.common.ParallelUtils
+import dev.fastmc.common.TickTimer
+import dev.luna5ama.gltest.glDebugGroup
+import dev.luna5ama.gltest.structs.CullTestCommand
 import dev.luna5ama.gltest.structs.DrawElementsIndirectCommand
 import dev.luna5ama.gltest.structs.sizeof
 import dev.luna5ama.gltest.terrain.register
@@ -11,10 +14,7 @@ import dev.luna5ama.glwrapper.api.*
 import dev.luna5ama.glwrapper.enums.BufferTarget
 import dev.luna5ama.glwrapper.objects.BufferObject
 import dev.luna5ama.glwrapper.objects.VertexArrayObject
-import dev.luna5ama.kmogus.Arr
-import dev.luna5ama.kmogus.Ptr
-import dev.luna5ama.kmogus.ensureCapacity
-import dev.luna5ama.kmogus.memcpy
+import dev.luna5ama.kmogus.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -46,8 +46,8 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
         label("HWVS.ElementBuffer")
     }
 
-    private val cullTestCommandBuffer = register(BufferObject.Immutable()).apply {
-        label("HWMS.CullTestCommandBuffer")
+    private val ctcBuffer = register(BufferObject.Immutable()).apply {
+        label("SWQuad.CullTestCommandBuffer")
     }
 
     private val indirectBufferBindings = listOf(
@@ -74,118 +74,120 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
     }
 
     override suspend fun update(chunks: List<TerrainMeshData.ChunkLayerInfo>) {
-        val structSize = sizeof(DrawElementsIndirectCommand)
-        Arr.malloc(chunks.size * structSize).use { indirectCmdUpload ->
-            val quadCountGlobal = AtomicInteger(0)
-            val localBuffers = List(ParallelUtils.CPU_THREADS) { Arr.malloc(0L) }
-            val localBatchCounts = IntArray(ParallelUtils.CPU_THREADS)
-            var threadIndexCounter = 0
+        val batchStructSize = sizeof(DrawElementsIndirectCommand)
+        val ctcBufferBaseOffset = renderer.cullPipeline.ctcBufferBaseOffset
+        val ctcStructSize = sizeof(CullTestCommand)
+        Arr.malloc(chunks.size * batchStructSize).use { indirectCmdUpload ->
+            Arr.malloc(ctcBufferBaseOffset + chunks.size * ctcStructSize).use { ctcUploadBuffer ->
+                val quadCountGlobal = AtomicInteger(0)
+                val localBuffers = List(ParallelUtils.CPU_THREADS) { Arr.malloc(0L) }
+                val localBatchCounts = IntArray(ParallelUtils.CPU_THREADS)
+                var threadIndexCounter = 0
+                val ctcCount = AtomicInteger(0)
 
-            coroutineScope {
-                ParallelUtils.splitListIndex(
-                    chunks.size,
-                    blockForEach = { start, end ->
-                        val threadIndex = threadIndexCounter++
-                        launch(Dispatchers.Default) {
-                            val localBuffer = localBuffers[threadIndex]
-                            localBuffer.ensureCapacity((end - start) * structSize, false)
-                            var quadCountLocal = 0
-                            var localBatchCount = 0
-
-                            for (i in start until end) {
-                                val chunkInfo = chunks[i]
-                                var quadIdx = 0
-                                while (quadIdx < chunkInfo.quadCount) {
-                                    val batchQuadCount = min(chunkInfo.quadCount - quadIdx, BATCH_MAX_QUAD)
-
-                                    localBuffer.ensureCapacity((localBatchCount + 1L) * structSize, false)
-                                    val structOffset = localBatchCount * structSize
-                                    val struct = DrawElementsIndirectCommand(localBuffer.ptr + structOffset)
-                                    struct.count = batchQuadCount * 6
-                                    struct.instanceCount = 1
-                                    struct.firstIndex = 0
-                                    struct.baseVertex = (chunkInfo.startIndex + quadIdx) * 4
-                                    struct.baseInstance = chunkInfo.chunkIndex
-
-                                    quadIdx += batchQuadCount
-                                    localBatchCount++
-                                }
-
-//                                val ctcBaseOffset = renderer.cullPipeline.ctcBufferBaseOffset
-//                                val ctcLen = sizeof(CullTestCommand)
-//                                cullTestCommandUploadBuffer.ensureCapacity(
-//                                    ctcBaseOffset + (chunkCount + 1L) * ctcLen,
-//                                    false
-//                                )
-//                                val ctcStruct = CullTestCommand(cullTestCommandUploadBuffer.ptr + ctcBaseOffset + chunkCount * ctcLen)
-//                                ctcStruct.chunkIndex = chunkInfo.chunkIndex
-//                                ctcStruct.chunkOffsetEncoded = chunkInfo.offsetEncoded
-
-                                quadCountLocal += chunkInfo.quadCount
-                            }
-
-                            localBatchCounts[threadIndex] = localBatchCount
-                            quadCountGlobal.addAndGet(quadCountLocal)
+                coroutineScope {
+                    launch {
+                        for (i in chunks.indices) {
+                            val chunkInfo = chunks[i]
+                            val offset = ctcCount.getAndIncrement() * ctcStructSize
+                            val ctcStruct = CullTestCommand(ctcUploadBuffer.ptr + ctcBufferBaseOffset + offset)
+                            ctcStruct.chunkIndex = chunkInfo.chunkIndex
                         }
                     }
-                )
-            }
+                    ParallelUtils.splitListIndex(
+                        chunks.size,
+                        blockForEach = { start, end ->
+                            val threadIndex = threadIndexCounter++
+                            launch(Dispatchers.Default) {
+                                val localBuffer = localBuffers[threadIndex]
+                                localBuffer.ensureCapacity((end - start) * batchStructSize, false)
+                                var quadCountLocal = 0
+                                var localBatchCount = 0
 
-            batchCount = 0
-            localBuffers.forEachIndexed { index, arr ->
-                val localBatchCount = localBatchCounts[index]
-                indirectCmdUpload.ensureCapacity(16L + (batchCount + localBatchCount) * structSize, false)
-                memcpy(
-                    arr.ptr,
-                    0L,
-                    indirectCmdUpload.ptr,
-                    16L + batchCount * structSize,
-                    localBatchCount * structSize
-                )
-                batchCount += localBatchCount
-            }
+                                for (i in start until end) {
+                                    val chunkInfo = chunks[i]
+                                    var quadIdx = 0
+                                    while (quadIdx < chunkInfo.quadCount) {
+                                        val batchQuadCount = min(chunkInfo.quadCount - quadIdx, BATCH_MAX_QUAD)
 
-            localBuffers.forEach { it.free() }
+                                        localBuffer.ensureCapacity((localBatchCount + 1L) * batchStructSize, false)
+                                        val structOffset = localBatchCount * batchStructSize
+                                        val struct = DrawElementsIndirectCommand(localBuffer.ptr + structOffset)
+                                        struct.count = batchQuadCount * 6
+                                        struct.instanceCount = 1
+                                        struct.firstIndex = 0
+                                        struct.baseVertex = (chunkInfo.startIndex + quadIdx) * 4
+                                        struct.baseInstance = chunkInfo.chunkIndex
 
-            quadCount = quadCountGlobal.get()
-            chunkCount = chunks.size
+                                        quadIdx += batchQuadCount
+                                        localBatchCount++
+                                    }
 
-            if (batchCount == 0) return
+                                    quadCountLocal += chunkInfo.quadCount
+                                }
 
-            withContext(scene.gameInstance.mainContext) {
-                indirectCmdUpload.ptr.setInt(batchCount)
-                val indirectCmdLen = 16L + batchCount * structSize
-                if (inputIndirectBuffer.size < indirectCmdLen) {
-                    inputIndirectBuffer.destroy()
-                    inputIndirectBuffer.allocate(indirectCmdLen, indirectCmdUpload.ptr, GL_DYNAMIC_STORAGE_BIT)
-                    outputIndirectBuffer.destroy()
-                    outputIndirectBuffer.allocate(indirectCmdLen, Ptr.NULL, 0)
-                } else {
-                    inputIndirectBuffer.invalidate()
-                    inputIndirectBuffer.upload(0L, indirectCmdLen, indirectCmdUpload.ptr)
+                                localBatchCounts[threadIndex] = localBatchCount
+                                quadCountGlobal.addAndGet(quadCountLocal)
+                            }
+                        }
+                    )
                 }
 
-//                renderer.cullPipeline.setupIndirect(context.cullTestCommandUploadBuffer.ptr, context.batchCount)
-//                val baseOffset = renderer.cullPipeline.ctcBufferBaseOffset
-//                val cullTestCommandLen = baseOffset + context.batchCount * sizeof(CullTestCommand)
-//                if (cullTestCommandBuffer.size < cullTestCommandLen) {
-//                    cullTestCommandBuffer.destroy()
-//                    cullTestCommandBuffer.allocate(
-//                        cullTestCommandLen,
-//                        context.cullTestCommandUploadBuffer.ptr,
-//                        GL_DYNAMIC_STORAGE_BIT
-//                    )
-//                } else {
-//                    cullTestCommandBuffer.invalidate()
-//                    cullTestCommandBuffer.upload(0, cullTestCommandLen, context.cullTestCommandUploadBuffer.ptr)
-//                }
+                batchCount = 0
+                localBuffers.forEachIndexed { index, arr ->
+                    val localBatchCount = localBatchCounts[index]
+                    indirectCmdUpload.ensureCapacity(16L + (batchCount + localBatchCount) * batchStructSize, false)
+                    memcpy(
+                        arr.ptr,
+                        0L,
+                        indirectCmdUpload.ptr,
+                        16L + batchCount * batchStructSize,
+                        localBatchCount * batchStructSize
+                    )
+                    batchCount += localBatchCount
+                }
+
+                localBuffers.forEach { it.free() }
+
+                quadCount = quadCountGlobal.get()
+                chunkCount = chunks.size
+
+                if (batchCount == 0) return
+
+                renderer.cullPipeline.setupIndirect(ctcUploadBuffer.ptr, ctcCount.get())
+
+                withContext(scene.gameInstance.mainContext) {
+                    indirectCmdUpload.ptr.setInt(batchCount)
+                    val indirectCmdLen = 16L + batchCount * batchStructSize
+                    if (inputIndirectBuffer.size < indirectCmdLen) {
+                        inputIndirectBuffer.destroy()
+                        inputIndirectBuffer.allocate(indirectCmdLen, indirectCmdUpload.ptr, GL_DYNAMIC_STORAGE_BIT)
+                        outputIndirectBuffer.destroy()
+                        outputIndirectBuffer.allocate(indirectCmdLen, Ptr.NULL, 0)
+                    } else {
+                        inputIndirectBuffer.invalidate()
+                        inputIndirectBuffer.upload(0L, indirectCmdLen, indirectCmdUpload.ptr)
+                    }
+
+                    val ctcLen = ctcBufferBaseOffset + ctcCount.get() * ctcStructSize
+                    if (ctcBuffer.size < ctcLen) {
+                        ctcBuffer.destroy()
+                        ctcBuffer.allocate(ctcLen, ctcUploadBuffer.ptr, GL_DYNAMIC_STORAGE_BIT)
+                    } else {
+                        ctcBuffer.invalidate()
+                        ctcBuffer.upload(0L, ctcLen, ctcUploadBuffer.ptr)
+                    }
+                }
             }
         }
     }
 
+    private val printTimer = TickTimer()
+
     override fun draw() {
         if (batchCount == 0) return
 
+        drawPass(inputIndirectBuffer)
 //        if (!scene.gameInstance.toggle3) {
 //            glDebugGroup("Render Last Visible") {
 //                glDebugGroup("Indirect Setup") {
@@ -198,11 +200,9 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
 //            }
 //
 //            glDebugGroup("Cull Test") {
-//                renderer.cullPipeline.draw(cullTestCommandBuffer)
-//                glMemoryBarrier(GL_COMMAND_BARRIER_BIT or GL_SHADER_STORAGE_BARRIER_BIT)
+//                renderer.cullPipeline.draw(ctcBuffer)
+//                glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
 //            }
-//
-////            scene.vbuffer.clear()
 //
 //            glDebugGroup("Render New Visible") {
 //                glDebugGroup("Indirect Setup") {
@@ -214,57 +214,64 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
 //                }
 //            }
 //
-//            indirectSetupShaders[3].dispatch()
-//            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT or GL_BUFFER_UPDATE_BARRIER_BIT)
-//
-//            scene.vbuffer.fbo.bind()
-//            glDisable(GL_DEPTH_CLAMP)
-//            glEnable(GL_CULL_FACE)
-//            glCullFace(GL_BACK)
-//            glEnable(GL_DEPTH_TEST)
-//            glDepthFunc(GL_LEQUAL)
-//            glDepthMask(true)
-//            glColorMask(true, true, true, true)
-//
+////            indirectSetupShaders[3].dispatch()
+////            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT or GL_BUFFER_UPDATE_BARRIER_BIT)
+////
+////            scene.vbuffer.fbo.bind()
+////            glDisable(GL_DEPTH_CLAMP)
+////            glEnable(GL_CULL_FACE)
+////            glCullFace(GL_BACK)
+////            glEnable(GL_DEPTH_TEST)
+////            glDepthFunc(GL_LEQUAL)
+////            glDepthMask(true)
+////            glColorMask(true, true, true, true)
+////
 ////            if (printTimer.tickAndReset(3000)) {
-//                MemoryStack {
-//                    val count = malloc(4)
-//                    glGetNamedBufferSubData(outputIndirectBuffer.id, 0, 4L, count.ptr)
-//                    println("Batch count: ${count.ptr.getInt()}/${batchCount}")
-//                }
+////                MemoryStack {
+////                    val count = malloc(4)
+////                    glGetNamedBufferSubData(outputIndirectBuffer.id, 0, 4L, count.ptr)
+////                    println("Batch count: ${count.ptr.getInt()}/${batchCount}")
+////                }
 ////            }
 //        } else {
-        drawPass(inputIndirectBuffer)
+//            glDebugGroup("Render Visible") {
+//                glDebugGroup("Indirect Setup") {
+//                    indirectSetupShaders[0].dispatch()
+//                    glMemoryBarrier(GL_COMMAND_BARRIER_BIT or GL_SHADER_STORAGE_BARRIER_BIT)
+//                }
+//                glDebugGroup("Draw") {
+//                    drawPass(outputIndirectBuffer)
+//                }
+//            }
 //        }
     }
 
     private fun drawPass(buffer: BufferObject.Immutable) {
-        scene.vbuffer.fbo.bind()
-        glDisable(GL_DEPTH_CLAMP)
-        glEnable(GL_CULL_FACE)
-        glCullFace(GL_BACK)
-        glEnable(GL_DEPTH_TEST)
-        glDepthFunc(GL_LEQUAL)
-        glDepthMask(true)
-        glColorMask(true, true, true, true)
+            scene.vbuffer.fbo.bind()
+            glEnable(GL_CULL_FACE)
+            glCullFace(GL_BACK)
+            glEnable(GL_DEPTH_TEST)
+            glDepthFunc(GL_GEQUAL)
+            glDepthMask(true)
+            glColorMask(true, true, true, true)
 
-        vao.bind()
-        drawShader.bind()
-        drawShader.applyBinding {
-            sampler(scene.textures.blockAlbedo)
-            buffer(scene.camera.uboBinding)
-            buffer(scene.terrainMeshData.bufferBindings)
-            buffer(renderer.bufferBindings)
-        }
+            vao.bind()
+            drawShader.bind()
+            drawShader.applyBinding {
+                sampler(scene.textures.blockAlbedo)
+                buffer(scene.camera.uboBinding)
+                buffer(scene.terrainMeshData.bufferBindings)
+                buffer(renderer.bufferBindings)
+            }
 //        drawShader.uniform3f(
 //            "uval_originOffset",
 //            (PointCloudScene.originX - scene.camera.pos.x - 0.5).toFloat(),
 //            (PointCloudScene.originY - scene.camera.pos.y - 1.62).toFloat(),
 //            (PointCloudScene.originZ - scene.camera.pos.z - 0.5).toFloat()
 //        )
-        buffer.bind(GL_DRAW_INDIRECT_BUFFER)
-        buffer.bind(GL_PARAMETER_BUFFER)
-        glMultiDrawElementsIndirectCount(GL_TRIANGLES, GL_UNSIGNED_SHORT, 16L, 0L, batchCount, 0)
+            buffer.bind(GL_DRAW_INDIRECT_BUFFER)
+            buffer.bind(GL_PARAMETER_BUFFER)
+            glMultiDrawElementsIndirectCount(GL_TRIANGLES, GL_UNSIGNED_SHORT, 16L, 0L, batchCount, 0)
     }
 
     private inner class IndirectSetupShader(cullPass: Int) : ShaderProgram(

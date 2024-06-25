@@ -17,16 +17,13 @@ layout(std430) readonly buffer QuadAttribIndexBuffer {
 
 layout(location = 0) in VertData {
     flat uint quadIndex;
+    flat uint chunkIndex;
     vec4 bCoord;
-    float depth;
 } vertDataIn;
 
-layout(depth_greater) out float gl_FragDepth;
 layout(location = 0) out uvec2 rt_vbuffer;
 
 void main() {
-    gl_FragDepth = vertDataIn.depth;
-
     #ifdef CUTOUT
     uint texCoordIdx = ssbo_quadAttribIndexBuffer[vertDataIn.quadIndex] * 4u;
     vec4 texCoordX = vec4(
@@ -41,5 +38,5 @@ void main() {
 
     if (textureLod(usam_blockAlbedoAtlas, texCoord, 0.0).a <= 0.5) discard;
     #endif
-    rt_vbuffer = uvec2(vertDataIn.quadIndex, vbuffer_encodeBCoord(vertDataIn.bCoord.xyz));
+    rt_vbuffer = uvec2((vertDataIn.quadIndex << 1u) | (uint(gl_PrimitiveID) & 1u), vertDataIn.chunkIndex);
 }

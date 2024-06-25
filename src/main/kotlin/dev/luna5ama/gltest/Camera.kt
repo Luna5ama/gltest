@@ -1,7 +1,6 @@
 package dev.luna5ama.gltest
 
 import dev.fastmc.common.MathUtil
-import dev.fastmc.common.TickTimer
 import dev.fastmc.common.toRadians
 import dev.luna5ama.glwrapper.ShaderBindingSpecs
 import dev.luna5ama.glwrapper.api.GL_DYNAMIC_STORAGE_BIT
@@ -14,6 +13,7 @@ import org.lwjgl.glfw.GLFW.glfwGetWindowSize
 import kotlin.math.cos
 import kotlin.math.pow
 import kotlin.math.sin
+import kotlin.math.tan
 
 class Camera(val scene: AbstractScene) {
     private var frameIndex = 0
@@ -91,6 +91,7 @@ class Camera(val scene: AbstractScene) {
     val jitter = Vector2f()
 
     private val mouseMotion = Vector2d()
+    private val tempMatrix = Matrix4f()
 
     fun updateScreenSize() {
         MemoryStack {
@@ -112,7 +113,8 @@ class Camera(val scene: AbstractScene) {
         aspectRatio = screenWidth.toFloat() / screenHeight.toFloat()
 
         noJitterProjection.identity()
-            .perspective(fov.toRadians(), aspectRatio, nearPlane, farPlane)
+//            .perspective(fov.toRadians(), aspectRatio, nearPlane, farPlane)
+            .infRevZPerspective(fov.toRadians(), aspectRatio, nearPlane)
         noJitterModelView.identity()
             .rotate(rotation.y.toRadians(), 1.0f, 0.0f, 0.0f)
             .rotate((rotation.x + 180.0f).toRadians(), 0.0f, 1.0f, 0.0f)
@@ -131,7 +133,8 @@ class Camera(val scene: AbstractScene) {
 
         projection.identity()
             .translate((offsetX * 2.0f) / screenWidth, (offsetY * 2.0f) / screenHeight, 0.0f)
-            .perspective(fov.toRadians(), screenWidth.toFloat() / screenHeight.toFloat(), nearPlane, farPlane)
+//            .perspective(fov.toRadians(), screenWidth.toFloat() / screenHeight.toFloat(), nearPlane, farPlane)
+            .infRevZPerspective(fov.toRadians(), screenWidth.toFloat() / screenHeight.toFloat(), nearPlane)
         modelView.identity()
             .rotate(rotation.y.toRadians(), 1.0f, 0.0f, 0.0f)
             .rotate((rotation.x + 180.0f).toRadians(), 0.0f, 1.0f, 0.0f)
@@ -141,6 +144,18 @@ class Camera(val scene: AbstractScene) {
         frustum = Frustum(invCombined)
 
         frameIndex++
+    }
+
+    /**
+     * https://nlguillemot.wordpress.com/2016/12/07/reversed-z-in-opengl/
+     */
+    private fun Matrix4f.infRevZPerspective(fovY: Float, aspectRatio: Float, zNear: Float) {
+        val f = 1.0f / tan(fovY / 2.0f)
+        tempMatrix.m00(f / aspectRatio).m01(0.0f).m02(0.0f).m03(0.0f)
+            .m10(0.0f).m11(f).m12(0.0f).m13(0.0f)
+            .m20(0.0f).m21(0.0f).m22(0.0f).m23(-1.0f)
+            .m30(0.0f).m31(0.0f).m32(zNear).m33(0.0f)
+        mul(tempMatrix)
     }
 
     private fun updateUBO(

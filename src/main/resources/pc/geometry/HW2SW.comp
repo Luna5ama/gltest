@@ -3,7 +3,7 @@
 
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 
-uniform isampler2D usam_vBufferTex2;
+uniform usampler2D usam_vBufferTex2;
 uniform sampler2D usam_vBufferDepth;
 
 layout(r32ui) uniform writeonly uimage2D uimg_vBufferTex1;
@@ -18,12 +18,12 @@ void main() {
         return;
     }
 
-    ivec2 tex2Data = texelFetch(usam_vBufferTex2, coord, 0).xy;
-    int quadIndex = tex2Data.x;
-    int bCoord = tex2Data.y;
+    uvec2 tex2Data = texelFetch(usam_vBufferTex2, coord, 0).xy;
+    uint quadIndex = tex2Data.x;
+    uint bCoord = tex2Data.y;
     float depth = texelFetch(usam_vBufferDepth, coord, 0).r;
 
     uint bufferIndex = coord.y * outputSize.x + coord.x;
-    ssbo_vBufferDepthQuadIndex[bufferIndex] = uint64_t(floatBitsToUint(depth)) << 32u | uint64_t(uint(-quadIndex));
+    ssbo_vBufferDepthQuadIndex[bufferIndex] = uint64_t(floatBitsToUint(depth)) << 32u | uint64_t(quadIndex);
     imageStore(uimg_vBufferTex1, coord, uvec4(bCoord, 0, 0, 0));
 }

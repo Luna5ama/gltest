@@ -20,8 +20,8 @@ vec4 readPos(uint idx) {
 
 layout(location = 0) out VertData {
     flat uint quadIndex;
+    flat uint chunkIndex;
     vec4 bCoord;
-    float depth;
 } vertDataOut;
 
 const vec4 BCOORDS[4] = {
@@ -37,6 +37,7 @@ const uvec3 CHUNK_OFFSET_BITMASK = (uvec3(1u) << uvec3(13u, 6u, 13u)) - uvec3(1u
 const uvec3 CHUNK_OFFSET_BITSHIFT = uvec3(0u, 13u, 13u + 6u);
 
 void main() {
+    vertDataOut.chunkIndex = gl_BaseInstance;
     vec3 chunkOffset = chunks_getChunkRenderPos(gl_BaseInstance);
 
     vertDataOut.quadIndex = uint(gl_VertexID) / 4;
@@ -58,5 +59,5 @@ void main() {
     vertPos.xyz = vertPos.xyz * coordConvert + chunkOffset;
 
     gl_Position = ubo_cameraDefault.combined * vertPos;
-    vertDataOut.depth = gl_Position.z;
+//    vertDataOut.depth = gl_Position.z;
 }

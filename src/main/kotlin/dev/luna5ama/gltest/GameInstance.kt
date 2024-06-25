@@ -327,7 +327,8 @@ class GameInstance(val window: Long) {
         repeat(10) { i ->
             keyboard.register(GLFW_KEY_1 + i) {
                 if (it == GLFW_RELEASE) {
-                    scene.camera.speedMultiplier = (i + 1).toDouble()
+                    val v = (i + 1).toDouble()
+                    scene.camera.speedMultiplier = v * v
                 }
             }
         }

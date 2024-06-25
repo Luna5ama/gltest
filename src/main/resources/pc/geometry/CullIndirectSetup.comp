@@ -9,12 +9,9 @@
 #extension GL_KHR_shader_subgroup_ballot : enable
 
 #include "../GlobalCamera.glsl"
+#include "Chunks.glsl"
 
 layout(local_size_x = 1024, local_size_y = 1, local_size_z = 1) in;
-
-layout(std430) restrict readonly buffer ChunkOffsetData {
-    uint ssbo_chunkOffsetData[];
-};
 
 struct DrawElementsIndirectCommand {
     uint count;
@@ -24,26 +21,28 @@ struct DrawElementsIndirectCommand {
     uint baseInstance;
 };
 
-layout(std430) restrict readonly buffer InputIndirectBuffer {
+layout(std430) readonly buffer InputIndirectBuffer {
     uint commandCount;
-    uint padding1;
-    uint padding2;
-    uint padding3;
+    uint _padding1;
+    uint _padding2;
+    uint _padding3;
     DrawElementsIndirectCommand commands[];
 } ssbo_inputIndirectBuffer;
 
-layout(std430) restrict buffer OutputIndirectBuffer {
+layout(std430) buffer OutputIndirectBuffer {
     uint commandCount;
-    uint padding1;
-    uint padding2;
-    uint padding3;
+    uint _padding1;
+    uint _padding2;
+    uint _padding3;
     DrawElementsIndirectCommand commands[];
 } ssbo_outputIndirectBuffer;
 
-layout(std430) restrict readonly buffer VisibleBuffer {
+#if CULL_PASS != 0
+layout(std430) readonly buffer VisibleBuffer {
     uint lastOffset;
     FLAG_TYPE states[];
 } ssbo_visibleBuffer;
+#endif
 
 uniform vec3 uval_originOffset;
 
@@ -64,15 +63,12 @@ void main() {
             #if CULL_PASS != 0
             DrawElementsIndirectCommand command = ssbo_inputIndirectBuffer.commands[index];
             uint chunkIndex = command.baseInstance;
-            uvec3 chunkOffsetEncoded = uvec3(ssbo_chunkOffsetData[chunkIndex]);
-            chunkOffsetEncoded = (chunkOffsetEncoded >> CHUNK_OFFSET_BITSHIFT) & CHUNK_OFFSET_BITMASK;
-            vec3 chunkOffset = vec3(chunkOffsetEncoded);
-            chunkOffset = chunkOffset * 16.0 + uval_originOffset;
+            vec3 chunkOffset = chunks_getChunkRenderPos(chunkIndex);
             #endif
 
             #if CULL_PASS == 1
-//            bool isCameraChunk = dot(chunkOffset, chunkOffset) < 1024.0;
-            bool isCameraChunk = false;
+            bool isCameraChunk = dot(chunkOffset, chunkOffset) < 1024.0;
+//            bool isCameraChunk = false;
             bool last = bool(ssbo_visibleBuffer.states[chunkIndex + ssbo_visibleBuffer.lastOffset]) || isCameraChunk;
             commandIndex = uint(-int(last));
             #elif CULL_PASS == 2
@@ -80,8 +76,8 @@ void main() {
             bool curr = bool(ssbo_visibleBuffer.states[chunkIndex]);
             commandIndex = uint(-int(!last && curr));
             #elif CULL_PASS == 3
-//            bool isCameraChunk = dot(chunkOffset, chunkOffset) < 1024.0;
-            bool isCameraChunk = false;
+            bool isCameraChunk = dot(chunkOffset, chunkOffset) < 1024.0;
+//            bool isCameraChunk = false;
             bool curr = bool(ssbo_visibleBuffer.states[chunkIndex]) || isCameraChunk;
             commandIndex = uint(-int(curr));
             #else

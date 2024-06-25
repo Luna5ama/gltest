@@ -22,11 +22,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import org.apache.commons.lang3.mutable.MutableBoolean
-import org.joml.FrustumIntersection
-import org.joml.Matrix4f
-import org.joml.Vector3f
-import org.joml.Vector3i
-import org.joml.Vector4f
+import org.joml.*
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sqrt
@@ -58,7 +54,7 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
     val swQuadPipeline = register(SWQuadPipeline(scene, this))
     //    val swPointPipeline = register(SWPointPipeline(scene, this))
 
-    val cullPipeline = register(OcclusionCullingPipeline.SWRaster(scene, this))
+    val cullPipeline = register(OcclusionCullingPipeline.VertexShader(scene, this))
 
     private val visibleBuffer = register(BufferObject.Immutable()).apply {
         label("Terrain.VisibleBuffer")
@@ -113,6 +109,16 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
     ).apply {
         label("VBuffer.SW2HW")
     }
+    private val sw2hwDepthShader = register(
+        ShaderProgram(
+            ShaderSource.Vert("pc/Blit.vert"),
+            ShaderSource.Frag("pc/geometry/SW2HW.frag") {
+                define("DEPTH_ONLY")
+            }
+        )
+    ).apply {
+        label("VBuffer.SW2HW")
+    }
     private val hw2swShader = register(
         ShaderProgram(
             ShaderSource.Comp("pc/geometry/HW2SW.comp")
@@ -150,13 +156,16 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
             chunkPosData.upload(0, arr.len, arr.ptr)
         }
 
+        if (updateTimer.tickAndReset(5)) {
             updateBatchMeta()
+        }
 
         if (!scene.gameInstance.toggle3) {
 //        val chunkCount = scene.terrainMeshData.chunkOffsets.size.toLong()
 //        val visibleFlagLen = chunkCount * visibilityFlagType.byteSize
 //        visibleBuffer.copyTo(visibleBuffer, 4L, 4L + visibleFlagLen, visibleFlagLen)
 //        visibleBuffer.clear(GL_R8UI, 4L, visibleFlagLen, GL_RED_INTEGER, GL_UNSIGNED_BYTE, Ptr.NULL)
+
             visibleBufferUpdateShader.bind()
             visibleBufferUpdateShader.applyBinding {
                 buffer(bufferBindings)
@@ -166,6 +175,7 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
             glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
         }
 
+        glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE)
         glDebugGroup("HW Draw") { hwDraw() }
         glDebugGroup("HW2SW Blit") {
             blitHW2SW()
@@ -224,15 +234,16 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
         for (i in chunkIndices) {
             val chunkInfo = scene.terrainMeshData.chunkLayerInfo[i]
             if (!frustumCullingFlags[chunkInfo.chunkIndex].value) continue
-            if (sampleCountArray[chunkInfo.chunkIndex] > 4.0f) {
-                if (!scene.gameInstance.toggle1) {
-                    hwVs.add(chunkInfo)
-                }
-            } else {
-                if (!scene.gameInstance.toggle2) {
-                    swQuad.add(chunkInfo)
-                }
-            }
+//            if (sampleCountArray[chunkInfo.chunkIndex] > 4.0f) {
+//                if (!scene.gameInstance.toggle1) {
+//                    hwVs.add(chunkInfo)
+//                }
+//            } else {
+//                if (!scene.gameInstance.toggle2) {
+//                    swQuad.add(chunkInfo)
+//                }
+//            }
+            swQuad.add(chunkInfo)
         }
 
         coroutineScope {
@@ -399,11 +410,6 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
         scene.vbuffer.fbo.bind()
         scene.vbuffer.fbo.setDrawBufferAll()
 
-        glEnable(GL_DEPTH_TEST)
-        glDepthFunc(GL_LEQUAL)
-        glEnable(GL_CULL_FACE)
-        glCullFace(GL_BACK)
-
         hwVsDrawTimer.begin()
         if (hwVsPipeline.batchCount > 0) {
             hwVsPipeline.draw()
@@ -438,7 +444,24 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
             buffer(scene.vbuffer.bufferBinding)
             buffer(scene.camera.uboBinding)
         }
+        sw2hwShader.uniform2i("uval_viewportSizeI", scene.camera.screenSize.x, scene.camera.screenSize.y)
         scene.vbuffer.fbo.bind()
+        scene.basic.drawQuad()
+    }
+
+    fun blitSW2HWDepth() {
+        glEnable(GL_DEPTH_TEST)
+        glDepthFunc(GL_ALWAYS)
+        glDisable(GL_DEPTH_CLAMP)
+
+        sw2hwDepthShader.bind()
+        sw2hwDepthShader.applyBinding {
+            sampler(scene.vbuffer.samplerBindings)
+            buffer(scene.vbuffer.bufferBinding)
+            buffer(scene.camera.uboBinding)
+        }
+        sw2hwDepthShader.uniform2i("uval_viewportSizeI", scene.camera.screenSize.x, scene.camera.screenSize.y)
+        scene.vbuffer.depthFbo.bind()
         scene.basic.drawQuad()
     }
 

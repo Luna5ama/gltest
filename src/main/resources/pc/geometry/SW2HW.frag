@@ -1,26 +1,28 @@
 #version 460 core
 #extension GL_ARB_gpu_shader_int64 : enable
 
-uniform isampler2D usam_vBufferTex1;
+uniform ivec2 uval_viewportSizeI;
 
 layout(std430) readonly buffer VBufferDepthQuadIndex {
-    int64_t ssbo_vBufferDepthQuadIndex[];
+    uint64_t ssbo_vBufferDepthQuadIndex[];
 };
 
-in vec2 fTexCoordI;
+#ifndef DEPTH_ONLY
+uniform usampler2D usam_vBufferTex1;
 
 layout(location = 0) out uvec2 rt_vbuffer;
+#endif
 
 void main() {
-    ivec2 coord = ivec2(fTexCoordI);
-    ivec2 outputSize = textureSize(usam_vBufferTex1, 0);
+    ivec2 coord = ivec2(gl_FragCoord.xy);
 
-    uint bufferIndex = coord.y * outputSize.x + coord.x;
-    int64_t dataRaw = ssbo_vBufferDepthQuadIndex[bufferIndex];
-    int depth = int((dataRaw >> 32) & int64_t(0xFFFFFFFF));
-    int bCoord = texelFetch(usam_vBufferTex1, coord, 0).x;
-    int quadIndex = -int(dataRaw);
+    uint bufferIndex = coord.y * uval_viewportSizeI.x + coord.x;
+    uint64_t dataRaw = ssbo_vBufferDepthQuadIndex[bufferIndex];
+    gl_FragDepth = uintBitsToFloat(uint(dataRaw >> 32));
 
-    gl_FragDepth = intBitsToFloat(depth);
+    #ifndef DEPTH_ONLY
+    uint bCoord = texelFetch(usam_vBufferTex1, coord, 0).x;
+    uint quadIndex = uint(dataRaw);
     rt_vbuffer = uvec2(quadIndex, bCoord);
+    #endif
 }

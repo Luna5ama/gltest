@@ -78,9 +78,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
         Runtime.getRuntime().addShutdownHook(Thread {
             saveCameraPos()
         })
-        dumpShaderAsm(terrainGeometryRenderer.swQuadPipeline.drawShaders[0], "SWQuad0.txt")
-        dumpShaderAsm(terrainGeometryRenderer.cullPipeline.setupShader, "CullTestSetup.txt")
-        dumpShaderAsm(terrainGeometryRenderer.cullPipeline.cullTestShader, "CullTest.txt")
+        dumpShaders()
     }
 
     override fun destroy() {
@@ -89,9 +87,13 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
 
     override fun reloadShaders() {
         super.reloadShaders()
-        dumpShaderAsm(terrainGeometryRenderer.swQuadPipeline.drawShaders[0], "SWQuad0.txt")
-        dumpShaderAsm(terrainGeometryRenderer.cullPipeline.setupShader, "CullTestSetup.txt")
-        dumpShaderAsm(terrainGeometryRenderer.cullPipeline.cullTestShader, "CullTest.txt")
+        dumpShaders()
+    }
+
+    private fun dumpShaders() {
+        terrainGeometryRenderer.swQuadPipeline.drawShaders.forEachIndexed { index, shader ->
+            dumpShaderAsm(shader, "SWQuad-$index.txt")
+        }
     }
 
     private fun saveCameraPos() {
@@ -169,6 +171,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
         shadingShader.applyBinding {
             buffer(camera.uboBinding)
             buffer(terrainMeshData.bufferBindings)
+            buffer(terrainGeometryRenderer.bufferBindings)
 
             sampler(textures.blockAlbedo)
             sampler(textures.lightMap)
@@ -314,6 +317,6 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
 
         camera.update(x.toFloat() * 0.5f, y.toFloat() * 0.5f)
 
-        frameIndex++
+//        frameIndex++
     }
 }
