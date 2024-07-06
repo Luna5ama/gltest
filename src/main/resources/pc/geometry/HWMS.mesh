@@ -130,16 +130,21 @@ bool writeVertexData() {
 }
 
 void writeIndices(uint localQuadIndex) {
-    uint primitiveIdxBase = localQuadIndex * 6;
+    uint primIndicesBaseIdx = localQuadIndex * 6;
     uint vertIdxBase = gl_LocalInvocationID.x << 2;
 
-    gl_PrimitiveIndicesNV[primitiveIdxBase + 0] = vertIdxBase + 0;
-    gl_PrimitiveIndicesNV[primitiveIdxBase + 1] = vertIdxBase + 1;
-    gl_PrimitiveIndicesNV[primitiveIdxBase + 2] = vertIdxBase + 2;
+    gl_PrimitiveIndicesNV[primIndicesBaseIdx + 0] = vertIdxBase + 0;
+    gl_PrimitiveIndicesNV[primIndicesBaseIdx + 1] = vertIdxBase + 1;
+    gl_PrimitiveIndicesNV[primIndicesBaseIdx + 2] = vertIdxBase + 2;
 
-    gl_PrimitiveIndicesNV[primitiveIdxBase + 3] = vertIdxBase + 2;
-    gl_PrimitiveIndicesNV[primitiveIdxBase + 4] = vertIdxBase + 3;
-    gl_PrimitiveIndicesNV[primitiveIdxBase + 5] = vertIdxBase + 0;
+    gl_PrimitiveIndicesNV[primIndicesBaseIdx + 3] = vertIdxBase + 2;
+    gl_PrimitiveIndicesNV[primIndicesBaseIdx + 4] = vertIdxBase + 3;
+    gl_PrimitiveIndicesNV[primIndicesBaseIdx + 5] = vertIdxBase + 0;
+
+    uint primBaseIdx = localQuadIndex << 1u;
+
+    gl_MeshPrimitivesNV[primBaseIdx + 0u].gl_PrimitiveID = int(primBaseIdx + 0u);
+    gl_MeshPrimitivesNV[primBaseIdx + 1u].gl_PrimitiveID = int(primBaseIdx + 1u);
 }
 
 void main() {
