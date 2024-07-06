@@ -40,14 +40,12 @@ layout(std430) buffer OutputIndirectBuffer {
 #if CULL_PASS != 0
 layout(std430) readonly buffer VisibleBuffer {
     uint lastOffset;
+    uint _padding1;
+    uint _padding2;
+    uint _padding3;
     FLAG_TYPE states[];
 } ssbo_visibleBuffer;
 #endif
-
-uniform vec3 uval_originOffset;
-
-const uvec3 CHUNK_OFFSET_BITMASK = (uvec3(1u) << uvec3(13u, 6u, 13u)) - uvec3(1u);
-const uvec3 CHUNK_OFFSET_BITSHIFT = uvec3(0u, 13u, 13u + 6u);
 
 shared uint shared_spinlock = 0u;
 shared uint shared_commandCount = 0u;

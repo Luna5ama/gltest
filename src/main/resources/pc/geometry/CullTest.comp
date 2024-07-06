@@ -38,8 +38,11 @@ layout(std430) buffer CullTestQuadBuffer {
     CullTestQuad data[];
 } ssbo_cullTestQuadBuffer;
 
-layout(std430) buffer VisibleBuffer {
+layout(std430) writeonly buffer VisibleBuffer {
     uint lastOffset;
+    uint _padding1;
+    uint _padding2;
+    uint _padding3;
     FLAG_TYPE states[];
 } ssbo_visibleBuffer;
 

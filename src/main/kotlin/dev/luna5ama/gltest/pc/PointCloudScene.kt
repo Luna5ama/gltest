@@ -20,6 +20,8 @@ import java.nio.file.StandardOpenOption
 import java.util.*
 
 class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) {
+    val gpuScan = register(GPUScan())
+
 //        private val terrainMeshData = register(TerrainMeshData(this, File("dumpTest")))
 //        private val terrainMeshData = register(TerrainMeshData(this, File("dumpForestPC")))
 //    private val terrainMeshData = register(TerrainMeshData(this, File("dumpMountainV")))
@@ -91,9 +93,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
     }
 
     private fun dumpShaders() {
-        terrainGeometryRenderer.swQuadPipeline.drawShaders.forEachIndexed { index, shader ->
-            dumpShaderAsm(shader, "SWQuad-$index.txt")
-        }
+        dumpShaderAsm(terrainGeometryRenderer.swQuadPipeline.drawShader, "SWQuad.txt")
     }
 
     private fun saveCameraPos() {

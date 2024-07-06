@@ -23,24 +23,26 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import org.apache.commons.lang3.mutable.MutableBoolean
 import org.joml.*
+import org.lwjgl.glfw.GLFW.glfwGetTime
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sqrt
 
 class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by IGLObjContainer.Impl() {
-    val visibilityFlagType = when {
-        scene.gameInstance.glCapabilities.GL_NV_gpu_shader5 -> {
-            VisibilityFlagType.INT8
-        }
-
-        scene.gameInstance.glCapabilities.GL_AMD_gpu_shader_int16 -> {
-            VisibilityFlagType.INT16
-        }
-
-        else -> {
-            VisibilityFlagType.INT32
-        }
-    }
+//    val visibilityFlagType = when {
+//        scene.gameInstance.glCapabilities.GL_NV_gpu_shader5 -> {
+//            VisibilityFlagType.INT8
+//        }
+//
+//        scene.gameInstance.glCapabilities.GL_AMD_gpu_shader_int16 -> {
+//            VisibilityFlagType.INT16
+//        }
+//
+//        else -> {
+//            VisibilityFlagType.INT32
+//        }
+//    }
+    val visibilityFlagType = VisibilityFlagType.INT32
 
     val threadBatchSize = if (GLWrapper.instance.vendor == GpuVendor.NVIDIA) 96 else 128
 
@@ -86,7 +88,7 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
         }
 
         visibleBufferStateLen1 = (terrainMeshData.chunkPos.size * visibilityFlagType.byteSize + 63L) / 64 * 64L
-        val len = 4L + visibleBufferStateLen1 * 2
+        val len = 16L + visibleBufferStateLen1 * 2
         visibleBuffer.allocate(len, Ptr.NULL, 0)
         MemoryStack {
             val ptr = malloc(4L).ptr
@@ -159,6 +161,14 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
         if (updateTimer.tickAndReset(5)) {
             updateBatchMeta()
         }
+
+//        if (glfwGetTime() < 1.0) {
+//            updateBatchMeta()
+//        }
+
+        hwMsPipeline.preDraw()
+        hwVsPipeline.preDraw()
+        swQuadPipeline.preDraw()
 
         if (!scene.gameInstance.toggle3) {
 //        val chunkCount = scene.terrainMeshData.chunkOffsets.size.toLong()
@@ -236,7 +246,7 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
             if (!frustumCullingFlags[chunkInfo.chunkIndex].value) continue
             if (sampleCountArray[chunkInfo.chunkIndex] > 4.0f) {
                 if (!scene.gameInstance.toggle1) {
-                    hwVs.add(chunkInfo)
+                    hwMs.add(chunkInfo)
                 }
             } else {
                 if (!scene.gameInstance.toggle2) {
@@ -447,7 +457,7 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
 
     fun blitSW2HWDepth() {
         glEnable(GL_DEPTH_TEST)
-        glDepthFunc(GL_ALWAYS)
+        glDepthFunc(GL_GREATER)
         glDisable(GL_DEPTH_CLAMP)
 
         sw2hwDepthShader.bind()

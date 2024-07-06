@@ -78,6 +78,7 @@ class VisibilityBuffer(private val scene: PointCloudScene) : IGLObjContainer by 
     }
 
     fun clear() {
+        glDepthMask(true)
         buffer.clear(GL_R32UI, GL_RED_INTEGER, GL_UNSIGNED_INT, Ptr.NULL)
         dataTex.clearImage(GL_RGBA_INTEGER, GL_UNSIGNED_INT, Ptr.NULL)
         fbo.clearDepth(0.0f)

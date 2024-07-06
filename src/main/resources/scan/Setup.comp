@@ -1,0 +1,37 @@
+#version 460 core
+
+layout(local_size_x = 3, local_size_y = 2) in;
+
+layout(std140) uniform CountBuffer {
+    uint ubo_count;
+};
+
+struct DispatchIndirectCommand {
+    uint num_groups_x;
+    uint num_groups_y;
+    uint num_groups_z;
+    uint count;
+};
+
+layout(std430) writeonly buffer IndirectBuffer {
+    DispatchIndirectCommand ssbo_dispatchIndirectBuffer[];
+};
+
+void main() {
+    uint pass = gl_LocalInvocationID.x;
+    uint passWorkGroupDiv = 1u << (WORK_GROUP_SIZE_POW * (pass + 1));
+    uint passInputDiv = 1u << (WORK_GROUP_SIZE_POW * pass);
+    uint passWorkGroupCount = (ubo_count + passWorkGroupDiv - 1u) / passWorkGroupDiv;
+    uint passInputCount = (ubo_count + passInputDiv - 1u) / passInputDiv;
+    uint inputGreaterThan1Mask = uint(-int(passInputCount > passInputDiv));
+    uint addPass = gl_LocalInvocationID.y;
+    passWorkGroupCount = (passWorkGroupCount - addPass) & inputGreaterThan1Mask;
+    passInputCount = passInputCount & inputGreaterThan1Mask;
+
+    ssbo_dispatchIndirectBuffer[gl_LocalInvocationIndex] = DispatchIndirectCommand(
+        passWorkGroupCount,
+        1u,
+        1u,
+        passInputCount
+    );
+}

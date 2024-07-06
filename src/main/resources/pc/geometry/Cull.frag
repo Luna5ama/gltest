@@ -10,6 +10,9 @@ layout(early_fragment_tests) in;
 
 layout(std430) restrict writeonly buffer VisibleBuffer {
     uint lastOffset;
+    uint _padding1;
+    uint _padding2;
+    uint _padding3;
     FLAG_TYPE states[];
 } ssbo_visibleBuffer;
 

@@ -419,10 +419,8 @@ class TerrainMesh(private val scene: TerrainScene, dir: File) : IGLObjContainer 
                     buffer("RawIndirectBuffer", layer.rawIndirectBuffer, BufferTarget.ShaderStorage)
                     buffer(
                         "OutIndirectBuffer",
-                        indirect,
-                        BufferTarget.ShaderStorage,
-                        16L,
-                        chunkInfoSize * sizeof(DrawElementsIndirectCommand)
+                        indirect.createView(16L, chunkInfoSize * sizeof(DrawElementsIndirectCommand)),
+                        BufferTarget.ShaderStorage
                     )
                     subroutine(visibleState.subroutineBinding)
                 }

@@ -1,0 +1,24 @@
+#version 460 core
+
+layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+
+layout(std430) writeonly buffer ScanBufferCount {
+    uint count;
+    uint _padding1;
+    uint _padding2;
+    uint _padding3;
+} ssbo_scanBufferCount;
+
+layout(std430) writeonly buffer BatchIndicesIndirect {
+    uint num_groups_x;
+    uint num_groups_y;
+    uint num_groups_z;
+    uint _padding1;
+} ssbo_batchIndicesIndirect;
+
+void main() {
+    ssbo_scanBufferCount.count = 0u;
+    ssbo_batchIndicesIndirect.num_groups_x = 0u;
+    ssbo_batchIndicesIndirect.num_groups_y = 1u;
+    ssbo_batchIndicesIndirect.num_groups_z = 1u;
+}

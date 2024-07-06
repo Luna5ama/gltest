@@ -1,0 +1,96 @@
+#version 460 core
+/*
+    Adapted from https://github.com/mmaldacker/VulkanSubgroups
+
+    MIT License
+
+    Copyright (c) 2018 Maximilian Maldacker
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
+*/
+
+#extension GL_KHR_shader_subgroup_arithmetic : enable
+
+layout(std430) readonly buffer InputBuffer {
+    uint ssbo_inputBuffer[];
+};
+
+layout(std430) writeonly buffer OutputBuffer {
+    uint ssbo_outputBuffer[];
+};
+
+layout(std430) writeonly buffer AuxSumBuffer {
+    uint ssbo_auxSumBuffer[];
+};
+
+struct DispatchIndirectCommand {
+    uint num_groups_x;
+    uint num_groups_y;
+    uint num_groups_z;
+    uint count;
+};
+
+layout(std140) uniform PassIndirect {
+    DispatchIndirectCommand ubo_passIndirect[6];
+};
+
+uniform uint uval_pass;
+
+layout(local_size_x = WORK_GROUP_SIZE) in;
+
+shared uint shared_sum[gl_NumSubgroups];
+
+void main() {
+    uint sum = 0u;
+
+    if (gl_GlobalInvocationID.x < ubo_passIndirect[uval_pass].count) {
+        sum = ssbo_inputBuffer[gl_GlobalInvocationID.x];
+    }
+
+    sum = subgroupInclusiveAdd(sum);
+
+    if (gl_SubgroupInvocationID == gl_SubgroupSize - 1) {
+        shared_sum[gl_SubgroupID] = sum;
+    }
+
+    barrier();
+
+    if (gl_SubgroupID == 0) {
+        uint warpSum = gl_SubgroupInvocationID < gl_NumSubgroups ? shared_sum[gl_SubgroupInvocationID] : 0u;
+        warpSum = subgroupInclusiveAdd(warpSum);
+        shared_sum[gl_SubgroupInvocationID] = warpSum;
+    }
+
+    barrier();
+
+    uint blockSum = 0u;
+    if (gl_SubgroupID > 0) {
+        blockSum = shared_sum[gl_SubgroupID - 1];
+    }
+
+    sum += blockSum;
+
+    if (gl_GlobalInvocationID.x < ubo_passIndirect[uval_pass].count) {
+        ssbo_outputBuffer[gl_GlobalInvocationID.x] = sum;
+    }
+
+    if (gl_WorkGroupID.x < gl_NumWorkGroups.x - 1 && gl_LocalInvocationID.x == gl_WorkGroupSize.x - 1) {
+        ssbo_auxSumBuffer[gl_WorkGroupID.x] = sum;
+    }
+}

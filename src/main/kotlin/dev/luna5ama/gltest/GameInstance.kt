@@ -125,6 +125,7 @@ class GameInstance(val window: Long) {
             if (severity == GL_DEBUG_SEVERITY_MEDIUM) return@create
 
             println("[OpenGL/$sourceStr] type = $typeStr, severity = $severityStr, message = ${byteArray.decodeToString()}")
+            run {} // Dummy line for breakpoint
         }, 0)
         glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS)
         glEnable(GL_DITHER)

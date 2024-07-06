@@ -1,0 +1,90 @@
+#version 460 core
+
+#if FLAG_TYPE == uint8_t
+#extension GL_NV_gpu_shader5 : enable
+#elif FLAG_TYPE == uint16_t
+#extension GL_AMD_gpu_shader_int16 : enable
+#endif
+
+#extension GL_KHR_shader_subgroup_ballot : enable
+#extension GL_KHR_shader_subgroup_arithmetic : enable
+
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+
+layout(std430) readonly buffer ScanBuffer {
+    uint count;
+    uint _padding1;
+    uint _padding2;
+    uint _padding3;
+    uint data[];
+} ssbo_scanBuffer;
+
+struct QuadBatchInfo {
+    uint chunkIndex;
+    uint first;
+    uint count;
+};
+
+layout(std430) readonly buffer QuadBatchInfoBuffer {
+    uint batchCount;
+    uint _padding1;
+    uint _padding2;
+    uint _padding3;
+    QuadBatchInfo batches[];
+} ssbo_quadBatchInfo;
+
+layout(std430) writeonly buffer BatchIndicesData {
+    uint ssbo_batchIndicesData[];
+};
+
+layout(std430) buffer BatchIndicesIndirect {
+    uint num_groups_x;
+    uint num_groups_y;
+    uint num_groups_z;
+    uint _padding1;
+} ssbo_batchIndicesIndirect;
+
+layout(std430) readonly buffer BatchFilterFlag {
+    FLAG_TYPE ssbo_batchFilterFlag[];
+};
+
+shared uint shared_workGroupOffset;
+shared uint shared_sum[SHARED_SUM_SIZE];
+
+void main() {
+    shared_workGroupOffset = gl_WorkGroupID.x > 0 ? ssbo_scanBuffer.data[gl_WorkGroupID.x - 1] : 0u;
+
+//    shared_workGroupOffset = ssbo_scanBuffer.data[gl_WorkGroupID.x] - 256;
+
+    bool batchFlag = false;
+    if (gl_GlobalInvocationID.x < ssbo_quadBatchInfo.batchCount) {
+        batchFlag = bool(ssbo_batchFilterFlag[gl_GlobalInvocationID.x]);
+    }
+    uvec4 ballot = subgroupBallot(batchFlag);
+
+    if (subgroupElect()) {
+        shared_sum[gl_SubgroupID] = subgroupBallotBitCount(ballot);
+    }
+
+    barrier();
+
+    if (gl_SubgroupID == 0) {
+        uint warpSum = gl_SubgroupInvocationID < gl_NumSubgroups ? shared_sum[gl_SubgroupInvocationID] : 0u;
+        warpSum = subgroupExclusiveAdd(warpSum);
+        shared_sum[gl_SubgroupInvocationID] = warpSum;
+    }
+
+    barrier();
+
+    if (batchFlag) {
+//        uint writeIndex = gl_WorkGroupID.x * 256u + shared_sum[gl_SubgroupID] + subgroupBallotExclusiveBitCount(ballot);
+        uint writeIndex = shared_workGroupOffset + shared_sum[gl_SubgroupID] + subgroupBallotExclusiveBitCount(ballot);
+        ssbo_batchIndicesData[writeIndex] = gl_GlobalInvocationID.x;
+    }
+
+    if (gl_LocalInvocationID.x == 0) {
+         atomicAdd(ssbo_batchIndicesIndirect.num_groups_x, shared_sum[gl_NumSubgroups]);
+    }
+
+//    ssbo_batchIndicesData[gl_GlobalInvocationID.x] = gl_GlobalInvocationID.x;
+}

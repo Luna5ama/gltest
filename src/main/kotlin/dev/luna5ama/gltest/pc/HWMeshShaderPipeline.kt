@@ -104,16 +104,7 @@ class HWMeshShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRend
     override fun draw() {
         if (batchCount == 0) return
 
-        if (!scene.gameInstance.toggle3) {
-            drawPass(1)
-
-            renderer.cullPipeline.draw(ctcBuffer)
-            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
-
-            drawPass(2)
-        } else {
-            drawPass(3)
-        }
+        drawPass(0)
     }
 
     private fun drawPass(index: Int) {

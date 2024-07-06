@@ -11,5 +11,7 @@ abstract class TerrainDrawPipeline(
     var quadCount = 0; protected set
 
     abstract suspend fun update(chunks: List<TerrainMeshData.ChunkLayerInfo>)
+
+    open fun preDraw() {}
     abstract fun draw()
 }

@@ -1,0 +1,100 @@
+#version 460 core
+
+#if FLAG_TYPE == uint8_t
+#extension GL_NV_gpu_shader5 : enable
+#elif FLAG_TYPE == uint16_t
+#extension GL_AMD_gpu_shader_int16 : enable
+#endif
+
+#extension GL_KHR_shader_subgroup_ballot : enable
+
+#include "Chunks.glsl"
+
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+
+struct QuadBatchInfo {
+    uint chunkIndex;
+    uint first;
+    uint count;
+};
+
+layout(std430) readonly buffer QuadBatchInfoBuffer {
+    uint batchCount;
+    uint _padding1;
+    uint _padding2;
+    uint _padding3;
+    QuadBatchInfo batches[];
+} ssbo_quadBatchInfo;
+
+layout(std430) writeonly buffer BatchFilterFlag {
+    FLAG_TYPE ssbo_batchFilterFlag[];
+};
+
+layout(std430) buffer ScanBuffer {
+    uint count;
+    uint _padding1;
+    uint _padding2;
+    uint _padding3;
+    uint data[];
+} ssbo_scanBuffer;
+
+layout(std430) writeonly buffer BatchIndicesData {
+    uint ssbo_batchIndicesData[];
+};
+
+#if CULL_PASS != 0
+layout(std430) readonly buffer VisibleBuffer {
+    uint lastOffset;
+    uint _padding1;
+    uint _padding2;
+    uint _padding3;
+    FLAG_TYPE states[];
+} ssbo_visibleBuffer;
+#endif
+
+shared uint shared_commandCount = 0u;
+
+void main() {
+    uint index = gl_GlobalInvocationID.x;
+    bool batchFlag = false;
+    if (index < ssbo_quadBatchInfo.batchCount) {
+        #if CULL_PASS != 0
+        QuadBatchInfo command = ssbo_quadBatchInfo.batches[index];
+        uint chunkIndex = command.chunkIndex;
+        vec3 chunkOffset = chunks_getChunkRenderPos(chunkIndex);
+        #endif
+
+        #if CULL_PASS == 1
+        bool isCameraChunk = dot(chunkOffset, chunkOffset) < 1024.0;
+        bool last = bool(ssbo_visibleBuffer.states[chunkIndex + ssbo_visibleBuffer.lastOffset]);
+        batchFlag = last || isCameraChunk;
+        #elif CULL_PASS == 2
+        bool last = bool(ssbo_visibleBuffer.states[chunkIndex + ssbo_visibleBuffer.lastOffset]);
+        bool curr = bool(ssbo_visibleBuffer.states[chunkIndex]);
+        batchFlag = !last && curr;
+        #elif CULL_PASS == 3
+        bool isCameraChunk = dot(chunkOffset, chunkOffset) < 1024.0;
+        bool curr = bool(ssbo_visibleBuffer.states[chunkIndex]) || isCameraChunk;
+        batchFlag = curr;
+        #else
+        batchFlag = true;
+        #endif
+    }
+
+    uvec4 ballot = subgroupBallot(batchFlag);
+    barrier();
+
+    if (subgroupElect()) {
+        atomicAdd(shared_commandCount, subgroupBallotBitCount(ballot));
+    }
+
+    barrier();
+
+    ssbo_batchFilterFlag[index] = FLAG_TYPE(batchFlag);
+    ssbo_batchIndicesData[index] = 0u;
+
+    if (gl_LocalInvocationID.x == 0) {
+        atomicAdd(ssbo_scanBuffer.count, 1u);
+        ssbo_scanBuffer.data[gl_WorkGroupID.x] = shared_commandCount;
+    }
+}
