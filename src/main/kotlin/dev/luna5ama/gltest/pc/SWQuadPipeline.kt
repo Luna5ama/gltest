@@ -238,7 +238,7 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
             glDebugGroup("CullPass-DepthBlit") {
                 renderer.blitSW2HWDepth()
             }
-            renderer.cullPipeline.draw(ctcBuffer)
+            renderer.cullPipeline.draw(ctcBuffer, chunkCount)
             glEnable(GL_CULL_FACE)
             glCullFace(GL_BACK)
             glEnable(GL_DEPTH_TEST)

@@ -31,14 +31,14 @@ struct CullTestQuad {
 };
 
 layout(std430) buffer CullTestQuadBuffer {
-    uint count;
+    uint lastOffset;
     uint _padding1;
     uint _padding2;
     uint _padding3;
     CullTestQuad data[];
 } ssbo_cullTestQuadBuffer;
 
-layout(std430) writeonly buffer VisibleBuffer {
+layout(std430) buffer VisibleBuffer {
     uint lastOffset;
     uint _padding1;
     uint _padding2;
@@ -77,6 +77,8 @@ void main() {
 //        ssbo_visibleBuffer.states[chunkIndex] = FLAG_TYPE(1u);
 //    }
 
+    if (uint(ssbo_visibleBuffer.states[chunkIndex]) == 1u) return;
+
     for (uint i = 0u; i < totalPixelsPerThread; i++) {
         uint pixelIdx = gl_SubgroupInvocationID * totalPixelsPerThread + i;
         if (pixelIdx >= totalPixels) break;
@@ -94,7 +96,7 @@ void main() {
         boundSize_temp.z = pixelPosI.y * uval_viewportSizeI.x + pixelPosI.x;
         float dstDepth = uintBitsToFloat(uint(ssbo_vBufferDepthQuadIndex[boundSize_temp.z] >> 32u));
 
-        bool vote = subgroupAny(min3(t1b) >= 0.0 && srcDepth1 < dstDepth || min3(t2b) >= 0.0 && srcDepth2 < dstDepth);
+        bool vote = subgroupAny(min3(t1b) >= 0.0 && srcDepth1 > dstDepth || min3(t2b) >= 0.0 && srcDepth2 > dstDepth);
 
         if (vote) {
             if (subgroupElect()) {

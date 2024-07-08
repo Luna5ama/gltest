@@ -22,14 +22,14 @@ layout(std430) restrict readonly buffer CullTestCommandBuffer {
 uniform vec3 uval_originOffset;
 
 const vec3 BOX_VERT_POS[8] = {
-vec3(-1.0, -1.0, -1.0),
-vec3(17.0, -1.0, -1.0),
-vec3(-1.0, -1.0, 17.0),
-vec3(17.0, -1.0, 17.0),
-vec3(-1.0, 17.0, -1.0),
-vec3(17.0, 17.0, -1.0),
-vec3(-1.0, 17.0, 17.0),
-vec3(17.0, 17.0, 17.0)
+vec3(-1.0, -1.0, -1.0), // 0
+vec3(17.0, -1.0, -1.0), // 1
+vec3(-1.0, -1.0, 17.0), // 2
+vec3(17.0, -1.0, 17.0), // 3
+vec3(-1.0, 17.0, -1.0), // 4
+vec3(17.0, 17.0, -1.0), // 5
+vec3(-1.0, 17.0, 17.0), // 6
+vec3(17.0, 17.0, 17.0)  // 7
 };
 
 layout(location = 0) out PrimData {
