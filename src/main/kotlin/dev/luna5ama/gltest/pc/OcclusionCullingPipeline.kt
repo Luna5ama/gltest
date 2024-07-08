@@ -34,10 +34,10 @@ abstract class OcclusionCullingPipeline(
         OcclusionCullingPipeline(scene, renderer) {
         private val cullShader = register(
             ShaderProgram(
-                ShaderSource.Mesh("pc/geometry/CullMS.mesh") {
+                ShaderSource.Mesh("pc/geometry/CullTest.mesh") {
                     define("FLAG_TYPE", renderer.visibilityFlagType.glslTypeName)
                 },
-                ShaderSource.Frag("pc/geometry/Cull.frag") {
+                ShaderSource.Frag("pc/geometry/CullTest.frag") {
                     define("MESH_SHADER")
                     define("FLAG_TYPE", renderer.visibilityFlagType.glslTypeName)
                 }
@@ -89,7 +89,7 @@ abstract class OcclusionCullingPipeline(
                 ShaderSource.Vert("pc/geometry/CullTest.vert") {
                     define("FLAG_TYPE", renderer.visibilityFlagType.glslTypeName)
                 },
-                ShaderSource.Frag("pc/geometry/Cull.frag") {
+                ShaderSource.Frag("pc/geometry/CullTest.frag") {
                     define("FLAG_TYPE", renderer.visibilityFlagType.glslTypeName)
                 }
             )

@@ -57,6 +57,7 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
     //    val swPointPipeline = register(SWPointPipeline(scene, this))
 
     val cullPipeline = register(OcclusionCullingPipeline.VertexShader(scene, this))
+//    val cullPipeline = register(OcclusionCullingPipeline.MeshShader(scene, this))
 //    val cullPipeline = register(OcclusionCullingPipeline.SWRaster(scene, this))
 
     private val visibleBuffer = register(BufferObject.Immutable()).apply {
