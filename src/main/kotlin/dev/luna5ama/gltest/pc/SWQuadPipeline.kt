@@ -235,10 +235,14 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
 
             glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
 
+            val width = scene.camera.screenWidth / 2
+            val height = scene.camera.screenHeight / 2
+            glViewport(0, 0, width, height)
             glDebugGroup("CullPass-DepthBlit") {
                 renderer.blitSW2HWDepth()
             }
             renderer.cullPipeline.draw(ctcBuffer, chunkCount)
+            glViewport(0, 0, scene.camera.screenWidth, scene.camera.screenHeight)
             glEnable(GL_CULL_FACE)
             glCullFace(GL_BACK)
             glEnable(GL_DEPTH_TEST)

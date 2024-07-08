@@ -116,9 +116,7 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
     private val sw2hwDepthShader = register(
         ShaderProgram(
             ShaderSource.Vert("pc/Blit.vert"),
-            ShaderSource.Frag("pc/geometry/SW2HW.frag") {
-                define("DEPTH_ONLY")
-            }
+            ShaderSource.Frag("pc/geometry/SW2HWDepth.frag")
         )
     ).apply {
         label("VBuffer.SW2HW")
@@ -459,7 +457,7 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
 
     fun blitSW2HWDepth() {
         glEnable(GL_DEPTH_TEST)
-        glDepthFunc(GL_GREATER)
+        glDepthFunc(GL_ALWAYS)
         glDisable(GL_DEPTH_CLAMP)
 
         sw2hwDepthShader.bind()
