@@ -5,6 +5,7 @@ import dev.fastmc.common.wrapDirectByteBuffer
 import dev.luna5ama.gltest.pc.PointCloudScene
 import dev.luna5ama.gltest.structs.Vec2i32
 import dev.luna5ama.gltest.structs.sizeof
+import dev.luna5ama.gltest.terrain.TerrainScene
 import dev.luna5ama.glwrapper.ShaderSource
 import dev.luna5ama.glwrapper.api.*
 import dev.luna5ama.kmogus.*
@@ -132,9 +133,8 @@ class GameInstance(val window: Long) {
 
         pollErrors("Pre Setup")
 //    val scene = TestScene(this)
-//        val scene = TerrainScene(this)
-        val scene = PointCloudScene(this)
-//        val scene = ImpostorTestScene(this)
+        val scene = TerrainScene(this)
+//        val scene = PointCloudScene(this)
 
         val mouse = Mouse()
         glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE)
@@ -144,7 +144,6 @@ class GameInstance(val window: Long) {
 
         scene.init(mouse, keyboard)
 
-//    val scene = WaveScene()
         pollErrors("Post Setup")
 
         println("Initialized!")

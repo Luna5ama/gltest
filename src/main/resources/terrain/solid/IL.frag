@@ -43,11 +43,11 @@ uint worldCoordRand[6];
 
 vec3 gtaoMultiBounce(vec3 albedo, float ao) {
     vec3 a = 2.0404 * albedo - 0.3324;
-    vec3 b = 0.0091 * albedo + 0.0151;
-    vec3 c = 0.0071 * albedo + 0.0001;
+    vec3 b = 4.7951 * albedo - 0.6417;
+    vec3 c = 2.7552 * albedo + 0.6903;
     float ao2 = ao * ao;
     float ao3 = ao2 * ao;
-    return a * ao3 + b * ao2 + c * ao;
+    return max(a * ao3 - b * ao2 + c * ao, vec3(ao));
 }
 
 
@@ -67,16 +67,16 @@ void doStuff() {
 
     vec3 viewDir = normalize(-gs_data.worldCoord);
 
-    float blockLightMul = 64.0 * pow(aoSample.a, uval_aoParams.x);
-    float skyLightMul = 32.0 * pow(aoSample.a, uval_aoParams.y);
+    vec3 blockLightMul = 32.0 * gtaoMultiBounce(gs_data.albedo.rgb, pow(aoSample.a, uval_aoParams.x));
+    vec3 skyLightMul = 16.0 * gtaoMultiBounce(gs_data.albedo.rgb, pow(aoSample.a, uval_aoParams.y));
     vec3 ambientLight = materialAo * calcAmbient(usam_lightMap, viewDir, mappedNormal, roughness, gs_data.lightCoord, blockLightMul, skyLightMul);
 
     vec3 v = vec3(0.0);
+
     v += ambientLight;
-    v += pow(aoSample.a, uval_aoParams.z) * aoSample.rgb * uval_aoParams.w;
-//    v += max(gtaoMultiBounce(aoSample.rgb, aoSample.a), vec3(0.0)) * uval_aoParams.w;
+    float giAo = pow(aoSample.a, uval_aoParams.z);
+    v += gtaoMultiBounce(gs_data.albedo.rgb, giAo) * aoSample.rgb * uval_aoParams.w;
     v *= gs_data.albedo.rgb;
-//    v += vec3(aoSample.a);
 
     out1.rgb = v;
     out1.a = 1.0;

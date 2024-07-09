@@ -23,11 +23,12 @@ layout(std430) buffer ssbo_histogramBuffer {
 };
 
 void main() {
-    float top5Percent =  numPixels;
+    float top5Percent = numPixels;
     float topBin = float(max(histogram[255], 1));
 
     float expLast = imageLoad(uimg_avgLum, ivec2(0, 0)).x;
-    float expNew = clamp(top5Percent / topBin, uRange.x, uRange.y);
+    float expNew = (top5Percent / topBin) * expLast;
+    expNew = clamp(expNew, uRange.x, uRange.y);
     expNew = mix(expLast, expNew, timeCoeff);
 
     imageStore(uimg_avgLum, ivec2(0, 0), vec4(expNew, 0.0, 0.0, 0.0));

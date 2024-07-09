@@ -48,7 +48,7 @@ float searchBlocker(vec3 shadowCoord, vec2 texelSize) {
 
     #define BLOCKER_SEARCH_N 8
 
-    vec2 blockerSearchRange = texelSize * 4.0;
+    vec2 blockerSearchRange = texelSize * 8.0;
     uint idxB = ubo_cameraDefault.gFrameIndex * BLOCKER_SEARCH_N + worldCoordRand[1];
 
     float blockerDepth = 0.0f;
@@ -76,7 +76,7 @@ float searchBlocker(vec3 shadowCoord, vec2 texelSize) {
 float calcShadow(vec3 lightViewNormal, float sssFactor) {
     vec3 coord = gs_viewCoord;
 
-    float lightDirOffset = uShadowMap.boundSizeZ.y * 0.01;
+    float lightDirOffset = uShadowMap.boundSizeZ.y * 0.02;
 
     float minNormalOffset = 0.0001;
     float maxNormalOffset = clamp(length(gs_data.worldCoord) * 0.01, 0.01, 4.0);
@@ -93,13 +93,14 @@ float calcShadow(vec3 lightViewNormal, float sssFactor) {
     vec2 texelSize;
     shadowCoord.xy = rtwsm_warpTexCoordTexelSize(usam_warpingMap, shadowCoord.xy, texelSize);
     shadowCoord.z -= 0.000001 / (texelSize.x + texelSize.y);
+    shadowCoord.z -= lightDirOffset;
 
     float blockerDistance = searchBlocker(shadowCoord, texelSize);
-    float penumbraMult = 0.0025 * blockerDistance * blockerDistance;
+    float penumbraMult = 0.05 * blockerDistance;
 
-    #define SAMPLE_N 1
+    #define SAMPLE_N 16
 
-    vec2 ssRange = texelSize * 32.0 / max(length(gs_data.worldCoord), 1.0) * sssFactor;
+    vec2 ssRange = texelSize * 2.0 * sssFactor;
     ssRange += texelSize * penumbraMult;
 
     float shadow = 0.0;
@@ -109,19 +110,17 @@ float calcShadow(vec3 lightViewNormal, float sssFactor) {
     #if SAMPLE_N == 1
     vec2 offset = r2Seq2(idxSS) * ssRange - ssRange * 0.5;
     vec3 zOffsetShadowCoord = shadowCoord;
-    zOffsetShadowCoord.z -= r2Seq1(idxSSS) * lightDirOffset;
     shadow += rtwsm_sampleShadowDepthOffset(usam_shadowDepthComp, zOffsetShadowCoord, 0.0, offset);
     #else
     for (int i = 0; i < SAMPLE_N; i++) {
         vec2 offset = r2Seq2(idxSS) * ssRange - ssRange * 0.5;
         vec3 zOffsetShadowCoord = shadowCoord;
-        zOffsetShadowCoord.z -= r2Seq1(idxSSS) * lightDirOffset;
         shadow += rtwsm_sampleShadowDepthOffset(usam_shadowDepthComp, zOffsetShadowCoord, 0.0, offset);
         idxSS++;
         idxSSS++;
     }
     shadow /= SAMPLE_N;
-//    shadow = pow(shadow, 1.0 + sssFactor * 1.0);
+    shadow = pow(shadow, 1.0 + sssFactor * 1.0);
     #endif
 
     return shadow;
@@ -162,14 +161,15 @@ void doStuff() {
     vec3 viewDir = normalize(-gs_data.worldCoord);
 
     vec4 aoSample = texture(usam_hbao, fTexCoord, 0);
-    float blockLightMul = 64.0 * pow(aoSample.a, 4.0);
-    float skyLightMul = 32.0 * pow(aoSample.a, 4.0);
+    float blockLightMul = 32.0 * pow(aoSample.a, 4.0);
+    float skyLightMul = 16.0 * pow(aoSample.a, 4.0);
     vec3 ambientLight = calcAmbient(usam_lightMap, mappedNormal, mappedNormal, alpha, gs_data.lightCoord, blockLightMul, skyLightMul);
 
+    float sssDot = sssFactor * 0.2;
     // Shadow
     float shadow = calcShadow(fNormalMatrix * gs_data.worldNormal, sssFactor);
     float diffuseIL = brdf_diffuseN_orenNayar(uShadowMap.lightDir, mappedNormal, mappedNormal, 1.0);
-    float directLightIl = shadow * (diffuseIL + sssFactor * mix(0.6, 1.0, diffuseIL));
+    float directLightIl = shadow * (diffuseIL + sssDot);
 
     vec3 v = vec3(0.0);
     v += materialAo * ambientLight;
@@ -182,7 +182,7 @@ void doStuff() {
     outParams.a = roughness;
 
     float diffuseDL = brdf_diffuseN_orenNayar(uShadowMap.lightDir, viewDir, mappedNormal, alpha);
-    float directLightDL = shadow * (diffuseDL + sssFactor * mix(0.6, 1.0, diffuseDL));
+    float directLightDL = shadow * (diffuseDL + sssDot);
 
     rt_mainFboOutput = vec4(0.0, 0.0, 0.0, 1.0);
     rt_mainFboOutput.rgb += directLightDL * SUN_LIGHT_INTENSITY * SUN_LIGHT_COLOR * gs_data.albedo.rgb;

@@ -67,7 +67,7 @@ class TerrainScene(gameInstance: GameInstance) : AbstractScene(gameInstance) {
     val combinedVelocity = register(VelocityBuffer(this))
 
     //    val voLight = VolumetricLight(this, 64, 8)
-    val txaa = TXAA(this, 8, 0.5f)
+    val txaa = register(TXAA(this, 8, 0.5f))
     val autoExposure = register(AutoExposure(this))
     private val toneMapping = register(ToneMapping(this))
     private val bloom = register(Bloom(this))
@@ -452,13 +452,13 @@ class TerrainScene(gameInstance: GameInstance) : AbstractScene(gameInstance) {
 //        glDebugGroup("Bloom") { bloom.render(fboGroup) }
         glDebugGroup("ToneMapping") {
             autoExposure.render(fboGroup)
-            toneMapping.render(fboGroup)
             autoExposure.update(fboGroup)
+            toneMapping.render(fboGroup)
         }
 
-        glDebugGroup("TXAA") { txaa.render(fboGroup) }
-
 //        solidLightDebug()
+
+        glDebugGroup("TXAA") { txaa.render(fboGroup) }
 
 //        rtwsm.renderDebug(fboGroup)
 

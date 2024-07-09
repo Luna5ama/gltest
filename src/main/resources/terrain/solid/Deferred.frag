@@ -17,7 +17,7 @@ struct GeomData {
     vec2 texCoord;
     vec2 lightCoord;
     vec4 colorMul;
-//    float lodMul;
+    float lodMul;
     float alphaTestV;
 };
 
@@ -31,8 +31,9 @@ void main() {
     GBufferData outData;
 
     outData.texCoord = fragData.texCoord;
-//    float lod = max(textureQueryLod(blockTexture, albedo).y, 0.0);
-    outData.albedo = textureLod(usam_blockAlbedoAtlas, outData.texCoord, 0.0);
+    float lod = max(textureQueryLod(usam_blockAlbedoAtlas, outData.texCoord).y, 0.0);
+//    outData.albedo = textureLod(usam_blockAlbedoAtlas, outData.texCoord, 0.0);
+    outData.albedo = textureLod(usam_blockAlbedoAtlas, outData.texCoord, fragData.lodMul * lod);
 
     #ifdef CUTOUT
     if (outData.albedo.a <= 0.5) discard;
@@ -40,7 +41,7 @@ void main() {
 
     outData.albedo *= fragData.colorMul;
     outData.albedo.rgb = srgb2linear(outData.albedo.rgb);
-    outData.albedo = vec4(1.0);
+//    outData.albedo = vec4(1.0);
 
     outData.worldCoord = fragData.worldCoord;
     outData.worldNormal = fragData.worldNormal;

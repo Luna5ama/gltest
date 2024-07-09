@@ -63,18 +63,18 @@ void main() {
     float vDiffWeight = smoothstep(0.0, 1.0, sqrt(abs(vCurr - vPrev)));
 
     float clampRatio = 0.0;
-    clampRatio += vDiffWeight * 0.8;
-//    clampRatio += smoothstep(0.5, 1.0, newPixel) * 0.5;
-    clampRatio += smoothstep(0.0, 0.1, vCurr) * 0.6;
-    clampRatio = clamp(clampRatio, 0.0, 1.0);
+    clampRatio += vDiffWeight;
+//    clampRatio += newPixel;
+//    clampRatio += smoothstep(0.0, 0.1, vCurr) * 0.5;
+//    clampRatio = clamp(clampRatio, 0.0, 1.0);
 
     lastColor = mix(lastColor, clamp(lastColor, nearMin, nearMax), clampRatio);
 
     float mixWeight = uMix.x;
 
-//    mixWeight *= 1.0 - newPixel * 0.6;
+//    mixWeight *= 1.0 - newPixel;
 //    mixWeight *= 1.0 - (smoothstep(0.0, 0.5, vCurr) / (max(length(gWorldCoord), 1.0) * 0.1)) * 0.4;
-//    mixWeight *= max(1.0 - vDiffWeight, 0.0) * 0.2 + 0.8;
+    mixWeight *= max(1.0 - vDiffWeight, 0.0);
 //    mixWeight = clamp(mixWeight, uMix.y, uMix.z);
 
     fragColor = mix(currColor, lastColor, mixWeight);

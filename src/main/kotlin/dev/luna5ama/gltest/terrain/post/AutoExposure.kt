@@ -37,7 +37,7 @@ class AutoExposure(private val scene: TerrainScene) : IGLObjContainer by IGLObjC
     init {
         MemoryStack {
             val arr = malloc(4L)
-            arr.ptr.setFloat(1.0f)
+            arr.ptr.setFloat(0.0f)
             glClearTexImage(avgLumTex.id, 0, GL_RED, GL_FLOAT, arr.ptr)
         }
     }
@@ -48,11 +48,11 @@ class AutoExposure(private val scene: TerrainScene) : IGLObjContainer by IGLObjC
     val avgLumSamplerBinding = ShaderBindingSpecs.Sampler("usam_avgLum", avgLumTex)
 
     fun update(fboGroup: FboGroup){
-        val pRangePower = 64.0f
+        val pRangePower = 1.0f
         val pLumRange = 1.0f
-        val timeCoeff = 0.01f
-        val minInc = 0.01f
-        val maxInc = 8.0f
+        val timeCoeff = 0.05f
+        val minInc = 0.05f
+        val maxInc = 0.5f
         val pixelTotal = (fboGroup.input.fbo.width * fboGroup.input.fbo.height).toFloat()
 
         buffer.clear(GL_R32UI, GL_RED_INTEGER, GL_UNSIGNED_INT, Ptr.NULL)
@@ -75,7 +75,7 @@ class AutoExposure(private val scene: TerrainScene) : IGLObjContainer by IGLObjC
             image(lumOutputBinding)
             buffer(histogramBinding)
         }
-        val topTargetPercent = fboGroup.input.fbo.width * fboGroup.input.fbo.height / 50.0
+        val topTargetPercent = fboGroup.input.fbo.width * fboGroup.input.fbo.height / 20.0
         lumAvg.uniform4f(
             "uParams",
             1.0f / pRangePower, pLumRange, timeCoeff, topTargetPercent.toFloat()
@@ -112,16 +112,18 @@ class AutoExposure(private val scene: TerrainScene) : IGLObjContainer by IGLObjC
 
         fboGroup.swap()
 
-        if (timer.tickAndReset(1000)) {
-            readBuffer.bind(GL_PIXEL_PACK_BUFFER)
-            glGetTextureImage(avgLumTex.id, 0, GL_RED, GL_FLOAT, 4, 0L)
-            readBuffer.unbind(GL_PIXEL_PACK_BUFFER)
-
-            println(mapped.ptr.getFloat())
-
-            buffer.copyTo(readBuffer, 255 * 4L, 4L, 4L)
-            println(mapped.ptr.getInt(4).toDouble() / (fboGroup.input.fbo.width * fboGroup.input.fbo.height).toDouble())
-            println()
-        }
+//        if (timer.tickAndReset(1000)) {
+//            readBuffer.bind(GL_PIXEL_PACK_BUFFER)
+//            glGetTextureImage(avgLumTex.id, 0, GL_RED, GL_FLOAT, 4, 0L)
+//            readBuffer.unbind(GL_PIXEL_PACK_BUFFER)
+//
+//            println("AvgLum: ${mapped.ptr.getFloat()}")
+//
+//            buffer.copyTo(readBuffer, 255 * 4L, 4L, 4L)
+//            val topBinV =
+//                mapped.ptr.getInt(4).toDouble() / (fboGroup.input.fbo.width * fboGroup.input.fbo.height).toDouble()
+//            println("TopBin: $topBinV")
+//            println()
+//        }
     }
 }

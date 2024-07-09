@@ -139,7 +139,7 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
         allocate(8, ImageFormat.Depth32F, texSize, texSize)
         setMipLevels(0, 7)
         setMipLod(0.0f, 7.0f)
-        setFilter(GL_LINEAR, GL_LINEAR)
+        setFilter(GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR)
         setWrap(GL_CLAMP_TO_BORDER, GL_CLAMP_TO_BORDER)
         setBorderColor(1.0f, 1.0f, 1.0f, 1.0f)
     }
@@ -196,7 +196,7 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
 //        lightDir.set(0.6f, 1.0f, 0.4f).normalize() // romm
 //        lightDir.set(-0.4f, 1.0f, 0.5f).normalize() // street
 //        lightDir.set(0.5f, 1.8f, 0.4f).normalize() // street
-        lightDir.set(0.4f, 0.5f, -0.8f).normalize() // street
+//        lightDir.set(0.4f, 0.5f, -0.8f).normalize() // street
 
 //        lightDir.set(0.6f, 1.2f, -0.8f).normalize() // Sponza
 //        lightDir.set(0.1f, 1.2f, -0.6f).normalize() // Sponza
@@ -204,7 +204,7 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
 //        lightDir.set(0.15f, 1.5f, -0.6f).normalize() // Sponza
 //        lightDir.set(0.4f, 1.2f, -0.5f).normalize() // Sponza
 //        lightDir.set(0.0f, 1.2f, -0.9f).normalize() // Sponza.
-//        lightDir.set(0.1f, 1.6f, -0.9f).normalize() // Sponza.
+        lightDir.set(0.1f, 1.6f, -0.9f).normalize() // Sponza.
 
 //        lightDir.set(0.5f, 0.8f, -0.5f).normalize() // Blocks
 

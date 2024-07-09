@@ -246,7 +246,7 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
             if (!frustumCullingFlags[chunkInfo.chunkIndex].value) continue
             if (sampleCountArray[chunkInfo.chunkIndex] > 4.0f) {
                 if (!scene.gameInstance.toggle1) {
-                    hwMs.add(chunkInfo)
+                    hwVs.add(chunkInfo)
                 }
             } else {
                 if (!scene.gameInstance.toggle2) {

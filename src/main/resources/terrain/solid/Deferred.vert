@@ -14,7 +14,7 @@ struct GeomData {
     vec2 texCoord;
     vec2 lightCoord;
     vec4 colorMul;
-//    float lodMul;
+    float lodMul;
     float alphaTestV;
 };
 
@@ -32,7 +32,7 @@ void main() {
     fragData.texCoord = vTexCoord;
     fragData.lightCoord = (vLightCoord + 8.0) * 0.00390625;
     fragData.worldNormal = vNormal;
-//    fragData.lodMul = float(vMdlAttrib & 1u);
+    fragData.lodMul = float(vMdlAttrib & 1u);
     fragData.alphaTestV = float((vMdlAttrib >> 1u) & 1u) - 0.5;
 
     frag_mdlAttrib = vMdlAttrib;

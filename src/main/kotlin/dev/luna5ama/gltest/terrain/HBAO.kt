@@ -19,8 +19,8 @@ class HBAO(private val scene: TerrainScene, private val solidLighting: SolidLigh
         ShaderProgram(
             ShaderSource.Vert("terrain/Blit.vert.glsl"),
             ShaderSource.Frag("terrain/hbao/HBAO2.frag") {
-                define("HBAO_DIR_SAMPLES", 4)
-                define("HBAO_STEP_SAMPLES", 4)
+                define("HBAO_DIR_SAMPLES", 2)
+                define("HBAO_STEP_SAMPLES", 8)
             }
         )
     )
@@ -74,14 +74,15 @@ class HBAO(private val scene: TerrainScene, private val solidLighting: SolidLigh
             sampler(input.genericTexBindings)
             sampler(solidLighting.texBingings)
             buffer(scene.camera.uboBinding)
+            buffer(scene.rtwsm.uboBinding)
         }
 //        val invTanRad = 1.0f / tan(scene.camera.fov.toRadians() * 0.5f)
-        shader.uniform1f("uval_tangentBias", 30.0f.toRadians())
-        val aoRadius = 4.0f
-        val giRadius = aoRadius
-        shader.uniform4f("uval_radius", aoRadius, 1.0f / aoRadius, giRadius, 1.0f / giRadius)
+        shader.uniform1f("uval_tangentBias", 10.0f.toRadians())
+        val aoRadius = 2.0f
+        val maxRadius = 8.0f
+        shader.uniform2f("uval_radius", aoRadius, maxRadius)
         shader.uniform2f("uval_aoStrength", if (scene.gameInstance.toggle2) 0.0f else 4.0f, 1.0f)
-        shader.uniform2f("uval_giStrength",  16.0f, 8.0f)
+        shader.uniform2f("uval_giStrength",  8.0f, 8.0f)
         shader.uniform1ui("uval_idk", 1)
         shader.uniform1i("uval_randR", 2)
         val aspect = scene.camera.aspectRatio
@@ -107,9 +108,9 @@ class HBAO(private val scene: TerrainScene, private val solidLighting: SolidLigh
         scene.basic.drawQuad()
         gpuTimer.end()
 
-//        if (timer.tickAndReset(1000)) {
-//            println("HBAO: %.2f ms".format(gpuTimer.averageMS()))
-//        }
+        if (timer.tickAndReset(1000)) {
+            println("HBAO: %.2f ms".format(gpuTimer.averageMS()))
+        }
 
         glViewport(0, 0, scene.camera.screenWidth, scene.camera.screenHeight)
     }

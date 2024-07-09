@@ -3,6 +3,7 @@
 #define NO_NORMALS
 
 #include "../utils/Rand.glsl"
+#include "../rtwsm/ShadowParams.glsl"
 #include "../utils/R2Seqs.glsl"
 #include "../utils/Math.glsl"
 #include "../GBuffers.glsl"
@@ -12,7 +13,7 @@
 
 uniform sampler2D usam_lightMap;
 uniform float uval_tangentBias;
-uniform vec4 uval_radius;
+uniform vec2 uval_radius;
 uniform vec2 uval_aoStrength;
 uniform vec2 uval_giStrength;
 uniform vec3 uval_projectParams;
@@ -40,10 +41,10 @@ vec3 gtaoMultiBounce(vec3 albedo, float ao) {
 float blinnPhong(vec3 lightDir, vec3 viewDir, vec3 normal, float roughness) {
     vec3 halfDir = normalize(lightDir + viewDir);
     float NdotH = max(dot(normal, halfDir), 0.0);
-    float roughness2 = roughness * roughness;
 
-    const float PI_CONST = 3.14159265359;
-    return (1.0 / (PI_CONST * roughness2)) * pow(NdotH, 2.0 / roughness2 - 2.0);
+    float roughness2 = max(roughness * roughness, 0.01);
+
+    return pow(NdotH, 2.0 / (roughness2) - 2.0) * (1.0 - roughness2);
 }
 
 #define F_INDEX ubo_cameraDefault.gFrameIndex
@@ -58,9 +59,9 @@ void main() {
     vec3 gs_viewCoord = (ubo_cameraDefault.modelView * vec4(gs_data.worldCoord, 1.0)).xyz;
     vec3 viewDirThis = normalize(-gs_data.worldCoord);
 
-//        vec3 worldNormalThis = slThis2.rgb;
-//    vec3 worldNormalThis = gs_data.worldNormal;
-    vec3 worldNormalThis = normalize(gs_data.worldNormal + slThis2.rgb);
+    //        vec3 worldNormalThis = slThis2.rgb;
+//        vec3 worldNormalThis = gs_data.worldNormal;
+    vec3 worldNormalThis = normalize(gs_data.worldNormal + slThis2.rgb * 0.1);
 
     vec3 gs_viewNormal = mat3(ubo_cameraDefault.modelView) * worldNormalThis;
     float roughnessThis = slThis2.a;
@@ -74,7 +75,7 @@ void main() {
 
     float sampleAngleDelta = 2.0 * PI_CONST / HBAO_DIR_SAMPLES;
     float initialAngle = r2Seq1(F_INDEX + worldCoordRand0) * sampleAngleDelta - sampleAngleDelta * 0.5;
-    vec2 sphereRadius = (max(uval_radius.x, uval_radius.z) / -gs_viewCoord.z) * uval_projectParams.xy;
+    vec2 sphereRadius = (uval_radius.x / -gs_viewCoord.z) * uval_projectParams.xy;
 
     vec4 sum = vec4(0.0);
 
@@ -113,50 +114,58 @@ void main() {
 
             vec3 diff = gSampleData.worldCoord - gs_data.worldCoord;
             float dist = length(diff);
-            if (dist > uval_radius.x) break;
+            if (dist > uval_radius.y) break;
+            float dist2 = dist * dist;
 
-                vec3 diffView = mat3(ubo_cameraDefault.modelView) * diff;
-                float normLastDist = dist * uval_radius.y;
-                float aoAttenuation = 1.0 - normLastDist;
-                float xSample = diffView.z * fastRcpSqrtNR0(dot(diffView.xy, diffView.xy));
-                float sinSample = xSample * fastRcpSqrtNR0(1.0 + xSample * xSample);
-                maxOcclusion = clamp(aoAttenuation * (sinSample - sinTan) * uval_aoStrength.x, maxOcclusion, 1.0);
+            vec3 diffView = mat3(ubo_cameraDefault.modelView) * diff;
+            float xSample = diffView.z * fastRcpSqrtNR0(dot(diffView.xy, diffView.xy));
+            float sinSample = xSample * fastRcpSqrtNR0(1.0 + xSample * xSample);
 
+            float aoAtt = 4.0;
+            float aoAttenuation = aoAtt / (aoAtt + dist2);
 
-                vec4 sample1 = texture(usam_solidLighting1, sampleTexCoord);
-                vec4 sample2 = texture(usam_solidLighting2, sampleTexCoord);
+            maxOcclusion = clamp(aoAttenuation * (sinSample - sinTan) * uval_aoStrength.x, maxOcclusion, 1.0);
 
-                vec3 dirToThat = normalize(gSampleData.worldCoord - gs_data.worldCoord);
-                vec3 worldNormalThat = sample2.rgb;
+            vec4 sample1 = texture(usam_solidLighting1, sampleTexCoord);
+            vec4 sample2 = texture(usam_solidLighting2, sampleTexCoord);
 
-                vec3 emissiveLightThat = sample1.a * EMISSIVE_INTENSITY * EMISSIVE_INTENSITY * gSampleData.albedo.rgb;
-                vec3 diffuseLightThat = uval_giStrength.x * sample1.rgb * gSampleData.albedo.rgb + emissiveLightThat;
-                vec3 specLightThat = uval_giStrength.y * (sample1.rgb + emissiveLightThat);
+            float roughnessThat = sample2.a;
+            roughnessThat *= roughnessThat;
 
-                vec3 incomingLight = specLightThat + diffuseLightThat;
+            vec3 dirToThat = normalize(gSampleData.worldCoord - gs_data.worldCoord);
+            vec3 worldNormalThat = sample2.rgb;
 
-                float diffuseThis = brdf_diffuse_orenNayar(dirToThat, viewDirThis, worldNormalThis, roughnessThis);
-//                float diffuseThis = max(dot(worldNormalThis, dirToThat), 0.0);
-                float angle = dot(-dirToThat, worldNormalThat);
-//                angle = angle * angle * angle * (angle * (6.0 * angle - 15.0) + 10.0);
-                angle = max(angle, 0.0);
+            float angle = dot(-dirToThat, worldNormalThat);
+            angle = max(angle, 0.0);
 
-                float attenuation = 1.0 / (1.0 + dist * dist);
-//                attenuation *= 1.0 - smoothstep(uval_radius.z * 0.1, uval_radius.z, dist);
+            vec3 emissiveLightThat = sample1.a * EMISSIVE_INTENSITY * gSampleData.albedo.rgb;
+            vec3 diffuseLightThat = uval_giStrength.x * angle * sample1.rgb * gSampleData.albedo.rgb + emissiveLightThat;
 
-                colorSum += angle * diffuseThis * attenuation * incomingLight;
+            float specThat = blinnPhong(uShadowMap.lightDir, -dirToThat, worldNormalThat, roughnessThat);
+            vec3 specLightThat = uval_giStrength.y * (sample1.rgb * specThat * angle + emissiveLightThat);
 
-                giSample++;
+            vec3 incomingLight = specLightThat + diffuseLightThat;
+
+            float diffuseThis = brdf_diffuse_orenNayar(dirToThat, viewDirThis, worldNormalThis, roughnessThis);
+
+            float giAtt = 1.0;
+            float attenuation = giAtt / (giAtt + dist2);
+
+            float adj = 1.0 / max(dot(-normalize(gSampleData.worldCoord), worldNormalThat), 0.1);
+
+            colorSum += adj * attenuation * incomingLight * diffuseThis;
+
+            giSample++;
         }
 
         sum.a += maxOcclusion;
-//        sum.a += 1.0 - maxOcclusion;
         sum.rgb += step(1.0, giSample) * (colorSum / float(max(giSample, 1)));
     }
 
     sum /= HBAO_DIR_SAMPLES;
-//    sum.a = min(sum.a * uval_aoStrength.x, 1.0);
+    //    sum.a = min(sum.a * uval_aoStrength.x, 1.0);
     sum.a = 1.0 - sum.a;
+//    sum.a = pow(sum.a, uval_aoStrength.y);
 
     outValue = sum;
 }

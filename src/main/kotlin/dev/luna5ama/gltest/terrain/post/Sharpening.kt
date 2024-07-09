@@ -13,14 +13,14 @@ class Sharpening(private val scene: TerrainScene) : IGLObjContainer by IGLObjCon
         ShaderSource.Frag("terrain/post/Sharpening.frag.glsl")
     )
 )
-    fun  render(fboGroup: FboGroup) {
+    fun render(fboGroup: FboGroup) {
         fboGroup.output.fbo.bind()
         shader.bind()
         shader.applyBinding {
             sampler(fboGroup.inputBindings)
             buffer(scene.camera.noJitterUboBinding)
         }
-        shader.uniform1f("uSharpnessAmount", 0.0f)
+        shader.uniform1f("uSharpnessAmount", 0.5f)
 
         scene.basic.drawQuad()
 

@@ -16,6 +16,6 @@ class TXAA(scene: TerrainScene, samples: Int, radius: Float) : IGLObjContainer b
     fun render(fboGroup: FboGroup) {
         fxaa.render(fboGroup)
         taa.render(fboGroup)
-//        sharpening.render(fboGroup)
+        sharpening.render(fboGroup)
     }
 }
