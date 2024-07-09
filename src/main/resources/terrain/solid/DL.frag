@@ -18,7 +18,6 @@ layout(early_fragment_tests) in;
 uniform sampler2D usam_blockNormalAtlas;
 uniform sampler2D usam_blockSpecularAtlas;
 uniform sampler2D usam_lightMap;
-uniform sampler2D usam_hbao;
 
 uniform vec3 originOffset;
 
@@ -160,16 +159,18 @@ void doStuff() {
 
     vec3 viewDir = normalize(-gs_data.worldCoord);
 
-    vec4 aoSample = texture(usam_hbao, fTexCoord, 0);
-    float blockLightMul = 32.0 * pow(aoSample.a, 4.0);
-    float skyLightMul = 16.0 * pow(aoSample.a, 4.0);
+    float blockLightMul = 32.0;
+    float skyLightMul = 16.0;
     vec3 ambientLight = calcAmbient(usam_lightMap, mappedNormal, mappedNormal, alpha, gs_data.lightCoord, blockLightMul, skyLightMul);
 
-    float sssDot = sssFactor * 0.2;
+    float sssBase = 0.1;
+    float sssSheen = min(1.0 - dot(mappedNormal, viewDir), 1.0);
+    sssSheen = sssSheen * 0.5;
+    float sssValue = sssFactor * (sssBase + sssSheen);
     // Shadow
     float shadow = calcShadow(fNormalMatrix * gs_data.worldNormal, sssFactor);
     float diffuseIL = brdf_diffuseN_orenNayar(uShadowMap.lightDir, mappedNormal, mappedNormal, 1.0);
-    float directLightIl = shadow * (diffuseIL + sssDot);
+    float directLightIl = shadow * (diffuseIL + sssValue);
 
     vec3 v = vec3(0.0);
     v += materialAo * ambientLight;
@@ -182,7 +183,7 @@ void doStuff() {
     outParams.a = roughness;
 
     float diffuseDL = brdf_diffuseN_orenNayar(uShadowMap.lightDir, viewDir, mappedNormal, alpha);
-    float directLightDL = shadow * (diffuseDL + sssDot);
+    float directLightDL = shadow * (diffuseDL + sssValue);
 
     rt_mainFboOutput = vec4(0.0, 0.0, 0.0, 1.0);
     rt_mainFboOutput.rgb += directLightDL * SUN_LIGHT_INTENSITY * SUN_LIGHT_COLOR * gs_data.albedo.rgb;

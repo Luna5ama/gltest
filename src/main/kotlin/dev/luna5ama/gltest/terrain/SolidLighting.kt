@@ -92,7 +92,6 @@ class SolidLighting(private val scene: TerrainScene) : IGLObjContainer by IGLObj
                 sampler(scene.textures.blockSpecular)
                 sampler(scene.textures.lightMap)
                 sampler(scene.rtwsm.shadowMapSamplerBindings)
-                sampler(hbao.texBinding)
 
                 buffer(scene.camera.uboBinding)
                 buffer(scene.rtwsm.uboBinding)

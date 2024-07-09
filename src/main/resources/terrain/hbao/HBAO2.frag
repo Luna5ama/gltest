@@ -29,15 +29,6 @@ in vec2 fTexCoord;
 layout(location = 0) out vec4 outValue;
 layout(location = 1) out vec4 outIDK;
 
-vec3 gtaoMultiBounce(vec3 albedo, float ao) {
-    vec3 a = 2.0404 * albedo - 0.3324;
-    vec3 b = 0.0091 * albedo + 0.0151;
-    vec3 c = 0.0071 * albedo + 0.0001;
-    float ao2 = ao * ao;
-    float ao3 = ao2 * ao;
-    return a * ao3 + b * ao2 + c * ao;
-}
-
 float blinnPhong(vec3 lightDir, vec3 viewDir, vec3 normal, float roughness) {
     vec3 halfDir = normalize(lightDir + viewDir);
     float NdotH = max(dot(normal, halfDir), 0.0);

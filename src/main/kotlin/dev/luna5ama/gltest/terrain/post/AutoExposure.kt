@@ -51,7 +51,7 @@ class AutoExposure(private val scene: TerrainScene) : IGLObjContainer by IGLObjC
         val pRangePower = 1.0f
         val pLumRange = 1.0f
         val timeCoeff = 0.05f
-        val minInc = 0.05f
+        val minInc = 0.1f
         val maxInc = 0.5f
         val pixelTotal = (fboGroup.input.fbo.width * fboGroup.input.fbo.height).toFloat()
 

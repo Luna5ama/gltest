@@ -32,12 +32,11 @@ void main() {
 
     outData.texCoord = fragData.texCoord;
     float lod = max(textureQueryLod(usam_blockAlbedoAtlas, outData.texCoord).y, 0.0);
-//    outData.albedo = textureLod(usam_blockAlbedoAtlas, outData.texCoord, 0.0);
-    outData.albedo = textureLod(usam_blockAlbedoAtlas, outData.texCoord, fragData.lodMul * lod);
 
     #ifdef CUTOUT
-    if (outData.albedo.a <= 0.5) discard;
+    if (textureLod(usam_blockAlbedoAtlas, outData.texCoord, 0.0).a <= 0.5) discard;
     #endif
+    outData.albedo = textureLod(usam_blockAlbedoAtlas, outData.texCoord, fragData.lodMul * lod);
 
     outData.albedo *= fragData.colorMul;
     outData.albedo.rgb = srgb2linear(outData.albedo.rgb);

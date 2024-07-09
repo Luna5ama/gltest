@@ -118,9 +118,7 @@ fun ShaderProgram.uniform4f(name: String, value: Vector4d) {
 }
 
 inline fun glDebugGroup(name: String, block: () -> Unit) {
-    MemoryStack {
-        glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, name)
-        block()
-        glPopDebugGroup()
-    }
+//    glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, name)
+    block()
+//    glPopDebugGroup()
 }

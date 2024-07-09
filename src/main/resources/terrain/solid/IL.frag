@@ -41,16 +41,6 @@ float gs_aoMul;
 uint worldCoordRand[6];
 
 
-vec3 gtaoMultiBounce(vec3 albedo, float ao) {
-    vec3 a = 2.0404 * albedo - 0.3324;
-    vec3 b = 4.7951 * albedo - 0.6417;
-    vec3 c = 2.7552 * albedo + 0.6903;
-    float ao2 = ao * ao;
-    float ao3 = ao2 * ao;
-    return max(a * ao3 - b * ao2 + c * ao, vec3(ao));
-}
-
-
 void doStuff() {
     vec4 aoSample = texture(usam_hbao, fTexCoord);
     vec4 sl1 = texelFetch(usam_solidLighting1, intTexCoord, 0);

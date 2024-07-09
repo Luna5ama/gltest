@@ -133,8 +133,8 @@ class GameInstance(val window: Long) {
 
         pollErrors("Pre Setup")
 //    val scene = TestScene(this)
-        val scene = TerrainScene(this)
-//        val scene = PointCloudScene(this)
+//        val scene = TerrainScene(this)
+        val scene = PointCloudScene(this)
 
         val mouse = Mouse()
         glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE)

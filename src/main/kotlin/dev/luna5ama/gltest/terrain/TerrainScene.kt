@@ -29,10 +29,10 @@ import kotlin.math.pow
 
 class TerrainScene(gameInstance: GameInstance) : AbstractScene(gameInstance) {
 //    val terrainMesh = register(TerrainMesh(this, File("dumpMountain")))
-//    val terrainMesh = register(TerrainMesh(this, File("dumpMountainV")))
+    val terrainMesh = register(TerrainMesh(this, File("dumpMountainV")))
 //    val terrainMesh = register(TerrainMesh(this, File("dumpBadlands")))
 //    val terrainMesh = register(TerrainMesh(this, File("dumpForest")))
-    val terrainMesh = register(TerrainMesh(this, File("dumpTest")))
+//    val terrainMesh = register(TerrainMesh(this, File("dumpTest")))
 //    val terrainMesh = register(TerrainMesh(this, File("dumpJungle")))
 //        val terrainMesh = register(TerrainMesh(this,File("dumpTaiga")))
 //    val terrainMesh = register(TerrainMesh(this, File("dumpDesert")))
