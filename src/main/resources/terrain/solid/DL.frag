@@ -159,8 +159,8 @@ void doStuff() {
 
     vec3 viewDir = normalize(-gs_data.worldCoord);
 
-    float blockLightMul = 32.0;
-    float skyLightMul = 16.0;
+    float blockLightMul = 16.0;
+    float skyLightMul = 0.0;
     vec3 ambientLight = calcAmbient(usam_lightMap, mappedNormal, mappedNormal, alpha, gs_data.lightCoord, blockLightMul, skyLightMul);
 
     float sssBase = 0.1;
@@ -169,7 +169,7 @@ void doStuff() {
     float sssValue = sssFactor * (sssBase + sssSheen);
     // Shadow
     float shadow = calcShadow(fNormalMatrix * gs_data.worldNormal, sssFactor);
-    float diffuseIL = brdf_diffuseN_orenNayar(uShadowMap.lightDir, mappedNormal, mappedNormal, 1.0);
+    float diffuseIL = brdf_diffuseN_orenNayar(uShadowMap.lightDir, mappedNormal, mappedNormal, alpha);
     float directLightIl = shadow * (diffuseIL + sssValue);
 
     vec3 v = vec3(0.0);

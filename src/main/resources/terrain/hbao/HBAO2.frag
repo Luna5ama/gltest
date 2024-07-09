@@ -18,7 +18,6 @@ uniform vec2 uval_aoStrength;
 uniform vec2 uval_giStrength;
 uniform vec3 uval_projectParams;
 uniform int uval_randR;
-uniform uint uval_idk;
 
 #include "../solid/Texs.glsl"
 #include "../solid/Utils.glsl"
@@ -35,11 +34,21 @@ float blinnPhong(vec3 lightDir, vec3 viewDir, vec3 normal, float roughness) {
 
     float roughness2 = max(roughness * roughness, 0.01);
 
-    return pow(NdotH, 2.0 / (roughness2) - 2.0) * (1.0 - roughness2);
+    return max(pow(NdotH, 2.0 / (roughness2) - 2.0) * (1.0 - roughness2), 0.0);
 }
 
 #define F_INDEX ubo_cameraDefault.gFrameIndex
 //#define F_INDEX 0
+
+float IGN(vec2 v) {
+    return fract(52.9829189 * fract(0.06711056 * v.x + 0.00583715 * v.y));
+}
+
+float IGN(vec2 v, uint frame) {
+    frame = frame % 64u;
+    v = v + 5.588238 * float(frame);
+    return fract(52.9829189 * fract(0.06711056 * v.x + 0.00583715 * v.y));
+}
 
 void main() {
     GBufferData gs_data;
@@ -50,22 +59,28 @@ void main() {
     vec3 gs_viewCoord = (ubo_cameraDefault.modelView * vec4(gs_data.worldCoord, 1.0)).xyz;
     vec3 viewDirThis = normalize(-gs_data.worldCoord);
 
-    //        vec3 worldNormalThis = slThis2.rgb;
+            vec3 worldNormalThis = slThis2.rgb;
 //        vec3 worldNormalThis = gs_data.worldNormal;
-    vec3 worldNormalThis = normalize(gs_data.worldNormal + slThis2.rgb * 0.1);
+//    vec3 worldNormalThis = normalize(gs_data.worldNormal + slThis2.rgb * 0.1);
 
     vec3 gs_viewNormal = mat3(ubo_cameraDefault.modelView) * worldNormalThis;
     float roughnessThis = slThis2.a;
     roughnessThis *= roughnessThis;
 
-    uint worldCoordRand0 = uint(rand(gs_data.worldCoord.xyz) * 1024.0);
-    uint worldCoordRand1 = uint(rand(gs_data.worldCoord.zxy) * 1024.0);
+    uint worldCoordRand0 = uint(rand(gs_data.worldCoord.xyz) * 256.0);
+    uint worldCoordRand1 = uint(rand(gs_data.worldCoord.zxy) * 256.0);
+
+//    uint worldCoordRand0 = uint(rand(gl_FragCoord.yx) * 256.0);
+//    uint worldCoordRand1 = uint(rand(gl_FragCoord.yx) * 256.0);
+
+//    uint worldCoordRand0 = uint(IGN(gl_FragCoord.yx, ubo_cameraDefault.gFrameIndex) * 256.0);
+//    uint worldCoordRand1 = uint(IGN(gl_FragCoord.yx, ubo_cameraDefault.gFrameIndex) * 256.0);
 
     ivec2 intTexCoord = ivec2(fTexCoordI);
-    uint texCoordRand = uint((intTexCoord.x % uval_randR) + ((intTexCoord.y % uval_randR) * uval_randR));
 
     float sampleAngleDelta = 2.0 * PI_CONST / HBAO_DIR_SAMPLES;
-    float initialAngle = r2Seq1(F_INDEX + worldCoordRand0) * sampleAngleDelta - sampleAngleDelta * 0.5;
+//    float initialAngle = r2Seq1(F_INDEX + worldCoordRand0) * sampleAngleDelta - sampleAngleDelta * 0.5;
+    float initialAngle = IGN(gl_FragCoord.xy, ubo_cameraDefault.gFrameIndex) * sampleAngleDelta - sampleAngleDelta * 0.5;
     vec2 sphereRadius = (uval_radius.x / -gs_viewCoord.z) * uval_projectParams.xy;
 
     vec4 sum = vec4(0.0);
@@ -115,7 +130,8 @@ void main() {
             float aoAtt = 4.0;
             float aoAttenuation = aoAtt / (aoAtt + dist2);
 
-            maxOcclusion = clamp(aoAttenuation * (sinSample - sinTan) * uval_aoStrength.x, maxOcclusion, 1.0);
+            float occlusion = min(aoAttenuation * (sinSample - sinTan) * uval_aoStrength.x, 1.0);
+            maxOcclusion = max(occlusion, maxOcclusion);
 
             vec4 sample1 = texture(usam_solidLighting1, sampleTexCoord);
             vec4 sample2 = texture(usam_solidLighting2, sampleTexCoord);
@@ -127,7 +143,7 @@ void main() {
             vec3 worldNormalThat = sample2.rgb;
 
             float angle = dot(-dirToThat, worldNormalThat);
-            angle = max(angle, 0.0);
+            angle = (1.0 - occlusion) * (angle * 0.5 + 0.5);
 
             vec3 emissiveLightThat = sample1.a * EMISSIVE_INTENSITY * gSampleData.albedo.rgb;
             vec3 diffuseLightThat = uval_giStrength.x * angle * sample1.rgb * gSampleData.albedo.rgb + emissiveLightThat;
@@ -144,7 +160,8 @@ void main() {
 
             float adj = 1.0 / max(dot(-normalize(gSampleData.worldCoord), worldNormalThat), 0.1);
 
-            colorSum += adj * attenuation * incomingLight * diffuseThis;
+            vec3 colorSample = adj * attenuation * incomingLight * diffuseThis;
+            colorSum += colorSample;
 
             giSample++;
         }
@@ -156,7 +173,7 @@ void main() {
     sum /= HBAO_DIR_SAMPLES;
     //    sum.a = min(sum.a * uval_aoStrength.x, 1.0);
     sum.a = 1.0 - sum.a;
-//    sum.a = pow(sum.a, uval_aoStrength.y);
+    sum.a = pow(sum.a, uval_aoStrength.y);
 
     outValue = sum;
 }

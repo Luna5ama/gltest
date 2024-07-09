@@ -190,62 +190,6 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
         if (batchCount == 0) return
 
         drawPass(inputIndirectBuffer)
-//        if (!scene.gameInstance.toggle3) {
-//            glDebugGroup("Render Last Visible") {
-//                glDebugGroup("Indirect Setup") {
-//                    indirectSetupShaders[1].dispatch()
-//                    glMemoryBarrier(GL_COMMAND_BARRIER_BIT or GL_SHADER_STORAGE_BARRIER_BIT)
-//                }
-//                glDebugGroup("Draw") {
-//                    drawPass(outputIndirectBuffer)
-//                }
-//            }
-//
-//            glDebugGroup("Cull Test") {
-//                renderer.cullPipeline.draw(ctcBuffer)
-//                glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
-//            }
-//
-//            glDebugGroup("Render New Visible") {
-//                glDebugGroup("Indirect Setup") {
-//                    indirectSetupShaders[2].dispatch()
-//                    glMemoryBarrier(GL_COMMAND_BARRIER_BIT or GL_SHADER_STORAGE_BARRIER_BIT)
-//                }
-//                glDebugGroup("Draw") {
-//                    drawPass(outputIndirectBuffer)
-//                }
-//            }
-//
-////            indirectSetupShaders[3].dispatch()
-////            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT or GL_BUFFER_UPDATE_BARRIER_BIT)
-////
-////            scene.vbuffer.fbo.bind()
-////            glDisable(GL_DEPTH_CLAMP)
-////            glEnable(GL_CULL_FACE)
-////            glCullFace(GL_BACK)
-////            glEnable(GL_DEPTH_TEST)
-////            glDepthFunc(GL_LEQUAL)
-////            glDepthMask(true)
-////            glColorMask(true, true, true, true)
-////
-////            if (printTimer.tickAndReset(3000)) {
-////                MemoryStack {
-////                    val count = malloc(4)
-////                    glGetNamedBufferSubData(outputIndirectBuffer.id, 0, 4L, count.ptr)
-////                    println("Batch count: ${count.ptr.getInt()}/${batchCount}")
-////                }
-////            }
-//        } else {
-//            glDebugGroup("Render Visible") {
-//                glDebugGroup("Indirect Setup") {
-//                    indirectSetupShaders[0].dispatch()
-//                    glMemoryBarrier(GL_COMMAND_BARRIER_BIT or GL_SHADER_STORAGE_BARRIER_BIT)
-//                }
-//                glDebugGroup("Draw") {
-//                    drawPass(outputIndirectBuffer)
-//                }
-//            }
-//        }
     }
 
     private fun drawPass(buffer: BufferObject.Immutable) {

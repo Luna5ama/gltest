@@ -1,6 +1,5 @@
 package dev.luna5ama.gltest.pc
 
-import dev.fastmc.common.TickTimer
 import dev.luna5ama.gltest.*
 import dev.luna5ama.gltest.terrain.Textures
 import dev.luna5ama.gltest.terrain.register
@@ -19,7 +18,8 @@ import java.nio.channels.FileChannel
 import java.nio.file.StandardOpenOption
 import java.util.*
 
-class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) {
+class PointCloudScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard) :
+    AbstractScene(gameInstance, mouse, keyboard) {
     val gpuScan = register(GPUScan())
 
 //        private val terrainMeshData = register(TerrainMeshData(this, File("dumpTest")))
@@ -71,7 +71,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
             camera.pos.z = prop["posZ"].toString().toDouble()
             camera.rotation.x = prop["yaw"].toString().toFloat()
             camera.rotation.y = prop["pitch"].toString().toFloat()
-            camera.fov = prop["fov"].toString().toFloat()
+            camera.fov0 = prop["fov"].toString().toFloat()
             camera.viewDistance = prop["viewDistance"].toString().toFloat()
         }.onFailure {
             it.printStackTrace()
@@ -103,7 +103,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
         props["posZ"] = camera.pos.z.toString()
         props["yaw"] = (camera.rotation.x % 360.0f).toString()
         props["pitch"] = (camera.rotation.y % 360.0f).toString()
-        props["fov"] = camera.fov.toString()
+        props["fov"] = camera.fov0.toString()
         props["viewDistance"] = camera.viewDistance.toString()
         runCatching {
             props.store(
@@ -241,7 +241,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
                 }
                 lastKey = GLFW_KEY_F7
 
-                camera.fov = 90.0f
+                camera.fov0 = 90.0f
                 camera.viewDistance = 2048.0f
                 camera.rotation.x = -89.0f
                 camera.rotation.y = 75.0f
@@ -258,7 +258,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
                 }
                 lastKey = GLFW_KEY_F8
 
-                camera.fov = 90.0f
+                camera.fov0 = 90.0f
                 camera.viewDistance = 2048.0f
                 camera.rotation.x = -50.0f
                 camera.rotation.y = 77.5f
@@ -275,7 +275,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
                 }
                 lastKey = GLFW_KEY_F9
 
-                camera.fov = 90.0f
+                camera.fov0 = 90.0f
                 camera.viewDistance = 2048.0f
                 camera.rotation.x = -315.0f
                 camera.rotation.y = 31.3f
@@ -292,7 +292,7 @@ class PointCloudScene(gameInstance: GameInstance) : AbstractScene(gameInstance) 
                 }
                 lastKey = GLFW_KEY_F10
 
-                camera.fov = 90.0f
+                camera.fov0 = 90.0f
                 camera.viewDistance = 2048.0f
                 camera.rotation.x = -236.0f
                 camera.rotation.y = 40.0f

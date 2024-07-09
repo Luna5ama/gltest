@@ -19,6 +19,7 @@ import org.lwjgl.opengl.GLDebugMessageCallback
 import java.io.File
 import java.net.URI
 import kotlin.coroutines.CoroutineContext
+import kotlin.math.max
 
 class GameInstance(val window: Long) {
     companion object {
@@ -132,17 +133,17 @@ class GameInstance(val window: Long) {
         glEnable(GL_DITHER)
 
         pollErrors("Pre Setup")
-//    val scene = TestScene(this)
-//        val scene = TerrainScene(this)
-        val scene = PointCloudScene(this)
 
         val mouse = Mouse()
         glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE)
 
         val keyboard = Keyboard()
-        registerKeyCallbacks(scene, keyboard)
 
-        scene.init(mouse, keyboard)
+//    val scene = TestScene(this, mouse, keyboard)
+        val scene = TerrainScene(this, mouse, keyboard)
+//        val scene = PointCloudScene(this, mouse, keyboard)
+
+        registerKeyCallbacks(scene, keyboard)
 
         pollErrors("Post Setup")
 
@@ -162,7 +163,9 @@ class GameInstance(val window: Long) {
         }
         glfwSetMouseButtonCallback(window, mouse.callback)
         glfwSetKeyCallback(window, keyboard.callback)
-
+        glfwSetScrollCallback(window) { window, xOffset, yOffset ->
+            scene.camera.zoom = max(scene.camera.zoom + yOffset * 0.5, 0.0)
+        }
 
         mouse.register(GLFW_MOUSE_BUTTON_MIDDLE) {
             if (it == GLFW_RELEASE) {

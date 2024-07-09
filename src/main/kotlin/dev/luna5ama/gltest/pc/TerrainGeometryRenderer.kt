@@ -196,6 +196,7 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
             scene.vbuffer.fbo.blitTo(scene.fboGroup.input.fbo, GL_DEPTH_BUFFER_BIT, GL_NEAREST)
             scene.vbuffer.fbo.blitTo(scene.fboGroup.output.fbo, GL_DEPTH_BUFFER_BIT, GL_NEAREST)
         }
+        glClipControl(GL_LOWER_LEFT, GL_NEGATIVE_ONE_TO_ONE)
 
         if (printTimer.tickAndReset(3000)) {
             println("Min distance ${sqrt(sortKeys.min().toDouble())}")

@@ -27,12 +27,13 @@ import java.util.*
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.pow
 
-class TerrainScene(gameInstance: GameInstance) : AbstractScene(gameInstance) {
+class TerrainScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard) :
+    AbstractScene(gameInstance, mouse, keyboard) {
 //    val terrainMesh = register(TerrainMesh(this, File("dumpMountain")))
-    val terrainMesh = register(TerrainMesh(this, File("dumpMountainV")))
+//    val terrainMesh = register(TerrainMesh(this, File("dumpMountainV")))
 //    val terrainMesh = register(TerrainMesh(this, File("dumpBadlands")))
 //    val terrainMesh = register(TerrainMesh(this, File("dumpForest")))
-//    val terrainMesh = register(TerrainMesh(this, File("dumpTest")))
+    val terrainMesh = register(TerrainMesh(this, File("dumpTest")))
 //    val terrainMesh = register(TerrainMesh(this, File("dumpJungle")))
 //        val terrainMesh = register(TerrainMesh(this,File("dumpTaiga")))
 //    val terrainMesh = register(TerrainMesh(this, File("dumpDesert")))
@@ -80,7 +81,7 @@ class TerrainScene(gameInstance: GameInstance) : AbstractScene(gameInstance) {
 
     init {
         camera.viewDistance = 8.0f * 16.0f
-        camera.fov = 90.0f
+        camera.fov0 = 90.0f
 
         camera.rotation.x = 0.0f
         camera.rotation.y = 90.0f
@@ -133,7 +134,7 @@ class TerrainScene(gameInstance: GameInstance) : AbstractScene(gameInstance) {
             camera.pos.z = prop["posZ"].toString().toDouble()
             camera.rotation.x = prop["yaw"].toString().toFloat()
             camera.rotation.y = prop["pitch"].toString().toFloat()
-            camera.fov = prop["fov"].toString().toFloat()
+            camera.fov0 = prop["fov"].toString().toFloat()
             camera.viewDistance = prop["viewDistance"].toString().toFloat()
         }.onFailure {
             it.printStackTrace()
@@ -152,10 +153,6 @@ class TerrainScene(gameInstance: GameInstance) : AbstractScene(gameInstance) {
         println(glGetString(GL_VERSION))
         println(glGetString(GL_VENDOR))
         println(glGetString(GL_RENDERER))
-    }
-
-    override fun init(mouse: Mouse, keyboard: Keyboard) {
-        super.init(mouse, keyboard)
     }
 
     override suspend fun renderFrame() {
@@ -202,7 +199,7 @@ class TerrainScene(gameInstance: GameInstance) : AbstractScene(gameInstance) {
         props["posZ"] = camera.pos.z.toString()
         props["yaw"] = (camera.rotation.x % 360.0f).toString()
         props["pitch"] = (camera.rotation.y % 360.0f).toString()
-        props["fov"] = camera.fov.toString()
+        props["fov"] = camera.fov0.toString()
         props["viewDistance"] = camera.viewDistance.toString()
         runCatching {
             props.store(

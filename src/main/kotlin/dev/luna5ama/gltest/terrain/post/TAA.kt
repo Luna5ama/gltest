@@ -156,8 +156,6 @@ class TAA(private val scene: TerrainScene, samples: Int, private val radius: Flo
             GL_COLOR_BUFFER_BIT, GL_LINEAR
         )
 
-        frameIndex = (frameIndex + 1) % jitters.size
-
         val x: Double
         val y: Double
         val i = 4
@@ -172,8 +170,8 @@ class TAA(private val scene: TerrainScene, samples: Int, private val radius: Flo
                 y = (ry.nextFloat() * 2.0 - 1.0)
             }
             2 -> {
-                x = jitters[frameIndex].x.toDouble()
-                y = jitters[frameIndex].y.toDouble()
+                x = jitters[frameIndex % jitters.size].x.toDouble()
+                y = jitters[frameIndex % jitters.size].y.toDouble()
             }
             3 -> {
                 x = (hx.nextDouble() * 2.0 - 1.0)
@@ -190,6 +188,8 @@ class TAA(private val scene: TerrainScene, samples: Int, private val radius: Flo
                 y = ((0.5 + a2 * n) % range - rangeHalf) / rangeHalf
             }
         }
+
+        frameIndex++
 
         baseJitter.set(x.toFloat(), y.toFloat())
         currentJitter.set(x.toFloat(), y.toFloat()).mul(radius)

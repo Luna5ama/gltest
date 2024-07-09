@@ -174,7 +174,7 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
 
 
 //        lightDir.set(0.1f, 0.5f, 0.8f).normalize() // brickhouse
-//        lightDir.set(0.5f, 0.6f, 0.5f).normalize() // brickhousse
+        lightDir.set(0.5f, 0.6f, 0.5f).normalize() // brickhousse
 
 //        lightDir.set(0.9f, 0.8f, 0.1f).normalize() // woodhouse
 
@@ -190,7 +190,7 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
 //        lightDir.set(-0.4f, 1.5f, -0.4f).normalize() // mountains
 //        lightDir.set(-0.4f, 2.0f, 0.2f).normalize() // mountains
 //        lightDir.set(-0.4f, 1.0f, 0.2f).normalize() // mountains gi
-        lightDir.set(0.3f, 0.5f, -0.9f).normalize()  // mountains gi 2
+//        lightDir.set(0.3f, 0.5f, -0.9f).normalize()  // mountains gi 2
 
 //        lightDir.set(0.6f, 2.0f, -0.3f).normalize() // jungle
 
@@ -204,7 +204,7 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
 //        lightDir.set(0.1f, 1.2f, -0.6f).normalize() // Sponza
 //        lightDir.set(0.2f, 1.2f, -0.85f).normalize() // Sponza
 //        lightDir.set(0.15f, 1.5f, -0.6f).normalize() // Sponza
-//        lightDir.set(0.4f, 1.2f, -0.5f).normalize() // Sponza
+//        lightDir.set(0.4f, 1.2f, -0.5f).normalize() // Sponzsa
 //        lightDir.set(0.0f, 1.2f, -0.9f).normalize() // Sponza.
 //        lightDir.set(0.1f, 1.6f, -0.9f).normalize() // Sponza.
 

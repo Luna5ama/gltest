@@ -3,12 +3,11 @@ package dev.luna5ama.gltest
 import dev.luna5ama.gltest.terrain.IGLObjContainer
 import dev.luna5ama.gltest.terrain.register
 import dev.luna5ama.glwrapper.ShaderProgram
-import dev.luna5ama.glwrapper.ShaderSource
 import dev.luna5ama.glwrapper.api.GLWrapper
 import dev.luna5ama.glwrapper.enums.GLObjectType
 import dev.luna5ama.glwrapper.objects.IGLObject
 
-abstract class AbstractScene(val gameInstance: GameInstance) : IGLObjContainer by IGLObjContainer.Impl() {
+abstract class AbstractScene(val gameInstance: GameInstance, val mouse: Mouse, val keyboard: Keyboard) : IGLObjContainer by IGLObjContainer.Impl() {
     val camera = Camera(this)
 
     @Suppress("LeakingThis")
@@ -19,15 +18,6 @@ abstract class AbstractScene(val gameInstance: GameInstance) : IGLObjContainer b
     var currentTime = System.currentTimeMillis()
     var frameTime = 0L
     var timeSinceStart = 0L
-
-    lateinit var mouse: Mouse; private set
-    lateinit var keyboard: Keyboard; private set
-
-    open fun init(mouse: Mouse, keyboard: Keyboard) {
-        this.mouse = mouse
-        this.keyboard = keyboard
-    }
-
 
     fun update() {
         currentTime = System.currentTimeMillis()

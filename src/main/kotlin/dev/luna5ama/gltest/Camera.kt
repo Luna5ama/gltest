@@ -9,7 +9,7 @@ import dev.luna5ama.glwrapper.objects.BufferObject
 import dev.luna5ama.kmogus.*
 import org.joml.*
 import org.lwjgl.glfw.GLFW
-import org.lwjgl.glfw.GLFW.glfwGetWindowSize
+import org.lwjgl.glfw.GLFW.*
 import kotlin.math.cos
 import kotlin.math.pow
 import kotlin.math.sin
@@ -23,8 +23,10 @@ class Camera(val scene: AbstractScene) {
     var screenWidth = 0
     var screenHeight = 0
 
-    var fov = 90.0f
+    var fov0 = 90.0f
     var viewDistance = 512.0f
+
+    val fov get() = (fov0 / 2.0.pow(zoom)).toFloat()
 
     val pos = Vector3d()
     val rotation = Vector2f()
@@ -89,9 +91,18 @@ class Camera(val scene: AbstractScene) {
     )
 
     val jitter = Vector2f()
+    var zoom = 0.0
 
     private val mouseMotion = Vector2d()
     private val tempMatrix = Matrix4f()
+
+    init {
+        scene.keyboard.register(GLFW_KEY_Z) {
+            if (it == GLFW_RELEASE) {
+                zoom = 0.0
+            }
+        }
+    }
 
     fun updateScreenSize() {
         MemoryStack {
@@ -113,8 +124,8 @@ class Camera(val scene: AbstractScene) {
         aspectRatio = screenWidth.toFloat() / screenHeight.toFloat()
 
         noJitterProjection.identity()
-//            .perspective(fov.toRadians(), aspectRatio, nearPlane, farPlane)
-            .infRevZPerspective(fov.toRadians(), aspectRatio, nearPlane)
+            .perspective(fov.toRadians(), aspectRatio, nearPlane, farPlane)
+//            .infRevZPerspective(fov.toRadians(), aspectRatio, nearPlane)
         noJitterModelView.identity()
             .rotate(rotation.y.toRadians(), 1.0f, 0.0f, 0.0f)
             .rotate((rotation.x + 180.0f).toRadians(), 0.0f, 1.0f, 0.0f)
@@ -133,8 +144,8 @@ class Camera(val scene: AbstractScene) {
 
         projection.identity()
             .translate((offsetX * 2.0f) / screenWidth, (offsetY * 2.0f) / screenHeight, 0.0f)
-//            .perspective(fov.toRadians(), screenWidth.toFloat() / screenHeight.toFloat(), nearPlane, farPlane)
-            .infRevZPerspective(fov.toRadians(), screenWidth.toFloat() / screenHeight.toFloat(), nearPlane)
+            .perspective(fov.toRadians(), screenWidth.toFloat() / screenHeight.toFloat(), nearPlane, farPlane)
+//            .infRevZPerspective(fov.toRadians(), screenWidth.toFloat() / screenHeight.toFloat(), nearPlane)
         modelView.identity()
             .rotate(rotation.y.toRadians(), 1.0f, 0.0f, 0.0f)
             .rotate((rotation.x + 180.0f).toRadians(), 0.0f, 1.0f, 0.0f)
@@ -217,6 +228,8 @@ class Camera(val scene: AbstractScene) {
             val sensitivity = 0.1
             mouseMotion.set(mouseDelta).mul(-sensitivity)
         }
+
+        mouseMotion.div(2.0.pow(zoom))
 
         this.rotation.add(mouseMotion.x.toFloat(), mouseMotion.y.toFloat())
         this.rotation.y = MathUtil.clamp(this.rotation.y, -90.0f, 90.0f)
@@ -322,7 +335,7 @@ class Camera(val scene: AbstractScene) {
         val screenWidth = camera.screenWidth
         val screenHeight = camera.screenHeight
 
-        val fov = camera.fov
+        val fov = camera.fov0
         val viewDistance = camera.viewDistance
 
         val pos = Vector3d(camera.pos)
