@@ -18,7 +18,7 @@ uniform sampler2D usam_lightMap;
 uniform sampler2D usam_vBufferDepth;
 
 layout(std430) restrict readonly buffer QuadPosDataBuffer {
-    uint ssbo_quadPosDataBuffer[];
+    uvec2 ssbo_quadPosDataBuffer[];
 };
 
 layout(std430) restrict readonly buffer QuadPosIndexBuffer {
@@ -26,7 +26,7 @@ layout(std430) restrict readonly buffer QuadPosIndexBuffer {
 };
 
 layout(std430) readonly buffer QuadTexCoordDataBuffer {
-    uint ssbo_quadTexCoordDataBuffer[];
+    uvec4 ssbo_quadTexCoordDataBuffer[];
 };
 
 layout(std430) readonly buffer QuadExtraAttribDataBuffer {
@@ -40,12 +40,6 @@ layout(std430) readonly buffer QuadAttribIndexBuffer {
 ivec2 outputSize = imageSize(uimg_output);
 
 const float coordConvert = 2.51773861295491E-4;
-
-vec4 readPos(uint idx) {
-    uvec4 data = uvec2(ssbo_quadPosDataBuffer[idx], ssbo_quadPosDataBuffer[idx + 1]).xxyy;
-    data = (data >> uvec4(0u, 16u, 0u, 16u)) & uvec4(0xFFFFu);
-    return vec4(data);
-}
 
 float min3(vec3 v) {
     return min(v.x, min(v.y, v.z));
@@ -63,7 +57,11 @@ void main() {
 
     uint quadIndex = texelFetch(usam_vBufferDataTex, centerCoord, 0).r;
 
-    uint quadPosDataIdx = ssbo_quadPosIndexBuffer[quadIndex >> 1u] * 6u;
+    uint quadPosDataIdx = ssbo_quadPosIndexBuffer[quadIndex >> 1u] * 3u;
+
+    vec4 posXs4 = decodePos(ssbo_quadPosDataBuffer[quadPosDataIdx]) * coordConvert ;
+    vec4 posYs4 = decodePos(ssbo_quadPosDataBuffer[quadPosDataIdx + 1u]) * coordConvert ;
+    vec4 posZs4 = decodePos(ssbo_quadPosDataBuffer[quadPosDataIdx + 2u]) * coordConvert ;
 
     vec3 ndcCoord = vec3(vec2(centerCoord) + 0.5, depth);
     ndcCoord.xy *= uval_viewportSize.zw;
@@ -76,10 +74,6 @@ void main() {
     offset.xyz += ssbo_chunkPosData.cameraChunkLocalPos.xyz;
     offset.xyz = floor(offset.xyz / 16.0) * 16.0;
     offset.xyz -= ssbo_chunkPosData.cameraChunkLocalPos.xyz;
-
-    vec4 posXs4 = readPos(quadPosDataIdx) * coordConvert;
-    vec4 posYs4 = readPos(quadPosDataIdx + 2u) * coordConvert;
-    vec4 posZs4 = readPos(quadPosDataIdx + 4u) * coordConvert;
 
     vec3 pos1Raw = vec3(posXs4.x, posYs4.x, posZs4.x);
     vec3 pos2Raw = vec3(posXs4.y, posYs4.y, posZs4.y);
@@ -130,14 +124,14 @@ void main() {
     tbBase += (tbDx + tbDy) * 0.5;
 
     uint attribIdx = ssbo_quadAttribIndexBuffer[quadIndex >> 1];
-    uint texCoordIdx = attribIdx * 4u;
+    uvec4 texCoordXY = ssbo_quadTexCoordDataBuffer[attribIdx];
     vec4 texCoordXRaw = vec4(
-        unpackUnorm2x16(ssbo_quadTexCoordDataBuffer[texCoordIdx]),
-        unpackUnorm2x16(ssbo_quadTexCoordDataBuffer[texCoordIdx + 1u])
+        unpackUnorm2x16(texCoordXY.x),
+        unpackUnorm2x16(texCoordXY.y)
     );
     vec4 texCoordYRaw = vec4(
-        unpackUnorm2x16(ssbo_quadTexCoordDataBuffer[texCoordIdx + 2u]),
-        unpackUnorm2x16(ssbo_quadTexCoordDataBuffer[texCoordIdx + 3u])
+        unpackUnorm2x16(texCoordXY.z),
+        unpackUnorm2x16(texCoordXY.w)
     );
     vec3 texCoordX = mix(texCoordXRaw.xyz, texCoordXRaw.zwx, triangleSwitch);
     vec3 texCoordY = mix(texCoordYRaw.xyz, texCoordYRaw.zwx, triangleSwitch);

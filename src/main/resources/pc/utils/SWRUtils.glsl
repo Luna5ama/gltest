@@ -73,3 +73,9 @@ void swr_calcAttribGrad(vec2 invTexelN, vec3 bcBase, vec3 bcMx, vec3 bcMy, vec3 
     attribDx = (attribMx - attribBase) * invTexelN.x;
     attribDy = (attribMy - attribBase) * invTexelN.y;
 }
+
+const uvec4 DECODE_POS_SHIFT = uvec4(0u, 16u, 0u, 16u);
+const uvec4 DECODE_POS_MASK = uvec4(0xFFFFu);
+vec4 decodePos(uvec2 data) {
+    return vec4(uvec4((data.xxyy >> DECODE_POS_SHIFT) & DECODE_POS_MASK));
+}

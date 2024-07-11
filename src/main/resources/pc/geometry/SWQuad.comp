@@ -1,8 +1,6 @@
 #version 460 core
 
-#extension GL_ARB_gpu_shader_int64 : enable
 #extension GL_NV_shader_atomic_int64 : enable
-#extension GL_KHR_shader_subgroup_arithmetic : enable
 #extension GL_KHR_shader_subgroup_ballot : enable
 
 #extension GL_NV_gpu_shader5 : enable
@@ -37,7 +35,7 @@ struct QuadBatchInfo {
 uniform sampler2D usam_blockAlbedoAtlas;
 
 layout(std430) readonly buffer QuadTexCoordDataBuffer {
-    uint ssbo_quadTexCoordDataBuffer[];
+    uvec4 ssbo_quadTexCoordDataBuffer[];
 };
 
 layout(std430) readonly buffer QuadAttribIndexBuffer {
@@ -68,24 +66,12 @@ layout(std430) readonly buffer BatchIndicesData {
 };
 
 layout(std430) readonly buffer QuadPosDataBuffer {
-    uint ssbo_quadPosDataBuffer[];
+    uvec2 ssbo_quadPosDataBuffer[];
 };
 
 layout(std430) readonly buffer QuadPosIndexBuffer {
     uint ssbo_quadPosIndexBuffer[];
 };
-
-uvec2 readPosData(uint idx) {
-    uint data1 = ssbo_quadPosDataBuffer[idx];
-    uint data2 = ssbo_quadPosDataBuffer[idx + 1];
-    return uvec2(data1, data2);
-}
-
-const uvec4 DECODE_POS_SHIFT = uvec4(0u, 16u, 0u, 16u);
-const uvec4 DECODE_POS_MASK = uvec4(0xFFFFu);
-vec4 decodePos(uvec2 data) {
-    return vec4(uvec4((data.xxyy >> DECODE_POS_SHIFT) & DECODE_POS_MASK));
-}
 
 float min3(vec3 v) {
     return min(v.x, min(v.y, v.z));
@@ -120,14 +106,12 @@ bool cullQuad(uint localQuadIndex) {
         return false;
     }
 
-    uint survived = 1;
-
     uint quadIndex = metaFirst + localQuadIndex;
-    uint quadPosDataIdx = ssbo_quadPosIndexBuffer[quadIndex] * 6u;
+    uint quadPosDataIdx = ssbo_quadPosIndexBuffer[quadIndex] * 3u;
 
-    vec4 posXs = decodePos(readPosData(quadPosDataIdx));
-    vec4 posYs = decodePos(readPosData(quadPosDataIdx + 2u));
-    vec4 posZs = decodePos(readPosData(quadPosDataIdx + 4u));
+    vec4 posXs = decodePos(ssbo_quadPosDataBuffer[quadPosDataIdx]);
+    vec4 posYs = decodePos(ssbo_quadPosDataBuffer[quadPosDataIdx + 1u]);
+    vec4 posZs = decodePos(ssbo_quadPosDataBuffer[quadPosDataIdx + 2u]);
 
     posXs = posXs * coordConvert + chunkOffset.x;
     posYs = posYs * coordConvert + chunkOffset.y;
@@ -138,7 +122,7 @@ bool cullQuad(uint localQuadIndex) {
     vec3 posCS3 = (ubo_cameraDefault.combined * vec4(posXs.z, posYs.z, posZs.z, 1.0)).xyw;
     vec3 posCS4 = (ubo_cameraDefault.combined * vec4(posXs.w, posYs.w, posZs.w, 1.0)).xyw;
 
-    survived = survived & uint(determinant(mat3(posCS1, posCS2, posCS3)) > 0.0);
+    uint survived = uint(determinant(mat3(posCS1, posCS2, posCS3)) > 0.0);
 
     posCS1.xy /= posCS1.z;
     posCS2.xy /= posCS2.z;
@@ -170,11 +154,16 @@ void rasterize(uint baseLocalQuadIndex) {
         int quadIndexOffset = int(shared_quadIndexOffset[localQuadIndex]);
         uint quadIndex = shared_metaFirstCount.x + uint(quadIndexOffset);
 
-        uint quadPosDataIdx = ssbo_quadPosIndexBuffer[quadIndex] * 6u;
+        #ifdef CUTOUT
+        uint texCoordIdx = ssbo_quadAttribIndexBuffer[quadIndex] * 4u;
+        uvec4 texCoordXY = ssbo_quadTexCoordDataBuffer[ssbo_quadAttribIndexBuffer[quadIndex]];
+        #endif
 
-        vec4 posXs = decodePos(readPosData(quadPosDataIdx));
-        vec4 posYs = decodePos(readPosData(quadPosDataIdx + 2u));
-        vec4 posZs = decodePos(readPosData(quadPosDataIdx + 4u));
+        uint quadPosDataIdx = ssbo_quadPosIndexBuffer[quadIndex] * 3u;
+
+        vec4 posXs = decodePos(ssbo_quadPosDataBuffer[quadPosDataIdx]);
+        vec4 posYs = decodePos(ssbo_quadPosDataBuffer[quadPosDataIdx + 1u]);
+        vec4 posZs = decodePos(ssbo_quadPosDataBuffer[quadPosDataIdx + 2u]);
 
         posXs = posXs * coordConvert + shared_chunkOffset.x;
         posYs = posYs * coordConvert + shared_chunkOffset.y;
@@ -224,17 +213,6 @@ void rasterize(uint baseLocalQuadIndex) {
         ivec4 outputCoord;
         vec3 t1b = t1bBase;
         vec3 t2b = t2bBase;
-
-        #ifdef CUTOUT
-        uint texCoordIdx = ssbo_quadAttribIndexBuffer[quadIndex] * 4u;
-
-        uvec4 texCoordXY = uvec4(
-            ssbo_quadTexCoordDataBuffer[texCoordIdx],
-            ssbo_quadTexCoordDataBuffer[texCoordIdx + 1u],
-            ssbo_quadTexCoordDataBuffer[texCoordIdx + 2u],
-            ssbo_quadTexCoordDataBuffer[texCoordIdx + 3u]
-        );
-        #endif
 
         for (outputCoord.y = screenBound.y; outputCoord.y < screenBound.w; outputCoord.y++) {
             for (outputCoord.x = screenBound.x; outputCoord.x < screenBound.z; outputCoord.x++) {
@@ -301,19 +279,17 @@ void setup(uint baseLocalQuadIndex) {
         bool survived = cullQuad(localQuadIndex);
 
         uvec4 ballot = subgroupBallot(survived);
-        uint subgroupCount = subgroupBallotBitCount(ballot);
 
-        uint quadWriteBaseIdx = 0u;
+        uint quadWriteBaseIdx;
 
-        if (subgroupElect()) {
-            quadWriteBaseIdx = atomicAdd(shared_quadCount, subgroupCount);
+        if (gl_SubgroupInvocationID == 0u) {
+            quadWriteBaseIdx = atomicAdd(shared_quadCount, subgroupBallotBitCount(ballot));
         }
 
-        quadWriteBaseIdx = subgroupMax(quadWriteBaseIdx);
+        quadWriteBaseIdx = subgroupBroadcast(quadWriteBaseIdx, 0u);
 
         if (survived) {
-            quadWriteBaseIdx += subgroupBallotExclusiveBitCount(ballot);
-            shared_quadIndexOffset[quadWriteBaseIdx] = uint16_t(localQuadIndex);
+            shared_quadIndexOffset[quadWriteBaseIdx + subgroupBallotExclusiveBitCount(ballot)] = uint16_t(localQuadIndex);
         }
     }
 }
@@ -326,18 +302,22 @@ void init() {
     shared_chunkIndex = chunkIndex;
     vec3 chunkOffset = chunks_getChunkRenderPos(chunkIndex);
     shared_chunkOffset = chunkOffset;
+
+    shared_quadCount = 0u;
 }
 
 void clear() {
-    shared_quadCount = 0u;
     uint xd = gl_LocalInvocationID.x << 1u;
     shared_quadIndexOffset[xd] = uint16_t(0);
     shared_quadIndexOffset[xd + 1u] = uint16_t(0);
 }
 
 void main() {
-    init();
+    if (gl_LocalInvocationID.x == 0u){
+        init();
+    }
     clear();
+    barrier();
 
     uint setupIter = (shared_metaFirstCount.y + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
 
@@ -345,7 +325,6 @@ void main() {
         setup(i * gl_WorkGroupSize.x);
     }
 
-    memoryBarrierShared();
     barrier();
 
     uint rasterizeIter = (shared_quadCount + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
