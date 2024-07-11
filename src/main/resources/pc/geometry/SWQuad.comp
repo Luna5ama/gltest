@@ -133,28 +133,27 @@ bool cullQuad(uint localQuadIndex) {
     posYs = posYs * coordConvert + chunkOffset.y;
     posZs = posZs * coordConvert + chunkOffset.z;
 
-    vec3 pos1 = (ubo_cameraDefault.combined * vec4(posXs.x, posYs.x, posZs.x, 1.0)).xyw;
-    vec3 pos2 = (ubo_cameraDefault.combined * vec4(posXs.y, posYs.y, posZs.y, 1.0)).xyw;
-    vec3 pos3 = (ubo_cameraDefault.combined * vec4(posXs.z, posYs.z, posZs.z, 1.0)).xyw;
-    vec3 pos4 = (ubo_cameraDefault.combined * vec4(posXs.w, posYs.w, posZs.w, 1.0)).xyw;
+    vec3 posCS1 = (ubo_cameraDefault.combined * vec4(posXs.x, posYs.x, posZs.x, 1.0)).xyw;
+    vec3 posCS2 = (ubo_cameraDefault.combined * vec4(posXs.y, posYs.y, posZs.y, 1.0)).xyw;
+    vec3 posCS3 = (ubo_cameraDefault.combined * vec4(posXs.z, posYs.z, posZs.z, 1.0)).xyw;
+    vec3 posCS4 = (ubo_cameraDefault.combined * vec4(posXs.w, posYs.w, posZs.w, 1.0)).xyw;
 
-    survived = survived & uint(determinant(mat3(pos1, pos2, pos3)) > 0.0);
+    survived = survived & uint(determinant(mat3(posCS1, posCS2, posCS3)) > 0.0);
 
-    posXs = vec4(pos1.x, pos2.x, pos3.x, pos4.x);
-    posYs = vec4(pos1.y, pos2.y, pos3.y, pos4.y);
+    posCS1.xy /= posCS1.z;
+    posCS2.xy /= posCS2.z;
+    posCS3.xy /= posCS3.z;
+    posCS4.xy /= posCS4.z;
 
-    vec4 posWInv = 1.0 / vec4(pos1.z, pos2.z, pos3.z, pos4.z);
-
-    posXs *= posWInv;
-    posYs *= posWInv;
-
-    posXs = posXs * 0.5 + 0.5;
-    posYs = posYs * 0.5 + 0.5;
+    posCS1.xy = posCS1.xy * 0.5 + 0.5;
+    posCS2.xy = posCS2.xy * 0.5 + 0.5;
+    posCS3.xy = posCS3.xy * 0.5 + 0.5;
+    posCS4.xy = posCS4.xy * 0.5 + 0.5;
 
     vec4 screenBoundF = clamp(
         vec4(
-            min4(posXs), min4(posYs),
-            max4(posXs), max4(posYs)
+            min(posCS1.xy, min(posCS2.xy, min(posCS3.xy, posCS4.xy))),
+            max(posCS1.xy, max(posCS2.xy, max(posCS3.xy, posCS4.xy)))
         ), 0.0, 1.0
     );
     screenBoundF *= uval_viewportSize.xyxy;
