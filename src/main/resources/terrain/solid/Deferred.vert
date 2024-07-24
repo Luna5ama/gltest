@@ -21,10 +21,10 @@ struct GeomData {
 out GeomData fragData;
 out uint frag_mdlAttrib;
 
-const vec3 coordConvert = vec3(2.51773861295491E-4);
+const vec3 COORD_CONVERT = vec3(2.51773861295491E-4);
 
 void main() {
-    vec3 worldCoord = fma(vPos, coordConvert, vChunkOffset * 16.0 + originOffset);
+    vec3 worldCoord = fma(vPos, COORD_CONVERT, vChunkOffset * 16.0 + originOffset);
     gl_Position = ubo_cameraDefault.combined * vec4(worldCoord, 1.0);
 
     fragData.worldCoord = worldCoord;

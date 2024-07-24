@@ -254,7 +254,7 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
 
             drawPass(2)
         } else {
-            drawPass(3)
+            drawPass(0)
         }
     }
 

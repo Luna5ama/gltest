@@ -124,8 +124,8 @@ class Camera(val scene: AbstractScene) {
         aspectRatio = screenWidth.toFloat() / screenHeight.toFloat()
 
         noJitterProjection.identity()
-            .perspective(fov.toRadians(), aspectRatio, nearPlane, farPlane)
-//            .infRevZPerspective(fov.toRadians(), aspectRatio, nearPlane)
+//            .perspective(fov.toRadians(), aspectRatio, nearPlane, farPlane)
+            .infRevZPerspective(fov.toRadians(), aspectRatio, nearPlane)
         noJitterModelView.identity()
             .rotate(rotation.y.toRadians(), 1.0f, 0.0f, 0.0f)
             .rotate((rotation.x + 180.0f).toRadians(), 0.0f, 1.0f, 0.0f)
@@ -144,8 +144,8 @@ class Camera(val scene: AbstractScene) {
 
         projection.identity()
             .translate((offsetX * 2.0f) / screenWidth, (offsetY * 2.0f) / screenHeight, 0.0f)
-            .perspective(fov.toRadians(), screenWidth.toFloat() / screenHeight.toFloat(), nearPlane, farPlane)
-//            .infRevZPerspective(fov.toRadians(), screenWidth.toFloat() / screenHeight.toFloat(), nearPlane)
+//            .perspective(fov.toRadians(), screenWidth.toFloat() / screenHeight.toFloat(), nearPlane, farPlane)
+            .infRevZPerspective(fov.toRadians(), screenWidth.toFloat() / screenHeight.toFloat(), nearPlane)
         modelView.identity()
             .rotate(rotation.y.toRadians(), 1.0f, 0.0f, 0.0f)
             .rotate((rotation.x + 180.0f).toRadians(), 0.0f, 1.0f, 0.0f)

@@ -88,13 +88,10 @@ float max4(vec4 v) {
 shared uvec2 shared_metaFirstCount;
 shared uint shared_chunkIndex;
 shared vec3 shared_chunkOffset;
-shared uint shared_quadCount = 0u;
+shared uint shared_quadCount;
 shared uint16_t shared_quadIndexOffset[QUADS_PER_WORK_GROUP];
 
-const uvec3 CHUNK_OFFSET_BITMASK = (uvec3(1u) << uvec3(13u, 6u, 13u)) - uvec3(1u);
-const uvec3 CHUNK_OFFSET_BITSHIFT = uvec3(0u, 13u, 13u + 6u);
-
-const vec4 coordConvert = vec4(2.51773861295491E-4);
+const vec4 COORD_CONVERT = vec4(2.51773861295491E-4);
 
 bool cullQuad(uint localQuadIndex) {
     uvec2 metaFirstCount = shared_metaFirstCount;
@@ -109,13 +106,17 @@ bool cullQuad(uint localQuadIndex) {
     uint quadIndex = metaFirst + localQuadIndex;
     uint quadPosDataIdx = ssbo_quadPosIndexBuffer[quadIndex] * 3u;
 
-    vec4 posXs = decodePos(ssbo_quadPosDataBuffer[quadPosDataIdx]);
-    vec4 posYs = decodePos(ssbo_quadPosDataBuffer[quadPosDataIdx + 1u]);
-    vec4 posZs = decodePos(ssbo_quadPosDataBuffer[quadPosDataIdx + 2u]);
+    uvec2 posXData = ssbo_quadPosDataBuffer[quadPosDataIdx];
+    uvec2 posYData = ssbo_quadPosDataBuffer[quadPosDataIdx + 1u];
+    uvec2 posZData = ssbo_quadPosDataBuffer[quadPosDataIdx + 2u];
 
-    posXs = posXs * coordConvert + chunkOffset.x;
-    posYs = posYs * coordConvert + chunkOffset.y;
-    posZs = posZs * coordConvert + chunkOffset.z;
+    vec4 posXs = decodePos(posXData);
+    vec4 posYs = decodePos(posYData);
+    vec4 posZs = decodePos(posZData);
+
+    posXs = posXs * COORD_CONVERT + chunkOffset.x;
+    posYs = posYs * COORD_CONVERT + chunkOffset.y;
+    posZs = posZs * COORD_CONVERT + chunkOffset.z;
 
     vec3 posCS1 = (ubo_cameraDefault.combined * vec4(posXs.x, posYs.x, posZs.x, 1.0)).xyw;
     vec3 posCS2 = (ubo_cameraDefault.combined * vec4(posXs.y, posYs.y, posZs.y, 1.0)).xyw;
@@ -161,13 +162,17 @@ void rasterize(uint baseLocalQuadIndex) {
 
         uint quadPosDataIdx = ssbo_quadPosIndexBuffer[quadIndex] * 3u;
 
-        vec4 posXs = decodePos(ssbo_quadPosDataBuffer[quadPosDataIdx]);
-        vec4 posYs = decodePos(ssbo_quadPosDataBuffer[quadPosDataIdx + 1u]);
-        vec4 posZs = decodePos(ssbo_quadPosDataBuffer[quadPosDataIdx + 2u]);
+        uvec2 posXData = ssbo_quadPosDataBuffer[quadPosDataIdx];
+        uvec2 posYData = ssbo_quadPosDataBuffer[quadPosDataIdx + 1u];
+        uvec2 posZData = ssbo_quadPosDataBuffer[quadPosDataIdx + 2u];
 
-        posXs = posXs * coordConvert + shared_chunkOffset.x;
-        posYs = posYs * coordConvert + shared_chunkOffset.y;
-        posZs = posZs * coordConvert + shared_chunkOffset.z;
+        vec4 posXs = decodePos(posXData);
+        vec4 posYs = decodePos(posYData);
+        vec4 posZs = decodePos(posZData);
+
+        posXs = posXs * COORD_CONVERT + shared_chunkOffset.x;
+        posYs = posYs * COORD_CONVERT + shared_chunkOffset.y;
+        posZs = posZs * COORD_CONVERT + shared_chunkOffset.z;
 
         vec4 posCS1 = (ubo_cameraDefault.combined * vec4(posXs.x, posYs.x, posZs.x, 1.0));
         vec4 posCS2 = (ubo_cameraDefault.combined * vec4(posXs.y, posYs.y, posZs.y, 1.0));

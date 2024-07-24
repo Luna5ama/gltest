@@ -23,13 +23,11 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import org.apache.commons.lang3.mutable.MutableBoolean
 import org.joml.*
-import org.lwjgl.glfw.GLFW.glfwGetTime
 import kotlin.math.max
 import kotlin.math.min
-import kotlin.math.sqrt
 
 class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by IGLObjContainer.Impl() {
-//    val visibilityFlagType = when {
+    //    val visibilityFlagType = when {
 //        scene.gameInstance.glCapabilities.GL_NV_gpu_shader5 -> {
 //            VisibilityFlagType.INT8
 //        }
@@ -193,28 +191,28 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
         glDebugGroup("SW Draw") { swDraw() }
         glDebugGroup("SW2HW Blit") {
             blitSW2HW()
-            scene.vbuffer.fbo.blitTo(scene.fboGroup.input.fbo, GL_DEPTH_BUFFER_BIT, GL_NEAREST)
-            scene.vbuffer.fbo.blitTo(scene.fboGroup.output.fbo, GL_DEPTH_BUFFER_BIT, GL_NEAREST)
+//            scene.vbuffer.fbo.blitTo(scene.fboGroup.input.fbo, GL_DEPTH_BUFFER_BIT, GL_NEAREST)
+//            scene.vbuffer.fbo.blitTo(scene.fboGroup.output.fbo, GL_DEPTH_BUFFER_BIT, GL_NEAREST)
         }
         glClipControl(GL_LOWER_LEFT, GL_NEGATIVE_ONE_TO_ONE)
 
         if (printTimer.tickAndReset(3000)) {
-            println("Min distance ${sqrt(sortKeys.min().toDouble())}")
-            println("Min sample count: ${sampleCountArray.min()}")
-            println("Average sample count: ${sampleCountArray.average()}")
-            println("Max sample count: ${sampleCountArray.max()}")
-            println()
+//            println("Min distance ${sqrt(sortKeys.min().toDouble())}")
+//            println("Min sample count: ${sampleCountArray.min()}")
+//            println("Average sample count: ${sampleCountArray.average()}")
+//            println("Max sample count: ${sampleCountArray.max()}")
+//            println()
             if (hwVsPipeline.batchCount > 0) {
-                println("HW VS: ${hwVsPipeline.batchCount} batches")
+                println("HW VS: ${chunkCountString(hwVsPipeline)} batches")
             } else {
-                println("HW MS: ${hwMsPipeline.batchCount} batches")
+                println("HW MS: ${chunkCountString(hwMsPipeline)} batches")
             }
             println("SW Quad: ${chunkCountString(swQuadPipeline)}")
 //            println("SW Point: ${chunkCountString(swPointPipeline)}")
             println()
-            println("HW Draw: %.2f ms".format(hwMsDrawTimer.averageMS() + hwVsDrawTimer.averageMS()))
-            println("SW Draw: %.2f ms".format(swDrawTimer.averageMS()))
-            println("Total: %.2f ms".format(swDrawTimer.averageMS() + hwVsDrawTimer.averageMS() + hwMsDrawTimer.averageMS()))
+            println("HW Draw: %.3f ms".format(hwMsDrawTimer.averageMS() + hwVsDrawTimer.averageMS()))
+            println("SW Draw: %.3f ms".format(swDrawTimer.averageMS()))
+            println("Total: %.3f ms".format(swDrawTimer.averageMS() + hwVsDrawTimer.averageMS() + hwMsDrawTimer.averageMS()))
             println()
         }
     }
@@ -264,7 +262,12 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
     }
 
     private fun chunkCountString(pipeline: TerrainDrawPipeline): String {
-        return "${pipeline.quadCount} quads, ${pipeline.chunkCount}(${pipeline.batchCount})/${scene.terrainMeshData.chunkLayerInfo.size} chunks"
+        return "%,d quads, %,d batches, %,d/%,d chunks".format(
+                pipeline.quadCount,
+                pipeline.chunkCount,
+                pipeline.batchCount,
+                scene.terrainMeshData.chunkLayerInfo.size
+            )
     }
 
     private fun CoroutineScope.calcSampleCount() {

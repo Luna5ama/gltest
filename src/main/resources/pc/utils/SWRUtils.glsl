@@ -1,12 +1,11 @@
-vec3 swr_barycentric(vec2 pa, vec4 v, vec3 d) {
+vec3 swr_barycentric(vec2 pa, vec4 v, vec3 d, float denom) {
     float d20p = dot(pa, v.xy);
     float d21p = dot(pa, v.zw);
 
-    float denom = d.x * d.z - d.y * d.y;
     vec3 uvw;
-    uvw.y = (d.z * d20p - d.y * d21p) / denom;
-    uvw.z = (d.x * d21p - d.y * d20p) / denom;
-    uvw.x = 1.0f - uvw.y - uvw.z;
+    uvw.y = (d.z * d20p - d.y * d21p) * denom;
+    uvw.z = (d.x * d21p - d.y * d20p) * denom;
+    uvw.x = 1.0 - uvw.y - uvw.z;
     return uvw;
 }
 
@@ -18,9 +17,10 @@ void swr_calcBarycentricGradMxMy(vec4 screenBound, vec2 invTexelN, vec2 a, vec2 
         dot(v.zw, v.zw)
     );
 
-    bcBase = swr_barycentric(screenBound.xy - a.xy, v, d);
-    bcMx = swr_barycentric(screenBound.zy - a.xy, v, d);
-    bcMy = swr_barycentric(screenBound.xw - a.xy, v, d);
+    float denom = 1.0 / (d.x * d.z - d.y * d.y);
+    bcBase = swr_barycentric(screenBound.xy - a.xy, v, d, denom);
+    bcMx = swr_barycentric(screenBound.zy - a.xy, v, d, denom);
+    bcMy = swr_barycentric(screenBound.xw - a.xy, v, d, denom);
 
     b1Dx = (bcMx - bcBase) * invTexelN.x;
     b1Dy = (bcMy - bcBase) * invTexelN.y;
@@ -34,9 +34,10 @@ void swr_calcBarycentricGrad(vec4 screenBound, vec2 invTexelN, vec2 a, vec2 b, v
         dot(v.zw, v.zw)
     );
 
-    bcBase = swr_barycentric(screenBound.xy - a.xy, v, d);
-    vec3 bcMx = swr_barycentric(screenBound.zy - a.xy, v, d);
-    vec3 bcMy = swr_barycentric(screenBound.xw - a.xy, v, d);
+    float denom = 1.0 / (d.x * d.z - d.y * d.y);
+    bcBase = swr_barycentric(screenBound.xy - a.xy, v, d, denom);
+    vec3 bcMx = swr_barycentric(screenBound.zy - a.xy, v, d, denom);
+    vec3 bcMy = swr_barycentric(screenBound.xw - a.xy, v, d, denom);
 
     b1Dx = (bcMx - bcBase) * invTexelN.x;
     b1Dy = (bcMy - bcBase) * invTexelN.y;

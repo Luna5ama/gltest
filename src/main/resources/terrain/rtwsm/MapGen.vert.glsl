@@ -21,13 +21,13 @@ out vec3 texCoordLodMul;
 out vec3 fWorldCoord;
 #endif
 
-const vec3 coordConvert = vec3(2.51773861295491E-4);
+const vec3 COORD_CONVERT = vec3(2.51773861295491E-4);
 
 void main() {
     float frontFacing = max(0.0, dot(uShadowMap.lightDir, vNormal));
 
     // gl_BaseInstance exploit
-    vec3 worldCoord = fma(vPos, coordConvert, vChunkOffset * 16.0 + originOffset);
+    vec3 worldCoord = fma(vPos, COORD_CONVERT, vChunkOffset * 16.0 + originOffset);
 
     #ifdef CUTOUT
     fWorldCoord = worldCoord;

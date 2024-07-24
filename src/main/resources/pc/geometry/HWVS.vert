@@ -31,7 +31,7 @@ const vec4 BCOORDS[4] = {
     vec4(0.0, 0.0, 0.0, 1.0)
 };
 
-const vec3 coordConvert = vec3(2.51773861295491E-4);
+const vec3 COORD_CONVERT = vec3(2.51773861295491E-4);
 
 const uvec3 CHUNK_OFFSET_BITMASK = (uvec3(1u) << uvec3(13u, 6u, 13u)) - uvec3(1u);
 const uvec3 CHUNK_OFFSET_BITSHIFT = uvec3(0u, 13u, 13u + 6u);
@@ -56,7 +56,7 @@ void main() {
         1.0
     );
 
-    vertPos.xyz = vertPos.xyz * coordConvert + chunkOffset;
+    vertPos.xyz = vertPos.xyz * COORD_CONVERT + chunkOffset;
 
     gl_Position = ubo_cameraDefault.combined * vertPos;
 //    vertDataOut.depth = gl_Position.z;

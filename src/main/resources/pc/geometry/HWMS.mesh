@@ -38,7 +38,7 @@ layout(location = 0) out VertData {
     vec4 bCoord;
 } vertDataOut[];
 
-const vec4 coordConvert = vec4(2.51773861295491E-4);
+const vec4 COORD_CONVERT = vec4(2.51773861295491E-4);
 
 float min4(vec4 v) {
     return min(min(v.x, v.y), min(v.z, v.w));
@@ -79,9 +79,9 @@ bool writeVertexData() {
     vec4 posY = readPos(quadPosDataIdx + 2u);
     vec4 posZ = readPos(quadPosDataIdx + 4u);
 
-    posX = posX * coordConvert + dataIn.chunkOffset.x;
-    posY = posY * coordConvert + dataIn.chunkOffset.y;
-    posZ = posZ * coordConvert + dataIn.chunkOffset.z;
+    posX = posX * COORD_CONVERT + dataIn.chunkOffset.x;
+    posY = posY * COORD_CONVERT + dataIn.chunkOffset.y;
+    posZ = posZ * COORD_CONVERT + dataIn.chunkOffset.z;
 
     vec4 pos1 = ubo_cameraDefault.combined * vec4(posX.x, posY.x, posZ.x, 1.0);
     vec4 pos2 = ubo_cameraDefault.combined * vec4(posX.y, posY.y, posZ.y, 1.0);

@@ -24,13 +24,13 @@ struct VertData {
 out VertData vertData;
 out uint frag_mdlAttrib;
 
-const vec3 coordConvert = vec3(2.51773861295491E-4);
+const vec3 COORD_CONVERT = vec3(2.51773861295491E-4);
 const vec4 WATER_MUL = vec4(0.6, 0.48, 0.24, 1.0);
 
 void main() {
     frag_mdlAttrib = vMdlAttrib;
     bool vertIsWater = bool((frag_mdlAttrib >> 3u) & 1u);
-    vertData.waveCoord = fma(vPos, coordConvert, vChunkOffset * 16.0);
+    vertData.waveCoord = fma(vPos, COORD_CONVERT, vChunkOffset * 16.0);
     vertData.worldCoord = vertData.waveCoord + originOffset;
 
     if (vertIsWater) {

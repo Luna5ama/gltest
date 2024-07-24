@@ -11,11 +11,11 @@ uniform float uBaseImportance;
 
 out float fImportance;
 
-const vec3 coordConvert = vec3(2.51773861295491E-4);
+const vec3 COORD_CONVERT = vec3(2.51773861295491E-4);
 
 void main() {
     // gl_BaseInstance exploit
-    vec3 worldCoord = fma(vPos, coordConvert, vChunkOffset * 16.0 + originOffset);
+    vec3 worldCoord = fma(vPos, COORD_CONVERT, vChunkOffset * 16.0 + originOffset);
     float aoMultiplier = float((vMdlAttrib >> 2u) & 1u);
     worldCoord += (1.0 - aoMultiplier) * uShadowMap.lightDir * 0.05;
 

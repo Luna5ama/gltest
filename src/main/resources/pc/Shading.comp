@@ -39,7 +39,7 @@ layout(std430) readonly buffer QuadAttribIndexBuffer {
 
 ivec2 outputSize = imageSize(uimg_output);
 
-const float coordConvert = 2.51773861295491E-4;
+const float COORD_CONVERT = 2.51773861295491E-4;
 
 float min3(vec3 v) {
     return min(v.x, min(v.y, v.z));
@@ -59,9 +59,9 @@ void main() {
 
     uint quadPosDataIdx = ssbo_quadPosIndexBuffer[quadIndex >> 1u] * 3u;
 
-    vec4 posXs4 = decodePos(ssbo_quadPosDataBuffer[quadPosDataIdx]) * coordConvert ;
-    vec4 posYs4 = decodePos(ssbo_quadPosDataBuffer[quadPosDataIdx + 1u]) * coordConvert ;
-    vec4 posZs4 = decodePos(ssbo_quadPosDataBuffer[quadPosDataIdx + 2u]) * coordConvert ;
+    vec4 posXs4 = decodePos(ssbo_quadPosDataBuffer[quadPosDataIdx]) * COORD_CONVERT ;
+    vec4 posYs4 = decodePos(ssbo_quadPosDataBuffer[quadPosDataIdx + 1u]) * COORD_CONVERT ;
+    vec4 posZs4 = decodePos(ssbo_quadPosDataBuffer[quadPosDataIdx + 2u]) * COORD_CONVERT ;
 
     vec3 ndcCoord = vec3(vec2(centerCoord) + 0.5, depth);
     ndcCoord.xy *= uval_viewportSize.zw;
