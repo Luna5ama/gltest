@@ -163,7 +163,7 @@ class Skybox(private val scene: TerrainScene) : IGLObjContainer by IGLObjContain
             }
             skyboxShader.setOriginOffset(
                 0.0,
-                MathUtil.clamp(scene.camera.pos.y - 32.0, 1.0, 512.0) * 96.0,
+                MathUtil.clamp(scene.camera.pos.y - 32.0, 1.0, 512.0) * 16.0,
                 0.0
             )
             skyboxShader.uniform1f("uTime", GLFW.glfwGetTime().toFloat())

@@ -8,7 +8,6 @@ import dev.luna5ama.glwrapper.ShaderProgram
 import dev.luna5ama.glwrapper.ShaderSource
 import dev.luna5ama.glwrapper.api.*
 import dev.luna5ama.glwrapper.enums.ImageFormat
-import dev.luna5ama.glwrapper.enums.ShaderStage
 import dev.luna5ama.glwrapper.objects.FramebufferObject
 import dev.luna5ama.glwrapper.objects.TextureObject
 
@@ -102,17 +101,18 @@ class SolidLighting(private val scene: TerrainScene) : IGLObjContainer by IGLObj
             scene.basic.drawQuad()
         }
 
-        glBlendFunc(GL_ONE, GL_ONE)
+        glBlendFuncSeparate(GL_ONE, GL_ONE, GL_ZERO, GL_ONE)
         glDebugGroup("HBAO") {
             hbao.render(scene.solidGBuffer)
         }
 
         glEnable(GL_BLEND)
-        glBlendFunc(GL_ONE, GL_ONE)
+        glBlendFuncSeparate(GL_ONE, GL_SRC_ALPHA, GL_ZERO, GL_ONE)
 
         glDebugGroup("Composite") {
             indirectShader.bind()
-            indirectShader.uniform4f("uval_aoParams", 0.5f, 2.0f, 1.0f, if (scene.gameInstance.toggle1) 0.0f else 4.0f)
+            indirectShader.uniform4f("uval_aoParams", 2.0f, 4.0f, 2.0f, 0.3f)
+            indirectShader.uniform1f("uval_giParams", if (scene.gameInstance.toggle1) 0.0f else 4.0f)
             indirectShader.applyBinding {
                 sampler(texBingings)
                 sampler(hbao.texBinding)

@@ -21,6 +21,7 @@ uniform sampler2D usam_hbao;
 
 uniform vec3 originOffset;
 uniform vec4 uval_aoParams;
+uniform float uval_giParams;
 
 in vec2 fClipCoord;
 in vec2 fTexCoord;
@@ -57,20 +58,22 @@ void doStuff() {
 
     vec3 viewDir = normalize(-gs_data.worldCoord);
 
-    vec3 blockLightMul = 4.0 * gtaoMultiBounce(gs_data.albedo.rgb, pow(aoSample.a, uval_aoParams.x));
-    vec3 skyLightMul = 8.0 * gtaoMultiBounce(gs_data.albedo.rgb, pow(aoSample.a, uval_aoParams.y));
+    float blockLightAo = pow(aoSample.a, uval_aoParams.x);
+    float skyLightAo = pow(aoSample.a, uval_aoParams.y);
+    vec3 blockLightMul = 4.0 * gtaoMultiBounce(gs_data.albedo.rgb, blockLightAo);
+    vec3 skyLightMul = 32.0 * gtaoMultiBounce(gs_data.albedo.rgb, skyLightAo);
     vec3 ambientLight = materialAo * calcAmbient(usam_lightMap, viewDir, mappedNormal, roughness, gs_data.lightCoord, blockLightMul, skyLightMul);
 
     vec3 v = vec3(0.0);
 
     v += ambientLight;
     float giAo = pow(aoSample.a, uval_aoParams.z);
-    v += gtaoMultiBounce(gs_data.albedo.rgb, giAo) * aoSample.rgb * uval_aoParams.w;
+    v += gtaoMultiBounce(gs_data.albedo.rgb, giAo) * aoSample.rgb * uval_giParams;
 //    v += giAo * aoSample.rgb * uval_aoParams.w;
     v *= gs_data.albedo.rgb;
 
     out1.rgb = v;
-    out1.a = 1.0;
+    out1.a = pow(aoSample.a, uval_aoParams.w);
 }
 
 void main() {

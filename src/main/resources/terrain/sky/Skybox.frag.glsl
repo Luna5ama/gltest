@@ -261,7 +261,7 @@ void main() {
 
     vec3 eye = originOffset;
     vec4 sky = ComputeSkyInscattering(setting, eye, V, L);
-    sky.rgb *= SUN_LIGHT_INTENSITY * 0.1;
+    sky.rgb *= SUN_LIGHT_INTENSITY * 0.2;
 
-    outColor = vec4(sky.rgb, 1.0);
+    outColor = vec4(sky.rgb, 0.0);
 }

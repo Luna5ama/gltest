@@ -95,7 +95,7 @@ float calcShadow(vec3 lightViewNormal, float sssFactor) {
     shadowCoord.z -= lightDirOffset;
 
     float blockerDistance = searchBlocker(shadowCoord, texelSize);
-    float penumbraMult = 0.05 * blockerDistance;
+    float penumbraMult = 0.025 * blockerDistance;
 
     #define SAMPLE_N 16
 
@@ -159,8 +159,8 @@ void doStuff() {
 
     vec3 viewDir = normalize(-gs_data.worldCoord);
 
-    float blockLightMul = 16.0;
-    float skyLightMul = 0.0;
+    float blockLightMul = 4.0;
+    float skyLightMul = 32.0;
     vec3 ambientLight = calcAmbient(usam_lightMap, mappedNormal, mappedNormal, alpha, gs_data.lightCoord, blockLightMul, skyLightMul);
 
     float sssBase = 0.1;
@@ -169,7 +169,7 @@ void doStuff() {
     float sssValue = sssFactor * (sssBase + sssSheen);
     // Shadow
     float shadow = calcShadow(fNormalMatrix * gs_data.worldNormal, sssFactor);
-    float diffuseIL = brdf_diffuseN_orenNayar(uShadowMap.lightDir, mappedNormal, mappedNormal, alpha);
+    float diffuseIL = brdf_diffuse_orenNayar(uShadowMap.lightDir, mappedNormal, mappedNormal, alpha);
     float directLightIl = shadow * (diffuseIL + sssValue);
 
     vec3 v = vec3(0.0);
@@ -182,12 +182,12 @@ void doStuff() {
     outParams.rgb = mappedNormal;
     outParams.a = roughness;
 
-    float diffuseDL = brdf_diffuseN_orenNayar(uShadowMap.lightDir, viewDir, mappedNormal, alpha);
+    float diffuseDL = brdf_diffuse_orenNayar(uShadowMap.lightDir, viewDir, mappedNormal, alpha);
     float directLightDL = shadow * (diffuseDL + sssValue);
 
     rt_mainFboOutput = vec4(0.0, 0.0, 0.0, 1.0);
     rt_mainFboOutput.rgb += directLightDL * SUN_LIGHT_INTENSITY * SUN_LIGHT_COLOR * gs_data.albedo.rgb;
-    rt_mainFboOutput.rgb += emissive * EMISSIVE_INTENSITY * PI_INV * gs_data.albedo.rgb;
+    rt_mainFboOutput.rgb += emissive * EMISSIVE_INTENSITY * gs_data.albedo.rgb;
 }
 
 void main() {

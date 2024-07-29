@@ -59,9 +59,9 @@ void main() {
     vec3 gs_viewCoord = (ubo_cameraDefault.modelView * vec4(gs_data.worldCoord, 1.0)).xyz;
     vec3 viewDirThis = normalize(-gs_data.worldCoord);
 
-            vec3 worldNormalThis = slThis2.rgb;
-//        vec3 worldNormalThis = gs_data.worldNormal;
-//    vec3 worldNormalThis = normalize(gs_data.worldNormal + slThis2.rgb * 0.1);
+    //            vec3 worldNormalThis = slThis2.rgb;
+    //        vec3 worldNormalThis = gs_data.worldNormal;
+    vec3 worldNormalThis = normalize(gs_data.worldNormal + slThis2.rgb * 0.1);
 
     vec3 gs_viewNormal = mat3(ubo_cameraDefault.modelView) * worldNormalThis;
     float roughnessThis = slThis2.a;
@@ -70,16 +70,16 @@ void main() {
     uint worldCoordRand0 = uint(rand(gs_data.worldCoord.xyz) * 256.0);
     uint worldCoordRand1 = uint(rand(gs_data.worldCoord.zxy) * 256.0);
 
-//    uint worldCoordRand0 = uint(rand(gl_FragCoord.yx) * 256.0);
-//    uint worldCoordRand1 = uint(rand(gl_FragCoord.yx) * 256.0);
+    //    uint worldCoordRand0 = uint(rand(gl_FragCoord.yx) * 256.0);
+    //    uint worldCoordRand1 = uint(rand(gl_FragCoord.yx) * 256.0);
 
-//    uint worldCoordRand0 = uint(IGN(gl_FragCoord.yx, ubo_cameraDefault.gFrameIndex) * 256.0);
-//    uint worldCoordRand1 = uint(IGN(gl_FragCoord.yx, ubo_cameraDefault.gFrameIndex) * 256.0);
+    //    uint worldCoordRand0 = uint(IGN(gl_FragCoord.yx, ubo_cameraDefault.gFrameIndex) * 256.0);
+    //    uint worldCoordRand1 = uint(IGN(gl_FragCoord.yx, ubo_cameraDefault.gFrameIndex) * 256.0);
 
     ivec2 intTexCoord = ivec2(fTexCoordI);
 
     float sampleAngleDelta = 2.0 * PI_CONST / HBAO_DIR_SAMPLES;
-//    float initialAngle = r2Seq1(F_INDEX + worldCoordRand0) * sampleAngleDelta - sampleAngleDelta * 0.5;
+    //    float initialAngle = r2Seq1(F_INDEX + worldCoordRand0) * sampleAngleDelta - sampleAngleDelta * 0.5;
     float initialAngle = IGN(gl_FragCoord.xy, ubo_cameraDefault.gFrameIndex) * sampleAngleDelta - sampleAngleDelta * 0.5;
     vec2 sphereRadius = (uval_radius.x / -gs_viewCoord.z) * uval_projectParams.xy;
 
@@ -89,10 +89,10 @@ void main() {
         float sampleAngle = initialAngle + sampleAngleDelta * float(i);
         vec2 sampleDir = vec2(cos(sampleAngle), sin(sampleAngle));
         vec2 sampleDirUVUnit = sampleDir * vec2(uval_projectParams.z, 1.0) * ubo_cameraDefault.screenSize.zw;
-        vec2 sampleDirUV = sampleDir * sphereRadius / HBAO_STEP_SAMPLES;
+        vec2 sampleDirUV = sampleDir * sphereRadius;
 
         vec2 localSpaceNormal = vec2(dot(gs_viewNormal.xy, sampleDir), dot(gs_viewNormal.xy, sampleDir));
-        float tangentAngle = asinFast4(-dot(sampleDir, gs_viewNormal.xy)) + uval_tangentBias;
+        float tangentAngle = asinFast4(-dot(sampleDir, gs_viewNormal.xy));
 
         vec3 colorSum = vec3(0.0);
         float giSample = 0.0;
@@ -102,14 +102,19 @@ void main() {
         dirStepBaseIdx += i;
         dirStepBaseIdx *= HBAO_STEP_SAMPLES;
 
-        float sinTan = sin(tangentAngle);
+        float sinTan = sin(tangentAngle + uval_tangentBias);
         float maxOcclusion = 0.0;
+        float maxSin = sinTan;
         vec2 baseCoord = fTexCoord + sampleDirUVUnit;
 
         for (int stepIdx = 0; stepIdx < HBAO_STEP_SAMPLES; stepIdx++) {
-            float stepSize = float(stepIdx) + r2Seq1(dirStepBaseIdx + stepIdx);
-            vec2 sampleStep = stepSize * sampleDirUV;
-            vec2 sampleTexCoord = baseCoord + sampleStep;
+            float stepIdxF = float(stepIdx);
+            float stepX = (stepIdxF + r2Seq1(dirStepBaseIdx + stepIdx)) / HBAO_STEP_SAMPLES;
+//            float stepX = (stepIdxF + 0.5) / HBAO_STEP_SAMPLES;
+//            float stepY = stepX * stepX;
+            float stepY = stepX;
+//            float stepY = exp2(stepX) - 1.0;
+            vec2 sampleTexCoord = baseCoord + stepY * sampleDirUV;
             vec2 sampleClipCoord = sampleTexCoord * 2.0 - 1.0;
             if (any(greaterThanEqual(abs(sampleClipCoord), vec2(1.0)))) {
                 break;
@@ -121,17 +126,26 @@ void main() {
             vec3 diff = gSampleData.worldCoord - gs_data.worldCoord;
             float dist = length(diff);
             if (dist > uval_radius.y) break;
-            float dist2 = dist * dist;
 
             vec3 diffView = mat3(ubo_cameraDefault.modelView) * diff;
             float xSample = diffView.z * fastRcpSqrtNR0(dot(diffView.xy, diffView.xy));
             float sinSample = xSample * fastRcpSqrtNR0(1.0 + xSample * xSample);
 
             float aoAtt = 4.0;
-            float aoAttenuation = aoAtt / (aoAtt + dist2);
+            float aoAttenuation = aoAtt / (aoAtt + dist);
 
             float occlusion = min(aoAttenuation * (sinSample - sinTan) * uval_aoStrength.x, 1.0);
-            maxOcclusion = max(occlusion, maxOcclusion);
+
+            float sampleWeight = 0.5;
+            if (sinSample >= maxSin) {
+                maxOcclusion = max(occlusion, maxOcclusion);
+                maxSin = sinSample;
+                sampleWeight = 1.0;
+            }
+
+//            float xda1 = (stepIdxF) / HBAO_STEP_SAMPLES;
+//            float xda2 = (stepIdxF + 1.0) / HBAO_STEP_SAMPLES;
+//            sampleWeight *= (xda2 * xda2 * xda2) / 3.0 - (xda1 * xda1 * xda1) / 3.0;
 
             vec4 sample1 = texture(usam_solidLighting1, sampleTexCoord);
             vec4 sample2 = texture(usam_solidLighting2, sampleTexCoord);
@@ -145,7 +159,7 @@ void main() {
             float angle = dot(-dirToThat, worldNormalThat);
             angle = (1.0 - occlusion) * (angle * 0.5 + 0.5);
 
-            vec3 emissiveLightThat = sample1.a * EMISSIVE_INTENSITY * gSampleData.albedo.rgb;
+            vec3 emissiveLightThat = sample1.a * EMISSIVE_INTENSITY * 8.0 * gSampleData.albedo.rgb;
             vec3 diffuseLightThat = uval_giStrength.x * angle * sample1.rgb * gSampleData.albedo.rgb + emissiveLightThat;
 
             float specThat = blinnPhong(uShadowMap.lightDir, -dirToThat, worldNormalThat, roughnessThat);
@@ -156,18 +170,22 @@ void main() {
             float diffuseThis = brdf_diffuse_orenNayar(dirToThat, viewDirThis, worldNormalThis, roughnessThis);
 
             float giAtt = 1.0;
+            float dist2 = dist * dist;
             float attenuation = giAtt / (giAtt + dist2);
 
-            float adj = 1.0 / max(dot(-normalize(gSampleData.worldCoord), worldNormalThat), 0.1);
+            float adj = max(dot(-normalize(gSampleData.worldCoord), worldNormalThat), 0.1);
+            adj = 1.0 / adj * adj;
 
-            vec3 colorSample = adj * attenuation * incomingLight * diffuseThis;
+            vec3 colorSample = adj * sampleWeight * attenuation * incomingLight * diffuseThis;
             colorSum += colorSample;
 
-            giSample++;
+            giSample += sampleWeight;
         }
 
         sum.a += maxOcclusion;
-        sum.rgb += step(1.0, giSample) * (colorSum / float(max(giSample, 1)));
+        if (giSample > 0.0) {
+            sum.rgb += colorSum / giSample;
+        }
     }
 
     sum /= HBAO_DIR_SAMPLES;

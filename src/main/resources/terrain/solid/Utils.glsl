@@ -1,6 +1,6 @@
 #include "../BRDFs.glsl"
 
-const float EMISSIVE_INTENSITY = 64.0;
+const float EMISSIVE_INTENSITY = 32.0;
 
 vec3 calcAmbient(sampler2D lightMapTex, vec3 viewDir, vec3 normal, float roughness, vec2 lightCoord, float blockLight, float skylight) {
     const vec3 AMBIENT_DIFFUSE_1 = vec3(0.16169041, 0.80845207, -0.5659165);
@@ -37,7 +37,7 @@ vec3 calcAmbient(sampler2D lightMapTex, vec3 viewDir, vec3 normal, float roughne
     ambientBase += skylight * lightValue.y * skylightColor * skylightColor;
     ambientBase += blockLight * lightValue.x * blockLightColor * blockLightColor;
 
-    float ambientLight = 0.1;
+    float ambientLight = 0.5;
     ambientLight += brdf_diffuse_orenNayar(AMBIENT_DIFFUSE_1, viewDir, normal, roughness) * 0.45;
     ambientLight += brdf_diffuse_orenNayar(AMBIENT_DIFFUSE_2, viewDir, normal, roughness) * 0.45;
 

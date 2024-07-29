@@ -19,8 +19,12 @@ class HBAO(private val scene: TerrainScene, private val solidLighting: SolidLigh
         ShaderProgram(
             ShaderSource.Vert("terrain/Blit.vert.glsl"),
             ShaderSource.Frag("terrain/hbao/HBAO2.frag") {
+//                define("HBAO_DIR_SAMPLES", 8)
+//                define("HBAO_STEP_SAMPLES", 32)
+//                define("HBAO_DIR_SAMPLES", 4)
+//                define("HBAO_STEP_SAMPLES", 4)
                 define("HBAO_DIR_SAMPLES", 4)
-                define("HBAO_STEP_SAMPLES", 4)
+                define("HBAO_STEP_SAMPLES", 16)
             }
         )
     )
@@ -78,11 +82,11 @@ class HBAO(private val scene: TerrainScene, private val solidLighting: SolidLigh
         }
 //        val invTanRad = 1.0f / tan(scene.camera.fov.toRadians() * 0.5f)
         shader.uniform1f("uval_tangentBias", 10.0f.toRadians())
-        val aoRadius = 4.0f
-        val maxRadius = 16.0f
+        val aoRadius = 16.0f
+        val maxRadius = 64.0f
         shader.uniform2f("uval_radius", aoRadius, maxRadius)
-        shader.uniform2f("uval_aoStrength", if (scene.gameInstance.toggle2) 0.0f else 4.0f, 1.0f)
-        shader.uniform2f("uval_giStrength",  32.0f, 32.0f)
+        shader.uniform2f("uval_aoStrength", if (scene.gameInstance.toggle2) 0.0f else 2.0f, 1.0f)
+        shader.uniform2f("uval_giStrength",  64.0f, 64.0f)
         val aspect = scene.camera.aspectRatio
         val tanHalfFov = tan(scene.camera.fov.toRadians() / 2.0f)
         shader.uniform3f("uval_projectParams", 1.0f / (aspect * tanHalfFov), 1.0f / tanHalfFov, aspect)
