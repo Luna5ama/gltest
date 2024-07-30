@@ -221,7 +221,7 @@ void rasterize(uint baseLocalQuadIndex) {
 
         for (outputCoord.y = screenBound.y; outputCoord.y < screenBound.w; outputCoord.y++) {
             for (outputCoord.x = screenBound.x; outputCoord.x < screenBound.z; outputCoord.x++) {
-                if (min3(t1b) >= 0.0 || min3(t2b) >= 0.0) {
+                if (any(bvec2(all(greaterThanEqual(t1b, vec3(0.0))), all(greaterThanEqual(t2b, vec3(0.0)))))) {
                     outputCoord.z = outputCoord.y * uval_viewportSizeI.x + outputCoord.x;
                     valueVec.x = ssbo_vBufferDepthQuadIndex[outputCoord.z];
                     valueVec.y = (int64_t(floatBitsToInt(dot(posZs.xyz, t1b))) << 32) | int64_t(quadIndex << 1u);
@@ -240,9 +240,9 @@ void rasterize(uint baseLocalQuadIndex) {
                     #endif
 
                     #ifdef CUTOUT
-                    if (min3(t1b) >= 0.0 && texture(usam_blockAlbedoAtlas, texCoord1).a > 0.5 && valueVec.y >= valueVec.x)
+                    if (all(bvec3(all(greaterThanEqual(t1b, vec3(0.0))), texture(usam_blockAlbedoAtlas, texCoord1).a > 0.5, valueVec.y >= valueVec.x)))
                     #else
-                    if (min3(t1b) >= 0.0 && valueVec.y >= valueVec.x)
+                    if (all(greaterThanEqual(t1b, vec3(0.0))) && valueVec.y >= valueVec.x)
                     #endif
                     {
                         #ifdef OVERDRAW_DEBUG
@@ -255,9 +255,9 @@ void rasterize(uint baseLocalQuadIndex) {
                     }
 
                     #ifdef CUTOUT
-                    if (min3(t2b) >= 0.0 && texture(usam_blockAlbedoAtlas, texCoord2).a > 0.5 && valueVec.z >= valueVec.x)
+                    if (all(bvec3(all(greaterThanEqual(t2b, vec3(0.0))), texture(usam_blockAlbedoAtlas, texCoord2).a > 0.5, valueVec.z >= valueVec.x)))
                     #else
-                    if (min3(t2b) >= 0.0 && valueVec.z >= valueVec.x)
+                    if (all(greaterThanEqual(t2b, vec3(0.0))) && valueVec.z >= valueVec.x)
                     #endif
                     {
                         #ifdef OVERDRAW_DEBUG
