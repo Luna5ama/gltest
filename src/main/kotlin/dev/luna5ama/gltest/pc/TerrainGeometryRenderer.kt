@@ -27,20 +27,20 @@ import kotlin.math.max
 import kotlin.math.min
 
 class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by IGLObjContainer.Impl() {
-    //    val visibilityFlagType = when {
-//        scene.gameInstance.glCapabilities.GL_NV_gpu_shader5 -> {
-//            VisibilityFlagType.INT8
-//        }
-//
-//        scene.gameInstance.glCapabilities.GL_AMD_gpu_shader_int16 -> {
-//            VisibilityFlagType.INT16
-//        }
-//
-//        else -> {
-//            VisibilityFlagType.INT32
-//        }
-//    }
-    val visibilityFlagType = VisibilityFlagType.INT32
+    val visibilityFlagType = when {
+        scene.gameInstance.glCapabilities.GL_NV_gpu_shader5 -> {
+            VisibilityFlagType.INT8
+        }
+
+        scene.gameInstance.glCapabilities.GL_AMD_gpu_shader_int16 -> {
+            VisibilityFlagType.INT16
+        }
+
+        else -> {
+            VisibilityFlagType.INT32
+        }
+    }
+//    val visibilityFlagType = VisibilityFlagType.INT32
 
     val threadBatchSize = if (GLWrapper.instance.vendor == GpuVendor.NVIDIA) 96 else 128
 
@@ -156,13 +156,15 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
             chunkPosData.upload(0, arr.len, arr.ptr)
         }
 
-        if (updateTimer.tickAndReset(5)) {
-            updateBatchMeta()
-        }
+        if (!scene.gameInstance.toggle3) {
+            if (updateTimer.tickAndReset(5)) {
+                updateBatchMeta()
+            }
 
 //        if (glfwGetTime() < 1.0) {
 //            updateBatchMeta()
 //        }
+        }
 
         hwMsPipeline.preDraw()
         hwVsPipeline.preDraw()
@@ -184,11 +186,16 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
         }
 
         glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE)
-        glDebugGroup("HW Draw") { hwDraw() }
+        glDebugGroup("HW Draw") {
+            hwDraw()
+        }
         glDebugGroup("HW2SW Blit") {
             blitHW2SW()
         }
-        glDebugGroup("SW Draw") { swDraw() }
+        glDebugGroup("SW Draw") {
+            swDraw()
+        }
+
         glDebugGroup("SW2HW Blit") {
             blitSW2HW()
 //            scene.vbuffer.fbo.blitTo(scene.fboGroup.input.fbo, GL_DEPTH_BUFFER_BIT, GL_NEAREST)
@@ -212,7 +219,7 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
             println()
             println("HW Draw: %.3f ms".format(hwMsDrawTimer.averageMS() + hwVsDrawTimer.averageMS()))
             println("SW Draw: %.3f ms".format(swDrawTimer.averageMS()))
-            println("Total: %.3f ms".format(swDrawTimer.averageMS() + hwVsDrawTimer.averageMS() + hwMsDrawTimer.averageMS()))
+            println("Total Draw: %.3f ms".format(swDrawTimer.averageMS() + hwVsDrawTimer.averageMS() + hwMsDrawTimer.averageMS()))
             println()
         }
     }
@@ -252,6 +259,15 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
                     swQuad.add(chunkInfo)
                 }
             }
+//            when {
+//                sampleCountArray[chunkInfo.chunkIndex] > 32.0f -> {
+//                }
+//                sampleCountArray[chunkInfo.chunkIndex] > 4.0f -> {
+//                    hwVs.add(chunkInfo)
+//                }
+//                else -> {
+//                }
+//            }
         }
 
         coroutineScope {
@@ -263,11 +279,11 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
 
     private fun chunkCountString(pipeline: TerrainDrawPipeline): String {
         return "%,d quads, %,d batches, %,d/%,d chunks".format(
-                pipeline.quadCount,
-                pipeline.chunkCount,
-                pipeline.batchCount,
-                scene.terrainMeshData.chunkLayerInfo.size
-            )
+            pipeline.quadCount,
+            pipeline.chunkCount,
+            pipeline.batchCount,
+            scene.terrainMeshData.chunkLayerInfo.size
+        )
     }
 
     private fun CoroutineScope.calcSampleCount() {

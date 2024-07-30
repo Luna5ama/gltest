@@ -225,13 +225,16 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
 
     override fun preDraw() {
         super.preDraw()
+        passSetup(1)
     }
 
     override fun draw() {
         if (batchCount == 0) return
 
         if (!scene.gameInstance.toggle3) {
-            drawPass(1)
+            glDebugGroup("DrawPass-1-Draw") {
+                passDraw()
+            }
 
             glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
 
@@ -252,68 +255,75 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
 
             glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
 
-            drawPass(2)
+            glDebugGroup("DrawPass-2-Setup") {
+                passSetup(2)
+            }
+            glDebugGroup("DrawPass-2-Draw") {
+                passDraw()
+            }
         } else {
-            drawPass(0)
+            glDebugGroup("DrawPass-0-Setup") {
+                passSetup(0)
+            }
+            glDebugGroup("DrawPass-0-Draw") {
+                passDraw()
+            }
         }
     }
 
-    private fun drawPass(index: Int) {
+    private fun passSetup(index: Int) {
         val scanWorkGroupSize = scene.gpuScan.workGroupSize
         val scanGroupCount = (batchCount + scanWorkGroupSize - 1) / scanWorkGroupSize
-        glDebugGroup("DrawPass-$index-Setup") {
-            clearShader.bind()
-            clearShader.applyBinding {
-                buffer(bufferBindings)
-            }
-            glDispatchCompute(1, 1, 1)
-            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
-            val setupShader = filterShader[index]
-            setupShader.bind()
-            setupShader.applyBinding {
-                buffer(renderer.bufferBindings)
-                buffer(scene.vbuffer.bufferBinding)
-                buffer(bufferBindings)
-            }
-            glDispatchCompute(scanGroupCount, 1, 1)
-            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT or GL_UNIFORM_BARRIER_BIT or GL_COMMAND_BARRIER_BIT)
-            val scanDataView = scanBuffer.createView(16L)
-            scene.gpuScan.process(
-                scanDataView,
-                scanBuffer.createView(0L, 16L),
-                scanDataView,
-                scanGroupCount
-            )
-            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
-            batchIndicesShader.bind()
-            batchIndicesShader.applyBinding {
-                buffer(bufferBindings)
-            }
-            glDispatchCompute(scanGroupCount, 1, 1)
+        clearShader.bind()
+        clearShader.applyBinding {
+            buffer(bufferBindings)
         }
-
-        glDebugGroup("DrawPass-$index-Draw") {
-            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT or GL_COMMAND_BARRIER_BIT)
-
-            glEnable(GL_CULL_FACE)
-            glCullFace(GL_BACK)
-            glEnable(GL_DEPTH_TEST)
-            glDepthFunc(GL_GEQUAL)
-            glDepthMask(true)
-            glColorMask(true, true, true, true)
-            scene.bindSWDrawShader(drawShader)
-            drawShader.applyBinding {
-                sampler(scene.textures.blockAlbedo)
-                buffer(scene.camera.uboBinding)
-                buffer(scene.terrainMeshData.bufferBindings)
-                buffer(scene.vbuffer.bufferBinding)
-                buffer(bufferBindings)
-                buffer(renderer.bufferBindings)
-                image(scene.vbuffer.imageBindings)
-                image("uimg_overdrawCounter", scene.overdrawCounterTex)
-            }
-            batchIndices.bind(GL_DISPATCH_INDIRECT_BUFFER)
-            glDispatchComputeIndirect(0L)
+        glDispatchCompute(1, 1, 1)
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
+        val setupShader = filterShader[index]
+        setupShader.bind()
+        setupShader.applyBinding {
+            buffer(renderer.bufferBindings)
+            buffer(scene.vbuffer.bufferBinding)
+            buffer(bufferBindings)
         }
+        glDispatchCompute(scanGroupCount, 1, 1)
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT or GL_UNIFORM_BARRIER_BIT or GL_COMMAND_BARRIER_BIT)
+        val scanDataView = scanBuffer.createView(16L)
+        scene.gpuScan.process(
+            scanDataView,
+            scanBuffer.createView(0L, 16L),
+            scanDataView,
+            scanGroupCount
+        )
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
+        batchIndicesShader.bind()
+        batchIndicesShader.applyBinding {
+            buffer(bufferBindings)
+        }
+        glDispatchCompute(scanGroupCount, 1, 1)
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT or GL_COMMAND_BARRIER_BIT)
+    }
+
+    private fun passDraw() {
+        glEnable(GL_CULL_FACE)
+        glCullFace(GL_BACK)
+        glEnable(GL_DEPTH_TEST)
+        glDepthFunc(GL_GEQUAL)
+        glDepthMask(true)
+        glColorMask(true, true, true, true)
+        scene.bindSWDrawShader(drawShader)
+        drawShader.applyBinding {
+            sampler(scene.textures.blockAlbedo)
+            buffer(scene.camera.uboBinding)
+            buffer(scene.terrainMeshData.bufferBindings)
+            buffer(scene.vbuffer.bufferBinding)
+            buffer(bufferBindings)
+            buffer(renderer.bufferBindings)
+            image(scene.vbuffer.imageBindings)
+            image("uimg_overdrawCounter", scene.overdrawCounterTex)
+        }
+        batchIndices.bind(GL_DISPATCH_INDIRECT_BUFFER)
+        glDispatchComputeIndirect(0L)
     }
 }
