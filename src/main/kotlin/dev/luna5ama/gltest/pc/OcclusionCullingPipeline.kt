@@ -12,7 +12,10 @@ import dev.luna5ama.glwrapper.ShaderProgram
 import dev.luna5ama.glwrapper.ShaderSource
 import dev.luna5ama.glwrapper.api.*
 import dev.luna5ama.glwrapper.enums.BufferTarget
+import dev.luna5ama.glwrapper.enums.ImageFormat
 import dev.luna5ama.glwrapper.objects.BufferObject
+import dev.luna5ama.glwrapper.objects.FramebufferObject
+import dev.luna5ama.glwrapper.objects.TextureObject
 import dev.luna5ama.glwrapper.objects.VertexArrayObject
 import dev.luna5ama.kmogus.MemoryStack
 import dev.luna5ama.kmogus.Ptr
@@ -25,6 +28,8 @@ abstract class OcclusionCullingPipeline(
     protected val renderer: TerrainGeometryRenderer
 ) : IGLObjContainer by IGLObjContainer.Impl() {
     abstract val ctcBufferBaseOffset: Long
+
+    open fun update() {}
 
     abstract fun setupIndirect(ptr: Ptr, count: Int)
 
@@ -129,6 +134,105 @@ abstract class OcclusionCullingPipeline(
         override val ctcBufferBaseOffset: Long
             get() = 32L
 
+        private val swDepthBlitShader = register(
+            ShaderProgram(
+                ShaderSource.Comp("pc/geometry/culling/CullSWDepthBlit.comp")
+            )
+        ).apply {
+            label("CullVS.DepthBlitSW")
+        }
+
+        private val float2DepthBlitShader = register(
+            ShaderProgram(
+                ShaderSource.Vert("pc/Blit.vert"),
+                ShaderSource.Frag("pc/geometry/culling/Float2DepthBlit.frag")
+            )
+        ).apply {
+            label("CullVS.DepthBlitSW")
+        }
+
+        private val cullTempTex = register(TextureObject.Texture2D()).apply {
+            label("CullVS.CullTempTex")
+        }
+
+        private val cullDepthTex = register(TextureObject.Texture2D()).apply {
+            label("CullVS.CullDepthTex")
+        }
+
+        private val cullFbo = register(FramebufferObject()).apply {
+            label("VBuffer.EmptyFBO")
+            create()
+        }
+
+        private val imageBindings = listOf(
+            ShaderBindingSpecs.Image("uimg_cullTempTex", cullTempTex)
+        )
+        private val samplerBindings = listOf(
+            ShaderBindingSpecs.Sampler("usam_cullTempTex", cullTempTex),
+            ShaderBindingSpecs.Sampler("usam_cullDepthTex", cullDepthTex)
+        )
+
+        fun swDepthBlit() {
+            glDebugGroup("CullPass-SWDepthBlit") {
+                swDepthBlitShader.bind()
+                swDepthBlitShader.applyBinding {
+                    buffer(scene.vbuffer.bufferBinding)
+                    image(imageBindings)
+                }
+                val xClusters = (scene.camera.screenWidth + 3) / 4
+                val yClusters = (scene.camera.screenHeight + 3) / 4
+                swDepthBlitShader.uniform2i("uval_viewportSizeI", scene.camera.screenSize.x, scene.camera.screenSize.y)
+                swDepthBlitShader.uniform2i("uval_clusterCount", xClusters, yClusters)
+                val clusterPerWorkgroup = 128 / 16
+                val totalClusters = xClusters * yClusters
+                val numGroups = (totalClusters + clusterPerWorkgroup - 1) / clusterPerWorkgroup
+                glDispatchCompute(numGroups, 1, 1)
+                glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
+
+                glEnable(GL_DEPTH_TEST)
+                glDepthFunc(GL_ALWAYS)
+                glDisable(GL_DEPTH_CLAMP)
+                glViewport(0, 0, cullFbo.width, cullFbo.height)
+
+                float2DepthBlitShader.bind()
+                float2DepthBlitShader.applyBinding {
+                    sampler(samplerBindings)
+                    buffer(scene.camera.uboBinding)
+                }
+                float2DepthBlitShader.uniform2i("uval_viewportSizeI", scene.camera.screenSize.x, scene.camera.screenSize.y)
+                cullFbo.bind()
+                scene.basic.drawQuad()
+            }
+        }
+
+        override fun update() {
+            super.update()
+            val width = scene.camera.screenWidth / 4
+            val height = scene.camera.screenHeight / 4
+            if (cullDepthTex.width != width || cullDepthTex.height != height) {
+                glNamedFramebufferParameteri(cullFbo.id, GL_FRAMEBUFFER_DEFAULT_WIDTH, width)
+                glNamedFramebufferParameteri(cullFbo.id, GL_FRAMEBUFFER_DEFAULT_HEIGHT, height)
+
+                cullTempTex.apply {
+                    destroy()
+                    allocate(1, ImageFormat.R32_F, width, height)
+                }
+
+                cullDepthTex.apply {
+                    destroy()
+                    allocate(1, ImageFormat.Depth32F, width, height)
+                }
+
+
+                cullFbo.apply {
+                    destroyFbo()
+                    attachNonLayered(cullDepthTex, GL_DEPTH_ATTACHMENT)
+                    check()
+                }
+            }
+            cullDepthTex.clearImage()
+        }
+
         override fun setupIndirect(ptr: Ptr, count: Int) {
             val struct = DrawElementsIndirectCommand(ptr)
             struct.count = 36
@@ -140,6 +244,16 @@ abstract class OcclusionCullingPipeline(
 
         override fun draw(ctcBuffer: BufferObject, count: Int) {
             glDebugGroup("CullPass") {
+                cullShader.uniform2i("uval_viewportSizeI", scene.camera.screenSize.x, scene.camera.screenSize.y)
+                cullShader.bind()
+                cullShader.applyBinding {
+                    buffer(renderer.bufferBindings)
+                    buffer("CullTestCommandBuffer", ctcBuffer, BufferTarget.ShaderStorage)
+                    buffer(scene.camera.uboBinding)
+                }
+                vao.bind()
+                cullFbo.bind()
+
                 glDisable(GL_DEPTH_CLAMP)
                 glEnable(GL_CULL_FACE)
                 glCullFace(GL_BACK)
@@ -148,13 +262,6 @@ abstract class OcclusionCullingPipeline(
                 glDepthMask(false)
                 glColorMask(false, false, false, false)
 
-                vao.bind()
-                cullShader.bind()
-                cullShader.applyBinding {
-                    buffer(renderer.bufferBindings)
-                    buffer("CullTestCommandBuffer", ctcBuffer, BufferTarget.ShaderStorage)
-                    buffer(scene.camera.uboBinding)
-                }
                 ctcBuffer.bind(GL_DRAW_INDIRECT_BUFFER)
                 glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE)
                 glDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_BYTE, 0L)

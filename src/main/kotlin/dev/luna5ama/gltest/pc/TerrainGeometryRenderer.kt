@@ -162,6 +162,8 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
             }
         }
 
+        cullPipeline.update()
+
         hwMsPipeline.preDraw()
         hwVsPipeline.preDraw()
         swQuadPipeline.preDraw()
