@@ -1,0 +1,35 @@
+#version 460 core
+
+#extension GL_KHR_shader_subgroup_clustered : enable
+#extension GL_ARB_gpu_shader_int64 : enable
+
+layout(local_size_x = 128) in;
+
+uniform ivec2 uval_viewportSizeI;
+uniform vec4 uval_viewportSize;
+uniform ivec2 uval_clusterCount;
+
+layout(r32f) uniform writeonly image2D uimg_cullTempTex;
+
+uniform sampler2D usam_vBufferDepth;
+
+void main() {
+    int clusterIndex = int(gl_GlobalInvocationID.x >> 4u);
+    ivec2 clusterCoord = ivec2(clusterIndex % uval_clusterCount.x, clusterIndex / uval_clusterCount.x);
+
+    int readGroupIndex = int(gl_GlobalInvocationID.x & 0xFu);
+    ivec2 readCoord = (clusterCoord << ivec2(2)) + ivec2(readGroupIndex & 3, readGroupIndex >> 2);
+    readCoord = readCoord << ivec2(1);
+
+    float depth = 0.0;
+    if (all(bvec2(all(lessThan(readCoord, uval_viewportSizeI)), all(greaterThanEqual(readCoord, ivec2(0)))))) {
+        vec4 depths = textureGather(usam_vBufferDepth, (vec2(readCoord) + vec2(1.0)) * uval_viewportSize.zw, 0);
+        depth = min(min(depths.x, depths.y), min(depths.z, depths.w));
+    }
+
+    float outputDepth = subgroupClusteredMin(depth, 16u);
+
+    if (readGroupIndex == 0u) {
+        imageStore(uimg_cullTempTex, clusterCoord, vec4(outputDepth, 0.0, 0.0, 0.0));
+    }
+}

@@ -142,6 +142,14 @@ abstract class OcclusionCullingPipeline(
             label("CullVS.DepthBlitSW")
         }
 
+        private val hwDepthBlitShader = register(
+            ShaderProgram(
+                ShaderSource.Comp("pc/geometry/culling/CullHWDepthBlit.comp")
+            )
+        ).apply {
+            label("CullVS.DepthBlitHW")
+        }
+
         private val float2DepthBlitShader = register(
             ShaderProgram(
                 ShaderSource.Vert("pc/Blit.vert"),
@@ -171,6 +179,44 @@ abstract class OcclusionCullingPipeline(
             ShaderBindingSpecs.Sampler("usam_cullTempTex", cullTempTex),
             ShaderBindingSpecs.Sampler("usam_cullDepthTex", cullDepthTex)
         )
+
+        override fun update() {
+            super.update()
+            val width = scene.camera.screenWidth / 4
+            val height = scene.camera.screenHeight / 4
+            if (cullDepthTex.width != width || cullDepthTex.height != height) {
+                glNamedFramebufferParameteri(cullFbo.id, GL_FRAMEBUFFER_DEFAULT_WIDTH, width)
+                glNamedFramebufferParameteri(cullFbo.id, GL_FRAMEBUFFER_DEFAULT_HEIGHT, height)
+
+                cullTempTex.apply {
+                    destroy()
+                    allocate(1, ImageFormat.R32_F, width, height)
+                }
+
+                cullDepthTex.apply {
+                    destroy()
+                    allocate(1, ImageFormat.Depth32F, width, height)
+                }
+
+
+                cullFbo.apply {
+                    destroyFbo()
+                    attachNonLayered(cullDepthTex, GL_DEPTH_ATTACHMENT)
+                    check()
+                }
+            }
+            cullTempTex.clearImage()
+            cullDepthTex.clearImage()
+        }
+
+        override fun setupIndirect(ptr: Ptr, count: Int) {
+            val struct = DrawElementsIndirectCommand(ptr)
+            struct.count = 36
+            struct.instanceCount = count
+            struct.firstIndex = 0
+            struct.baseVertex = 0
+            struct.baseInstance = 0
+        }
 
         fun swDepthBlit() {
             glDebugGroup("CullPass-SWDepthBlit") {
@@ -205,41 +251,43 @@ abstract class OcclusionCullingPipeline(
             }
         }
 
-        override fun update() {
-            super.update()
-            val width = scene.camera.screenWidth / 4
-            val height = scene.camera.screenHeight / 4
-            if (cullDepthTex.width != width || cullDepthTex.height != height) {
-                glNamedFramebufferParameteri(cullFbo.id, GL_FRAMEBUFFER_DEFAULT_WIDTH, width)
-                glNamedFramebufferParameteri(cullFbo.id, GL_FRAMEBUFFER_DEFAULT_HEIGHT, height)
-
-                cullTempTex.apply {
-                    destroy()
-                    allocate(1, ImageFormat.R32_F, width, height)
+        fun hwDepthBlit() {
+            glDebugGroup("CullPass-HWDepthBlit") {
+                hwDepthBlitShader.bind()
+                hwDepthBlitShader.applyBinding {
+                    buffer(scene.vbuffer.bufferBinding)
+                    sampler(scene.vbuffer.samplerBindings)
+                    image(imageBindings)
                 }
+                val xClusters = (scene.camera.screenWidth + 7) / 8
+                val yClusters = (scene.camera.screenHeight + 7) / 8
+                hwDepthBlitShader.uniform2i("uval_viewportSizeI", scene.camera.screenSize.x, scene.camera.screenSize.y)
+                hwDepthBlitShader.uniform4f(
+                    "uval_viewportSize",
+                    scene.camera.screenSize.x.toFloat(), scene.camera.screenSize.y.toFloat(),
+                    1.0f / scene.camera.screenSize.x.toFloat(), 1.0f / scene.camera.screenSize.y.toFloat()
+                )
+                hwDepthBlitShader.uniform2i("uval_clusterCount", xClusters, yClusters)
+                val clusterPerWorkgroup = 128 / 16
+                val totalClusters = xClusters * yClusters
+                val numGroups = (totalClusters + clusterPerWorkgroup - 1) / clusterPerWorkgroup
+                glDispatchCompute(numGroups, 1, 1)
+                glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
 
-                cullDepthTex.apply {
-                    destroy()
-                    allocate(1, ImageFormat.Depth32F, width, height)
+                glEnable(GL_DEPTH_TEST)
+                glDepthFunc(GL_ALWAYS)
+                glDisable(GL_DEPTH_CLAMP)
+                glViewport(0, 0, cullFbo.width / 2, cullFbo.height / 2)
+
+                float2DepthBlitShader.bind()
+                float2DepthBlitShader.applyBinding {
+                    sampler(samplerBindings)
+                    buffer(scene.camera.uboBinding)
                 }
-
-
-                cullFbo.apply {
-                    destroyFbo()
-                    attachNonLayered(cullDepthTex, GL_DEPTH_ATTACHMENT)
-                    check()
-                }
+                float2DepthBlitShader.uniform2i("uval_viewportSizeI", scene.camera.screenSize.x, scene.camera.screenSize.y)
+                cullFbo.bind()
+                scene.basic.drawQuad()
             }
-            cullDepthTex.clearImage()
-        }
-
-        override fun setupIndirect(ptr: Ptr, count: Int) {
-            val struct = DrawElementsIndirectCommand(ptr)
-            struct.count = 36
-            struct.instanceCount = count
-            struct.firstIndex = 0
-            struct.baseVertex = 0
-            struct.baseInstance = 0
         }
 
         override fun draw(ctcBuffer: BufferObject, count: Int) {

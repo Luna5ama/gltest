@@ -189,7 +189,32 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
     override fun draw() {
         if (batchCount == 0) return
 
-        drawPass(inputIndirectBuffer)
+        if (!scene.gameInstance.toggle3) {
+            indirectSetupShaders[1].dispatch()
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT or GL_COMMAND_BARRIER_BIT)
+            drawPass(outputIndirectBuffer)
+
+            renderer.cullPipeline.hwDepthBlit()
+            glViewport(0, 0, scene.camera.screenWidth / 8, scene.camera.screenHeight / 8)
+            renderer.cullPipeline.draw(ctcBuffer, chunkCount)
+
+            glEnable(GL_CULL_FACE)
+            glCullFace(GL_BACK)
+            glEnable(GL_DEPTH_TEST)
+            glDepthFunc(GL_GEQUAL)
+            glDepthMask(true)
+            glColorMask(true, true, true, true)
+
+            indirectSetupShaders[2].dispatch()
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT or GL_COMMAND_BARRIER_BIT)
+            drawPass(outputIndirectBuffer)
+        } else {
+//            indirectSetupShaders[3].dispatch()
+//            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT or GL_COMMAND_BARRIER_BIT)
+//            drawPass(outputIndirectBuffer)
+//
+            drawPass(inputIndirectBuffer)
+        }
     }
 
     private fun drawPass(buffer: BufferObject.Immutable) {
