@@ -51,13 +51,13 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
         ShaderBindingSpecs.Buffer("ScanBufferCount", scanBuffer.createView(0L, 16L), BufferTarget.ShaderStorage)
     )
 
-    private val clearShader = register(ShaderProgram(ShaderSource.Comp("pc/geometry/SWQuadClear.comp"))).apply {
+    private val clearShader = register(ShaderProgram(ShaderSource.Comp("pc/geometry/swquad/Clear.comp"))).apply {
         label("SWQuad.ClearShader")
     }
 
     private val filterShader = List(4) {
         register(ShaderProgram(
-            ShaderSource.Comp("pc/geometry/SWQuadBatchFilter.comp") {
+            ShaderSource.Comp("pc/geometry/swquad/BatchFilter.comp") {
                 define("FLAG_TYPE", renderer.visibilityFlagType.glslTypeName)
                 define("CULL_PASS", it)
             }
@@ -67,7 +67,7 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
     }
 
     private val batchIndicesShader = register(ShaderProgram(
-        ShaderSource.Comp("pc/geometry/SWQuadBatchIndices.comp") {
+        ShaderSource.Comp("pc/geometry/swquad/BatchIndices.comp") {
             define("FLAG_TYPE", renderer.visibilityFlagType.glslTypeName)
             define("SHARED_SUM_SIZE", run {
                 val subgroupSize = glGetInteger(GL_SUBGROUP_SIZE_KHR)
@@ -80,7 +80,7 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
     }
 
     val drawShader = register(ShaderProgram(
-        ShaderSource.Comp("pc/geometry/SWQuad.comp") {
+        ShaderSource.Comp("pc/geometry/swquad/Draw.comp") {
             define("WORKGROUP_SIZE", workGroupSize)
             define("QUADS_PER_WORK_GROUP", quadsPerWorkGroup)
             define("FLAG_TYPE", renderer.visibilityFlagType.glslTypeName)
