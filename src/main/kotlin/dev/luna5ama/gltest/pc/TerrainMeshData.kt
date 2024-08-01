@@ -527,7 +527,7 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
         val indexLength: Long
     )
 
-    inner class ChunkLayerInfo(
+    class ChunkLayerInfo(
         val chunkIndex: Int,
         val pos: Vector3i,
         val quadCount: Int,
@@ -541,9 +541,6 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
         val maxX = minX + 16
         val maxY = minY + 16
         val maxZ = minZ + 16
-
-        val offset get() = chunkPos[chunkIndex]
-        val offsetEncoded get() = offset.encode()
     }
 
     private fun Vector3i.encode(): Long {
