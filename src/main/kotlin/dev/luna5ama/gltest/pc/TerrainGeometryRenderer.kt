@@ -278,8 +278,8 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
     private fun chunkCountString(pipeline: TerrainDrawPipeline): String {
         return "%,d quads, %,d batches, %,d/%,d chunks".format(
             pipeline.quadCount,
-            pipeline.chunkCount,
             pipeline.batchCount,
+            pipeline.chunkCount,
             scene.terrainMeshData.chunkLayerInfo.size
         )
     }
