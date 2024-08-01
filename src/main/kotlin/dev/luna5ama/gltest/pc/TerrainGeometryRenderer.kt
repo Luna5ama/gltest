@@ -160,10 +160,6 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
             if (updateTimer.tickAndReset(5)) {
                 updateBatchMeta()
             }
-
-//        if (glfwGetTime() < 1.0) {
-//            updateBatchMeta()
-//        }
         }
 
         hwMsPipeline.preDraw()

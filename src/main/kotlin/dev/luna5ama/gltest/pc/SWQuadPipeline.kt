@@ -225,16 +225,13 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
 
     override fun preDraw() {
         super.preDraw()
-        passSetup(1)
     }
 
     override fun draw() {
         if (batchCount == 0) return
 
         if (!scene.gameInstance.toggle3) {
-            glDebugGroup("DrawPass-1-Draw") {
-                passDraw()
-            }
+            drawPass(1)
 
             glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
 
@@ -255,19 +252,18 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
 
             glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
 
-            glDebugGroup("DrawPass-2-Setup") {
-                passSetup(2)
-            }
-            glDebugGroup("DrawPass-2-Draw") {
-                passDraw()
-            }
+            drawPass(2)
         } else {
-            glDebugGroup("DrawPass-0-Setup") {
-                passSetup(0)
-            }
-            glDebugGroup("DrawPass-0-Draw") {
-                passDraw()
-            }
+            drawPass(3)
+        }
+    }
+
+    private fun drawPass(pass: Int) {
+        glDebugGroup("DrawPass-$pass-Setup") {
+            passSetup(pass)
+        }
+        glDebugGroup("DrawPass-$pass-Draw") {
+            passDraw()
         }
     }
 
