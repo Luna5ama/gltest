@@ -24,7 +24,7 @@ import kotlin.math.min
 
 class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) : TerrainDrawPipeline(scene, renderer) {
     private val workGroupSize = 128
-    private val quadsPerWorkGroup = workGroupSize * 16
+    private val quadsPerWorkGroup = workGroupSize * 1
 
     private val quadBatchInfo = register(BufferObject.Immutable()).apply {
         label("SWQuad.QuadBatchInfo")

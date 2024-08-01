@@ -23,7 +23,7 @@ void main() {
     uint passInputDiv = 1u << (WORK_GROUP_SIZE_POW * pass);
     uint passWorkGroupCount = (ubo_count + passWorkGroupDiv - 1u) / passWorkGroupDiv;
     uint passInputCount = (ubo_count + passInputDiv - 1u) / passInputDiv;
-    uint inputGreaterThan1Mask = uint(-int(passInputCount > passInputDiv));
+    uint inputGreaterThan1Mask = uint(-int(passInputCount > 1));
     uint addPass = gl_LocalInvocationID.y;
     passWorkGroupCount = (passWorkGroupCount - addPass) & inputGreaterThan1Mask;
     passInputCount = passInputCount & inputGreaterThan1Mask;
