@@ -23,6 +23,8 @@ import kotlin.math.max
 import kotlin.math.min
 
 class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) : TerrainDrawPipeline(scene, renderer) {
+    val debugQuadCount = false
+
     private val workGroupSize = renderer.threadBatchSize
     private val quadsPerWorkGroup = workGroupSize * 4
 
@@ -92,6 +94,9 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
             define("FLAG_TYPE", renderer.visibilityFlagType.glslTypeName)
             if (scene.overdrawDebug) {
                 define("OVERDRAW_DEBUG")
+            }
+            if (debugQuadCount) {
+                define("DEBUG_QUAD_COUNT")
             }
         }
     )).apply {
@@ -240,7 +245,9 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
     override fun draw() {
         if (batchCount == 0) return
 
-        tempBuffer.clear(GL_R32UI, GL_RED_INTEGER, GL_UNSIGNED_INT, Ptr.NULL)
+        if (debugQuadCount) {
+            tempBuffer.clear(GL_R32UI, GL_RED_INTEGER, GL_UNSIGNED_INT, Ptr.NULL)
+        }
 
         if (!scene.gameInstance.toggle3) {
             drawPass(1)
@@ -265,14 +272,14 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
             drawPass(0)
         }
 
-        if (printTimer.tickAndReset(3000)) {
-            MemoryStack {
-                val ptr = malloc(tempBuffer.size).ptr
-                glGetNamedBufferSubData(tempBuffer.id, 0, tempBuffer.size, ptr)
-                println("Input Quad Count: %,d".format(ptr.getInt(0)))
-                println("Output Quad Count: %,d".format(ptr.getInt(4)))
+        if (debugQuadCount && printTimer.tickAndReset(3000)) {
+                MemoryStack {
+                    val ptr = malloc(tempBuffer.size).ptr
+                    glGetNamedBufferSubData(tempBuffer.id, 0, tempBuffer.size, ptr)
+                    println("Input Quad Count: %,d".format(ptr.getInt(0)))
+                    println("Output Quad Count: %,d".format(ptr.getInt(4)))
+                }
             }
-        }
     }
 
     private fun drawPass(pass: Int) {
