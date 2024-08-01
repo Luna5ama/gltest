@@ -25,6 +25,13 @@ layout(std430) buffer VBufferDepthQuadIndex {
 layout(r32ui) uniform uimage2D uimg_overdrawCounter;
 #endif
 
+layout(std430) buffer TempBuffer {
+    uint v1;
+    uint v2;
+    uint v3;
+    uint v4;
+} ssbo_tempBuffer;
+
 struct QuadBatchInfo {
     uint chunkIndex;
     uint first;
@@ -320,6 +327,7 @@ void clear() {
 void main() {
     if (gl_LocalInvocationID.x == 0u){
         init();
+        atomicAdd(ssbo_tempBuffer.v1, shared_metaFirstCount.y);
     }
     clear();
     barrier();
@@ -336,5 +344,9 @@ void main() {
 
     for (uint i = 0u; i < rasterizeIter; i++) {
         rasterize(i * gl_WorkGroupSize.x);
+    }
+
+    if (gl_LocalInvocationID.x == 0u){
+        atomicAdd(ssbo_tempBuffer.v2, shared_quadCount);
     }
 }

@@ -13,6 +13,7 @@ import dev.luna5ama.glwrapper.api.*
 import dev.luna5ama.glwrapper.enums.BufferTarget
 import dev.luna5ama.glwrapper.objects.BufferObject
 import dev.luna5ama.kmogus.Arr
+import it.unimi.dsi.fastutil.ints.IntOpenHashSet
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -38,13 +39,15 @@ class HWMeshShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRend
         Arr.malloc(chunks.size * batchStructSize).use { batchInfoUploadBuffer ->
             Arr.malloc(ctcBufferBaseOffset + chunks.size * ctcStructSize).use { ctcUploadBuffer ->
                 val quadCountGlobal = AtomicInteger(0)
-                val ctcCount = AtomicInteger(0)
+                val chunkCounter = AtomicInteger(0)
 
                 coroutineScope {
                     launch {
+                        val chunkIndexSet = IntOpenHashSet()
                         for (i in chunks.indices) {
                             val chunkInfo = chunks[i]
-                            val offset = ctcCount.getAndIncrement() * ctcStructSize
+                            if (!chunkIndexSet.add(chunkInfo.chunkIndex)) continue
+                            val offset = chunkCounter.getAndIncrement() * ctcStructSize
                             val ctcStruct = CullTestCommand(ctcUploadBuffer.ptr + ctcBufferBaseOffset + offset)
                             ctcStruct.chunkIndex = chunkInfo.chunkIndex
                         }
@@ -72,11 +75,11 @@ class HWMeshShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRend
 
                 batchCount = chunks.size
                 quadCount = quadCountGlobal.get()
-                chunkCount = chunks.size
+                chunkCount = chunkCounter.get()
 
                 if (batchCount == 0) return
 
-                renderer.cullPipeline.setupIndirect(ctcUploadBuffer.ptr, ctcCount.get())
+                renderer.cullPipeline.setupIndirect(ctcUploadBuffer.ptr, chunkCounter.get())
 
                 withContext(scene.gameInstance.mainContext) {
                     val batchInfoLen = batchCount * batchStructSize
@@ -88,7 +91,7 @@ class HWMeshShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRend
                         batchInfoBuffer.upload(0L, batchInfoLen, batchInfoUploadBuffer.ptr)
                     }
 
-                    val ctcLen = ctcBufferBaseOffset + ctcCount.get() * ctcStructSize
+                    val ctcLen = ctcBufferBaseOffset + chunkCounter.get() * ctcStructSize
                     if (ctcBuffer.size < ctcLen) {
                         ctcBuffer.destroy()
                         ctcBuffer.allocate(ctcLen, ctcUploadBuffer.ptr, GL_DYNAMIC_STORAGE_BIT)

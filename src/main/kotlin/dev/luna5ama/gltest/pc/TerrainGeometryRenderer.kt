@@ -1,5 +1,6 @@
 package dev.luna5ama.gltest.pc
 
+import dev.fastmc.common.Direction
 import dev.fastmc.common.ParallelUtils
 import dev.fastmc.common.TickTimer
 import dev.fastmc.common.floorToInt
@@ -101,7 +102,9 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
     private val hwMsDrawTimer = GPUTimer(500)
     private val swDrawTimer = GPUTimer(500)
     private val printTimer = TickTimer()
-    val updateTimer = TickTimer()
+    val updateTimer = TickTimer().apply {
+        reset(-999)
+    }
 
     private val sw2hwShader = register(
         ShaderProgram(
@@ -157,7 +160,7 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
         }
 
         if (!scene.gameInstance.toggle3) {
-            if (updateTimer.tickAndReset(5)) {
+            if (updateTimer.tickAndReset(500)) {
                 updateBatchMeta()
             }
         }
@@ -226,6 +229,7 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
         MutableBoolean(true)
     }
     private val sampleCountArray = FloatArray(scene.terrainMeshData.chunkPos.size)
+    private val faceMaskArray = IntArray(scene.terrainMeshData.chunkPos.size)
 
     private suspend fun updateBatchMeta() {
         coroutineScope {
@@ -238,6 +242,9 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
             launch(Dispatchers.Default) {
                 doFrustumCulling()
             }
+            launch(Dispatchers.Default) {
+                calculateVisibleFaceMask()
+            }
         }
 
         val hwVs = mutableListOf<ChunkLayerInfo>()
@@ -248,6 +255,8 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
         for (i in chunkIndices) {
             val chunkInfo = scene.terrainMeshData.chunkLayerInfo[i]
             if (!frustumCullingFlags[chunkInfo.chunkIndex].value) continue
+            if (faceMaskArray[chunkInfo.chunkIndex] and chunkInfo.faceBits == 0) continue
+
             if (sampleCountArray[chunkInfo.chunkIndex] > 4.0f) {
                 if (!scene.gameInstance.toggle1) {
                     hwVs.add(chunkInfo)
@@ -280,7 +289,7 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
             pipeline.quadCount,
             pipeline.batchCount,
             pipeline.chunkCount,
-            scene.terrainMeshData.chunkLayerInfo.size
+            scene.terrainMeshData.chunkPos.size
         )
     }
 
@@ -292,6 +301,28 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
                     val areaCalc = QuadAreaCalc()
                     for (i in start until end) {
                         sampleCountArray[i] = areaCalc.calc(scene.terrainMeshData.chunkPos[i])
+                    }
+                }
+            }
+        )
+    }
+
+    private fun CoroutineScope.calculateVisibleFaceMask() {
+        ParallelUtils.splitListIndex(
+            scene.terrainMeshData.chunkPos.size,
+            blockForEach = { start, end ->
+                launch {
+                    for (i in start until end) {
+                        val chunkPos = scene.terrainMeshData.chunkPos[i]
+                        val worldPosX = chunkPos.x shl 4
+                        val worldPosY = chunkPos.y shl 4
+                        val worldPosZ = chunkPos.z shl 4
+                        faceMaskArray[i] = (Direction.B_EAST * (((worldPosX - 1) - scene.camera.pos.x).floorToInt() ushr 31)) or
+                                (Direction.B_WEST * ((scene.camera.pos.x - (worldPosX + 17)).floorToInt() ushr 31)) or
+                                (Direction.B_UP * (((worldPosY - 1) - scene.camera.pos.y).floorToInt() ushr 31)) or
+                                (Direction.B_DOWN * ((scene.camera.pos.y - worldPosY + 17).floorToInt() ushr 31)) or
+                                (Direction.B_SOUTH * (((worldPosZ - 1) - scene.camera.pos.z).floorToInt() ushr 31)) or
+                                (Direction.B_NORTH * ((scene.camera.pos.z - (worldPosZ + 17)).floorToInt() ushr 31))
                     }
                 }
             }

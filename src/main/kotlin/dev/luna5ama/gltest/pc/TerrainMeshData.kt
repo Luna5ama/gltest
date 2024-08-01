@@ -1,5 +1,6 @@
 package dev.luna5ama.gltest.pc
 
+import dev.fastmc.common.Direction
 import dev.fastmc.common.ParallelUtils
 import dev.luna5ama.gltest.structs.*
 import dev.luna5ama.gltest.terrain.IGLObjContainer
@@ -12,8 +13,9 @@ import dev.luna5ama.glwrapper.objects.BufferObject
 import dev.luna5ama.kmogus.Arr
 import dev.luna5ama.kmogus.asByteBuffer
 import dev.luna5ama.kmogus.memcpy
+import it.unimi.dsi.fastutil.ints.IntArrayList
 import kotlinx.coroutines.*
-import org.joml.*
+import org.joml.Vector3i
 import java.io.File
 import java.io.FileNotFoundException
 import java.nio.channels.FileChannel
@@ -229,44 +231,70 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
                         128,
                         blockForEach = { start, end ->
                             val readBuffer = Arr.malloc(16 * 1024 * 4L * 20L)
-                            launch(Dispatchers.IO) {
+                            launch(Dispatchers.Default) {
                                 val chunkLayerInfoListLocal = mutableListOf<ChunkLayerInfo>()
-                                var localPosIdxBufferArray = IntArray(0)
-                                var localAttribIdxBufferArray = IntArray(0)
+                                val quadCounts = IntArray(63)
+                                val localPosIdxBufferArrays = List(63) { IntArrayList() }
+                                val localAttribIdxBufferArrays = List(63) { IntArrayList() }
+
+                                fun calcFaceBits(v: TerrainVertex): Int {
+                                    var bit = 0b00_00_00
+                                    val eps = 0.01f
+
+                                    val normalX = v.normalX.toInt()
+                                    val normalY = v.normalY.toInt()
+                                    val normalZ = v.normalZ.toInt()
+
+                                    if (normalX - eps > 0) {
+                                        bit = bit or Direction.B_EAST
+                                    } else if (normalX + eps < 0.0f) {
+                                        bit = bit or Direction.B_WEST
+                                    }
+
+                                    if (normalY - eps > 0.0f) {
+                                        bit = bit or Direction.B_UP
+                                    } else if (normalY + eps < 0.0f) {
+                                        bit = bit or Direction.B_DOWN
+                                    }
+
+                                    if (normalZ - eps > 0.0f) {
+                                        bit = bit or Direction.B_SOUTH
+                                    } else if (normalZ + eps < 0.0f) {
+                                        bit = bit or Direction.B_NORTH
+                                    }
+
+                                    if (bit == 0b00_00_00) {
+                                        bit = 0b11_11_11
+                                    }
+
+                                    return bit
+                                }
 
                                 for (infoIdx in start until end) {
                                     val info = infoLines[infoIdx]
                                     if (info.chunkY - MIN_CHUNK_Y < 6) continue
                                     var readOffset = info.vertexOffset
                                     val readEnd = info.vertexOffset + info.vertexLength
-                                    FileChannel.open(vboFile.toPath(), StandardOpenOption.READ)
-                                        .use { channel ->
+                                    withContext(Dispatchers.IO) {
+                                        FileChannel.open(vboFile.toPath(), StandardOpenOption.READ).use { channel ->
                                             while (readOffset < readEnd) {
-                                                val read = withContext(Dispatchers.IO) {
-                                                    val buf = readBuffer.ptr.asByteBuffer(
-                                                        min(readBuffer.len, info.vertexLength).toInt()
-                                                    )
-                                                    val read = channel.read(buf, readOffset)
-                                                    if (read == -1) {
-                                                        throw IllegalStateException("Unexpected EOF")
-                                                    }
-                                                    read
+                                                val buf = readBuffer.ptr.asByteBuffer(
+                                                    min(readBuffer.len, info.vertexLength).toInt()
+                                                )
+                                                val read = channel.read(buf, readOffset)
+                                                if (read == -1) {
+                                                    throw IllegalStateException("Unexpected EOF")
                                                 }
 
                                                 if (read == 0) break
 
                                                 readOffset += read
 
-                                                val quadCount = read / 4 / 20
-
-                                                if (localPosIdxBufferArray.size < quadCount) {
-                                                    localPosIdxBufferArray = IntArray(quadCount)
-                                                    localAttribIdxBufferArray = IntArray(quadCount)
-                                                }
+                                                val readQuadCount = read / 4 / 20
 
                                                 var tempPtr = readBuffer.ptr
 
-                                                for (i in 0 until quadCount) {
+                                                for (i in 0 until readQuadCount) {
                                                     val v1 = TerrainVertex(tempPtr)
                                                     tempPtr += sizeof(TerrainVertex)
                                                     val v2 = TerrainVertex(tempPtr)
@@ -276,38 +304,60 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
                                                     val v4 = TerrainVertex(tempPtr)
                                                     tempPtr += sizeof(TerrainVertex)
 
-                                                    localPosIdxBufferArray[i] = addPosData(v1, v2, v3, v4)
-                                                    localAttribIdxBufferArray[i] = addAttribData(v1, v2, v3, v4)
+                                                    val faceBits = calcFaceBits(v1)
+                                                    val faceIndex = faceBits - 1
+                                                    val posData = addPosData(v1, v2, v3, v4)
+                                                    val attribData = addAttribData(v1, v2, v3, v4)
+
+                                                    quadCounts[faceIndex]++
+                                                    localPosIdxBufferArrays[faceIndex].add(posData)
+                                                    localAttribIdxBufferArrays[faceIndex].add(attribData)
                                                 }
-
-                                                val quadIndex = quadCounter.getAndAdd(quadCount)
-
-                                                memcpy(
-                                                    localPosIdxBufferArray,
-                                                    0L,
-                                                    quadPosIndexUploadBuffer.ptr,
-                                                    quadIndex * 4L,
-                                                    quadCount * 4L
-                                                )
-
-                                                memcpy(
-                                                    localAttribIdxBufferArray,
-                                                    0L,
-                                                    quadAttribIndexUploadBuffer.ptr,
-                                                    quadIndex * 4L,
-                                                    quadCount * 4L
-                                                )
-
-                                                val pos = Vector3i(info.chunkX, info.chunkY, info.chunkZ)
-                                                chunkLayerInfoListLocal += ChunkLayerInfo(
-                                                    getChunkIndex(pos),
-                                                    pos,
-                                                    quadCount,
-                                                    quadIndex
-                                                )
                                             }
                                         }
+                                    }
+
+                                    val pos = Vector3i(info.chunkX, info.chunkY, info.chunkZ)
+
+                                    for (i in 0 until 63) {
+                                        val faceQuadCount = quadCounts[i]
+                                        if (faceQuadCount == 0) continue
+                                        val quadIndex = quadCounter.getAndAdd(faceQuadCount)
+
+                                        memcpy(
+                                            localPosIdxBufferArrays[i].elements(),
+                                            0L,
+                                            quadPosIndexUploadBuffer.ptr,
+                                            quadIndex * 4L,
+                                            faceQuadCount * 4L
+                                        )
+
+                                        memcpy(
+                                            localAttribIdxBufferArrays[i].elements(),
+                                            0L,
+                                            quadAttribIndexUploadBuffer.ptr,
+                                            quadIndex * 4L,
+                                            faceQuadCount * 4L
+                                        )
+
+                                        chunkLayerInfoListLocal += ChunkLayerInfo(
+                                            getChunkIndex(pos),
+                                            pos,
+                                            faceQuadCount,
+                                            quadIndex,
+                                            i + 1
+                                        )
+                                    }
+
+                                    localPosIdxBufferArrays.forEach {
+                                        it.clear()
+                                    }
+                                    localAttribIdxBufferArrays.forEach {
+                                        it.clear()
+                                    }
+                                    quadCounts.fill(0)
                                 }
+
                                 channel.add(chunkLayerInfoListLocal)
                                 readBuffer.free()
                             }
@@ -332,9 +382,24 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
 
                 launch(Dispatchers.IO) {
                     File(dir, "pc_info.csv").bufferedWriter().use {
-                        it.appendLine("listIndex,chunkIndex,chunkX,chunkY,chunkZ,quadCount,startIndex")
+                        it.appendLine("listIndex,chunkIndex,chunkX,chunkY,chunkZ,quadCount,startIndex,faceBits")
                         chunkLayerInfo.forEach { chunkInfo ->
-                            it.appendLine("${chunkInfo.listIndex},${chunkInfo.chunkIndex},${chunkInfo.pos.x},${chunkInfo.pos.y},${chunkInfo.pos.z},${chunkInfo.quadCount},${chunkInfo.startIndex}")
+                            it.append(chunkInfo.listIndex.toString())
+                            it.append(',')
+                            it.append(chunkInfo.chunkIndex.toString())
+                            it.append(',')
+                            it.append(chunkInfo.pos.x.toString())
+                            it.append(',')
+                            it.append(chunkInfo.pos.y.toString())
+                            it.append(',')
+                            it.append(chunkInfo.pos.z.toString())
+                            it.append(',')
+                            it.append(chunkInfo.quadCount.toString())
+                            it.append(',')
+                            it.append(chunkInfo.startIndex.toString())
+                            it.append(',')
+                            it.append(chunkInfo.faceBits.toString())
+                            it.append('\n')
                         }
                     }
                 }
@@ -383,7 +448,8 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
                         parts[1].toInt(),
                         Vector3i(parts[2].toInt(), parts[3].toInt(), parts[4].toInt()),
                         parts[5].toInt(),
-                        parts[6].toInt()
+                        parts[6].toInt(),
+                        parts[7].toInt()
                     ).apply {
                         listIndex = parts[0].toInt()
                     }
@@ -461,7 +527,13 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
         val indexLength: Long
     )
 
-    inner class ChunkLayerInfo(val chunkIndex: Int, val pos: Vector3i, val quadCount: Int, val startIndex: Int) {
+    inner class ChunkLayerInfo(
+        val chunkIndex: Int,
+        val pos: Vector3i,
+        val quadCount: Int,
+        val startIndex: Int,
+        val faceBits: Int
+    ) {
         var listIndex = 0
         val minX = pos.x shl 4
         val minY = pos.y shl 4
