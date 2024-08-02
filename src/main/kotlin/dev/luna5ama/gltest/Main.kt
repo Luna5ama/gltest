@@ -1,6 +1,7 @@
 package dev.luna5ama.gltest
 
 import dev.luna5ama.glwrapper.ShaderSource
+import kotlinx.coroutines.cancel
 import org.lwjgl.glfw.Callbacks.glfwFreeCallbacks
 import org.lwjgl.glfw.GLFW.*
 import org.lwjgl.glfw.GLFWErrorCallback
@@ -36,11 +37,11 @@ fun main() {
 //            val window = glfwCreateWindow(800, 600, "", 0, 0)
            try {
                 gameInstance = GameInstance(window)
-               repeat(5) {
-                   System.gc()
-                   Thread.sleep(100L)
+               try {
+                   gameInstance.run()
+               } finally {
+                   gameInstance.backgroundTaskScope.cancel()
                }
-                gameInstance.run()
             } finally {
                GL.destroy()
                glfwFreeCallbacks(window)

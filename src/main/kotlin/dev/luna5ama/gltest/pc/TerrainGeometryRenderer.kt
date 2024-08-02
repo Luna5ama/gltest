@@ -4,6 +4,7 @@ import dev.fastmc.common.Direction
 import dev.fastmc.common.ParallelUtils
 import dev.fastmc.common.TickTimer
 import dev.fastmc.common.floorToInt
+import dev.fastmc.common.sort.IntInsertionSort
 import dev.fastmc.common.sort.IntIntrosort
 import dev.luna5ama.gltest.GPUTimer
 import dev.luna5ama.gltest.glDebugGroup
@@ -18,16 +19,18 @@ import dev.luna5ama.glwrapper.enums.BufferTarget
 import dev.luna5ama.glwrapper.objects.BufferObject
 import dev.luna5ama.kmogus.MemoryStack
 import dev.luna5ama.kmogus.Ptr
+import it.unimi.dsi.fastutil.objects.ObjectArrayList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import org.apache.commons.lang3.mutable.MutableBoolean
 import org.joml.*
-import java.util.*
-import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.sqrt
 
 class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by IGLObjContainer.Impl() {
     val visibilityFlagType = when {
@@ -162,10 +165,11 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
         }
 
         if (!scene.gameInstance.toggle3) {
-            if (updateTimer.tickAndReset(500)) {
-                updateBatchMeta()
+            if (updateTimer.tickAndReset(25)) {
+                UpdateTask().run()
             }
         }
+        tryUpdate()
 
         cullPipeline.update()
 
@@ -227,127 +231,239 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
         }
     }
 
-    private val frustumCullingFlags = Array(scene.terrainMeshData.chunkPos.size) {
-        MutableBoolean(true)
-    }
-    private val sampleCountArray = FloatArray(scene.terrainMeshData.chunkPos.size)
-    private val faceMaskArray = IntArray(scene.terrainMeshData.chunkPos.size)
+    private inner class UpdateTask {
+        private val frustumCullingFlags = Array(scene.terrainMeshData.chunkPos.size) {
+            MutableBoolean(true)
+        }
+        private val sampleCountArray = FloatArray(scene.terrainMeshData.chunkPos.size)
+        private val faceMaskArray = IntArray(scene.terrainMeshData.chunkPos.size)
+        private val chunkPosIndices = this@TerrainGeometryRenderer.chunkPosIndices.copyOf()
 
-    private suspend fun updateBatchMeta() {
-        coroutineScope {
-            launch(Dispatchers.Default) {
-                sortChunkPos()
-            }
-            launch(Dispatchers.Default) {
-                calcSampleCount()
-            }
-            launch(Dispatchers.Default) {
-                doFrustumCulling()
-            }
-            launch(Dispatchers.Default) {
-                calculateVisibleFaceMask()
+        fun run() {
+            scene.gameInstance.backgroundTaskScope.launch {
+                val updateDataList = List(ParallelUtils.CPU_THREADS * 4) { UpdateData() }
+
+                coroutineScope {
+                    launch {
+                        calcSampleCount()
+                    }
+                    launch {
+                        doFrustumCulling()
+                    }
+                    launch {
+                        calculateVisibleFaceMask()
+                    }
+                    launch {
+                        sortChunkPos()
+                    }
+                }
+
+                coroutineScope {
+                    var threadIndex = 0
+                    ParallelUtils.splitListIndex(
+                        chunkPosIndices.size,
+                        ParallelUtils.CPU_THREADS * 4,
+                        blockForEach = { start, end ->
+                            val localThreadIndex = threadIndex++
+                            launch {
+                                val localUpdateData = updateDataList[localThreadIndex]
+                                val list = ObjectArrayList<ChunkLayerInfo>()
+
+                                for (i1 in start until end) {
+                                    val chunkIndex = chunkPosIndices[i1]
+                                    if (!frustumCullingFlags[chunkIndex].value) continue
+
+                                    val rawList = scene.terrainMeshData.chunk2LayerMap[chunkIndex] ?: continue
+                                    rawList.filterTo(list) { faceMaskArray[chunkIndex] and it.faceBits != 0 }
+
+                                    if (list.isEmpty) continue
+                                    if (list.size == 1) {
+                                        localUpdateData.add(list[0])
+                                        list.clear()
+                                        continue
+                                    }
+
+                                    var startingIndex = -1
+                                    fun flush(n: Int) {
+                                        if (startingIndex != -1) {
+                                            var quadCount = 0
+                                            for (i in startingIndex until n) {
+                                                quadCount += list[i].quadCount
+                                            }
+                                            localUpdateData.add(
+                                                ChunkLayerInfo(
+                                                    list[startingIndex].chunkIndex,
+                                                    list[startingIndex].pos,
+                                                    quadCount,
+                                                    list[startingIndex].startIndex,
+                                                    111111
+                                                )
+                                            )
+                                            startingIndex = -1
+                                        } else {
+                                            localUpdateData.add(list[n - 1])
+                                        }
+                                    }
+                                    for (i in 1 until list.size) {
+                                        val last = list[i - 1]
+                                        val current = list[i]
+                                        if (last.startIndex + last.quadCount == current.startIndex) {
+                                            if (startingIndex == -1) {
+                                                startingIndex = i - 1
+                                            }
+                                            continue
+                                        }
+                                        flush(i)
+                                    }
+                                    flush(list.size)
+                                    list.clear()
+                                }
+                            }
+                        }
+                    )
+                }
+
+                for (i in 1 until updateDataList.size) {
+                    updateDataList[0].addAll(updateDataList[i])
+                }
+
+                pendingUpdateData.send(updateDataList[0])
             }
         }
 
-        val chunkPosInfoMap = ConcurrentHashMap<Int, MutableList<ChunkLayerInfo>>()
-
-        coroutineScope {
-            ParallelUtils.splitListIndex(
-                scene.terrainMeshData.chunkLayerInfo.size,
-                blockForEach = { start, end ->
-                    launch(Dispatchers.Default) {
-                        for (i in start until end) {
-                            val chunkInfo = scene.terrainMeshData.chunkLayerInfo[i]
-                            if (!frustumCullingFlags[chunkInfo.chunkIndex].value) continue
-                            if (faceMaskArray[chunkInfo.chunkIndex] and chunkInfo.faceBits == 0) continue
-                            val list = chunkPosInfoMap.computeIfAbsent(chunkInfo.chunkIndex) { mutableListOf()                          }
-                            synchronized(list) {
-                                list.add(chunkInfo)
+        private suspend fun sortChunkPos() {
+            val cameraPos = scene.camera.pos
+            coroutineScope {
+                val chunkPosList = scene.terrainMeshData.chunkPos
+                ParallelUtils.splitListIndex(
+                    chunkPosList.size,
+                    blockForEach = { start, end ->
+                        launch {
+                            val originOffsetX = cameraPos.x.floorToInt()
+                            val originOffsetY = cameraPos.y.floorToInt()
+                            val originOffsetZ = cameraPos.z.floorToInt()
+                            for (i in start until end) {
+                                val chunkPos = chunkPosList[i]
+                                val dx = chunkPos.x * 16 + 8 - originOffsetX
+                                val dy = chunkPos.y * 16 + 8 - originOffsetY
+                                val dz = chunkPos.z * 16 + 8 - originOffsetZ
+                                sortKeys[i] = (dx * dx + dy * dy + dz * dz)
                             }
                         }
                     }
-                }
-            )
-        }
+                )
+            }
 
-        coroutineScope {
-            val chunkInfoList = chunkPosInfoMap.values.toList()
-            ParallelUtils.splitListIndex(
-                chunkInfoList.size,
-                blockForEach = { start, end ->
-                    launch(Dispatchers.Default) {
-                        for (i1 in start until end) {
-                            val list = chunkInfoList[i1]
-                            val newList = mutableListOf<ChunkLayerInfo>()
-                            list.sortBy { it.startIndex }
-
-                            var startingIndex = -1
-                            fun flush(n: Int) {
-                                if (startingIndex != -1) {
-                                    var quadCount = 0
-                                    for (i in startingIndex until n) {
-                                        quadCount += list[i].quadCount
-                                    }
-                                    newList.add(ChunkLayerInfo(
-                                        list[startingIndex].chunkIndex,
-                                        list[startingIndex].pos,
-                                        quadCount,
-                                        list[startingIndex].startIndex,
-                                        111111
-                                    ))
-                                    startingIndex = -1
-                                } else {
-                                    newList.add(list[n - 1])
-                                }
-                            }
-                            for (i in 1 until list.size) {
-                                val last = list[i - 1]
-                                val current = list[i]
-                                if (last.startIndex + last.quadCount == current.startIndex) {
-                                    if (startingIndex == -1) {
-                                        startingIndex = i - 1
-                                    }
-                                    continue
-                                }
-                                flush(i)
-                            }
-                            flush(list.size)
-
-                            chunkPosInfoMap[list[0].chunkIndex] = newList
-                        }
-                    }
-                }
-            )
-        }
-
-        val hwVs = mutableListOf<ChunkLayerInfo>()
-        val hwMs = mutableListOf<ChunkLayerInfo>()
-        val swQuad = mutableListOf<ChunkLayerInfo>()
-//        val swPoint = mutableListOf<ChunkLayerInfo>()
-
-        fun addChunkInfo(chunkInfo: ChunkLayerInfo) {
-            if (sampleCountArray[chunkInfo.chunkIndex] > 4.0f) {
-                if (!scene.gameInstance.toggle1) {
-                    hwVs.add(chunkInfo)
-                }
+            val rangeThreshold = 64.0
+            if (lastCameraPos.distanceSquared(cameraPos) < rangeThreshold * rangeThreshold) {
+                IntInsertionSort.sort(chunkPosIndices, sortKeys)
             } else {
-                if (!scene.gameInstance.toggle2) {
-                    swQuad.add(chunkInfo)
+                IntIntrosort.sort(chunkPosIndices, sortKeys)
+            }
+
+            this@TerrainGeometryRenderer.chunkPosIndices = chunkPosIndices
+            this@TerrainGeometryRenderer.lastCameraPos.set(cameraPos)
+        }
+
+        private fun CoroutineScope.calcSampleCount() {
+            ParallelUtils.splitListIndex(
+                scene.terrainMeshData.chunkPos.size,
+                blockForEach = { start, end ->
+                    launch {
+                        val areaCalc = QuadAreaCalc()
+                        for (i in start until end) {
+                            sampleCountArray[i] = areaCalc.calc(scene.terrainMeshData.chunkPos[i])
+                        }
+                    }
+                }
+            )
+        }
+
+        private fun CoroutineScope.calculateVisibleFaceMask() {
+            ParallelUtils.splitListIndex(
+                scene.terrainMeshData.chunkPos.size,
+                blockForEach = { start, end ->
+                    launch {
+                        for (i in start until end) {
+                            val chunkPos = scene.terrainMeshData.chunkPos[i]
+                            val worldPosX = chunkPos.x shl 4
+                            val worldPosY = chunkPos.y shl 4
+                            val worldPosZ = chunkPos.z shl 4
+                            faceMaskArray[i] =
+                                (Direction.B_EAST * (((worldPosX - 1) - scene.camera.pos.x).floorToInt() ushr 31)) or
+                                        (Direction.B_WEST * ((scene.camera.pos.x - (worldPosX + 17)).floorToInt() ushr 31)) or
+                                        (Direction.B_UP * (((worldPosY - 1) - scene.camera.pos.y).floorToInt() ushr 31)) or
+                                        (Direction.B_DOWN * ((scene.camera.pos.y - worldPosY + 17).floorToInt() ushr 31)) or
+                                        (Direction.B_SOUTH * (((worldPosZ - 1) - scene.camera.pos.z).floorToInt() ushr 31)) or
+                                        (Direction.B_NORTH * ((scene.camera.pos.z - (worldPosZ + 17)).floorToInt() ushr 31))
+                        }
+                    }
+                }
+            )
+        }
+
+        private fun CoroutineScope.doFrustumCulling() {
+            val frustumCull = FrustumIntersection(scene.camera.combined, false)
+            ParallelUtils.splitListIndex(
+                scene.terrainMeshData.chunkPos.size,
+                blockForEach = { start, end ->
+                    launch {
+                        for (i in start until end) {
+                            val chunkPos = scene.terrainMeshData.chunkPos[i]
+                            val worldPosX = chunkPos.x shl 4
+                            val worldPosY = chunkPos.y shl 4
+                            val worldPosZ = chunkPos.z shl 4
+                            frustumCullingFlags[i].setValue(
+                                frustumCull.testAab(
+                                    ((worldPosX - 1) - scene.camera.pos.x).toFloat(),
+                                    ((worldPosY - 1) - scene.camera.pos.y).toFloat(),
+                                    ((worldPosZ - 1) - scene.camera.pos.z).toFloat(),
+                                    ((worldPosX + 17) - scene.camera.pos.x).toFloat(),
+                                    ((worldPosY + 17) - scene.camera.pos.y).toFloat(),
+                                    ((worldPosZ + 17) - scene.camera.pos.z).toFloat()
+                                )
+                            )
+                        }
+                    }
+                }
+            )
+        }
+
+        inner class UpdateData {
+            private val lists = List(3) { mutableListOf<ChunkLayerInfo>() }
+            val hwVs = lists[0]
+            val hwMs = lists[1]
+            val swQuad = lists[2]
+
+            fun add(chunkInfo: ChunkLayerInfo) {
+                if (sampleCountArray[chunkInfo.chunkIndex] > 8.0f) {
+                    if (!scene.gameInstance.toggle1) {
+                        hwVs.add(chunkInfo)
+                    }
+                } else {
+                    if (!scene.gameInstance.toggle2) {
+                        swQuad.add(chunkInfo)
+                    }
+                }
+            }
+
+            fun addAll(other: UpdateData) {
+                for (i in lists.indices) {
+                    lists[i].addAll(other.lists[i])
                 }
             }
         }
+    }
 
-        for (i in chunkPosIndices) {
-            val chunkInfoList = chunkPosInfoMap[i] ?: continue
-            for (chunkInfo in chunkInfoList) {
-                addChunkInfo(chunkInfo)
-            }
-        }
+    private val pendingUpdateData = Channel<UpdateTask.UpdateData>(1, BufferOverflow.DROP_OLDEST)
+
+    private suspend fun tryUpdate() {
+        val updateData = pendingUpdateData.tryReceive().getOrNull() ?: return
 
         coroutineScope {
-            launch(Dispatchers.Default) { hwVsPipeline.update(hwVs) }
-            launch(Dispatchers.Default) { hwMsPipeline.update(hwMs) }
-            launch(Dispatchers.Default) { swQuadPipeline.update(swQuad) }
+            launch(Dispatchers.Default) { hwVsPipeline.update(updateData.hwVs) }
+            launch(Dispatchers.Default) { hwMsPipeline.update(updateData.hwMs) }
+            launch(Dispatchers.Default) { swQuadPipeline.update(updateData.swQuad) }
         }
     }
 
@@ -360,95 +476,8 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
         )
     }
 
-    private fun CoroutineScope.calcSampleCount() {
-        ParallelUtils.splitListIndex(
-            scene.terrainMeshData.chunkPos.size,
-            blockForEach = { start, end ->
-                launch {
-                    val areaCalc = QuadAreaCalc()
-                    for (i in start until end) {
-                        sampleCountArray[i] = areaCalc.calc(scene.terrainMeshData.chunkPos[i])
-                    }
-                }
-            }
-        )
-    }
-
-    private fun CoroutineScope.calculateVisibleFaceMask() {
-        ParallelUtils.splitListIndex(
-            scene.terrainMeshData.chunkPos.size,
-            blockForEach = { start, end ->
-                launch {
-                    for (i in start until end) {
-                        val chunkPos = scene.terrainMeshData.chunkPos[i]
-                        val worldPosX = chunkPos.x shl 4
-                        val worldPosY = chunkPos.y shl 4
-                        val worldPosZ = chunkPos.z shl 4
-                        faceMaskArray[i] = (Direction.B_EAST * (((worldPosX - 1) - scene.camera.pos.x).floorToInt() ushr 31)) or
-                                (Direction.B_WEST * ((scene.camera.pos.x - (worldPosX + 17)).floorToInt() ushr 31)) or
-                                (Direction.B_UP * (((worldPosY - 1) - scene.camera.pos.y).floorToInt() ushr 31)) or
-                                (Direction.B_DOWN * ((scene.camera.pos.y - worldPosY + 17).floorToInt() ushr 31)) or
-                                (Direction.B_SOUTH * (((worldPosZ - 1) - scene.camera.pos.z).floorToInt() ushr 31)) or
-                                (Direction.B_NORTH * ((scene.camera.pos.z - (worldPosZ + 17)).floorToInt() ushr 31))
-                    }
-                }
-            }
-        )
-    }
-
-    private val sortKeys = IntArray(scene.terrainMeshData.chunkPos.size)
-
-    private suspend fun sortChunkPos() {
-        coroutineScope {
-            val chunkPosList = scene.terrainMeshData.chunkPos
-            ParallelUtils.splitListIndex(
-                chunkPosList.size,
-                blockForEach = { start, end ->
-                    launch {
-                        val originOffsetX = scene.camera.pos.x.floorToInt()
-                        val originOffsetY = scene.camera.pos.y.floorToInt()
-                        val originOffsetZ = scene.camera.pos.z.floorToInt()
-                        for (i in start until end) {
-                            val chunkPos = chunkPosList[i]
-                            val dx = chunkPos.x * 16 + 8 - originOffsetX
-                            val dy = chunkPos.y * 16 + 8 - originOffsetY
-                            val dz = chunkPos.z * 16 + 8 - originOffsetZ
-                            sortKeys[i] = (dx * dx + dy * dy + dz * dz)
-                        }
-                    }
-                }
-            )
-        }
-
-        IntIntrosort.sort(chunkPosIndices, sortKeys)
-    }
-
-    private fun CoroutineScope.doFrustumCulling() {
-        val frustumCull = FrustumIntersection(scene.camera.combined, false)
-        ParallelUtils.splitListIndex(
-            scene.terrainMeshData.chunkPos.size,
-            blockForEach = { start, end ->
-                launch {
-                    for (i in start until end) {
-                        val chunkPos = scene.terrainMeshData.chunkPos[i]
-                        val worldPosX = chunkPos.x shl 4
-                        val worldPosY = chunkPos.y shl 4
-                        val worldPosZ = chunkPos.z shl 4
-                        frustumCullingFlags[i].setValue(
-                            frustumCull.testAab(
-                                ((worldPosX - 1) - scene.camera.pos.x).toFloat(),
-                                ((worldPosY - 1) - scene.camera.pos.y).toFloat(),
-                                ((worldPosZ - 1) - scene.camera.pos.z).toFloat(),
-                                ((worldPosX + 17) - scene.camera.pos.x).toFloat(),
-                                ((worldPosY + 17) - scene.camera.pos.y).toFloat(),
-                                ((worldPosZ + 17) - scene.camera.pos.z).toFloat()
-                            )
-                        )
-                    }
-                }
-            }
-        )
-    }
+    private var sortKeys = IntArray(scene.terrainMeshData.chunkPos.size)
+    private val lastCameraPos = Vector3d()
 
     private inner class QuadAreaCalc {
         private val rotateMatrix = Matrix4f()
@@ -520,11 +549,10 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
             point3.mul(scene.camera.screenWidth.toFloat(), scene.camera.screenHeight.toFloat(), 1.0f, 1.0f)
             point4.mul(scene.camera.screenWidth.toFloat(), scene.camera.screenHeight.toFloat(), 1.0f, 1.0f)
 
-            val minX = min(min(point1.x(), point2.x()), min(point3.x(), point4.x()))
-            val minY = min(min(point1.y(), point2.y()), min(point3.y(), point4.y()))
-            val maxX = min(max(point1.x(), point2.x()), max(point3.x(), point4.x()))
-            val maxY = min(max(point1.y(), point2.y()), max(point3.y(), point4.y()))
-
+            val minX = minOf(point1.x(), point2.x(), point3.x(), point4.x())
+            val minY = minOf(point1.y(), point2.y(), point3.y(), point4.y())
+            val maxX = maxOf(point1.x(), point2.x(), point3.x(), point4.x())
+            val maxY = maxOf(point1.y(), point2.y(), point3.y(), point4.y())
             val maxEdge = max(maxX - minX, maxY - minY)
 
             return maxEdge

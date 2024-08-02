@@ -9,6 +9,8 @@ import dev.luna5ama.gltest.terrain.TerrainScene
 import dev.luna5ama.glwrapper.ShaderSource
 import dev.luna5ama.glwrapper.api.*
 import dev.luna5ama.kmogus.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.runBlocking
 import org.joml.Vector2d
 import org.lwjgl.glfw.GLFW.*
@@ -18,10 +20,30 @@ import org.lwjgl.opengl.GLCapabilities
 import org.lwjgl.opengl.GLDebugMessageCallback
 import java.io.File
 import java.net.URI
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.ThreadFactory
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.CoroutineContext
 import kotlin.math.max
 
 class GameInstance(val window: Long) {
+    val backgroundTaskPool: ThreadPoolExecutor
+
+    init {
+        val nThreads = Runtime.getRuntime().availableProcessors()
+        val threadCounter = AtomicInteger()
+        backgroundTaskPool = ThreadPoolExecutor(nThreads, nThreads, 0L, java.util.concurrent.TimeUnit.MILLISECONDS, LinkedBlockingQueue(), ThreadFactory {
+            Thread(it, "Background Task Pool #${threadCounter.incrementAndGet()}").apply {
+                isDaemon = true
+                priority = 1
+            }
+        })
+    }
+
+    val backgroundTaskContext = backgroundTaskPool.asCoroutineDispatcher()
+    val backgroundTaskScope = CoroutineScope(backgroundTaskContext)
+
     companion object {
 //        private const val SWAP_INTERVAL = 2
         private const val SWAP_INTERVAL = 0

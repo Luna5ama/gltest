@@ -13,7 +13,10 @@ import dev.luna5ama.glwrapper.objects.BufferObject
 import dev.luna5ama.kmogus.Arr
 import dev.luna5ama.kmogus.asByteBuffer
 import dev.luna5ama.kmogus.memcpy
+import it.unimi.dsi.fastutil.ints.Int2ObjectFunction
+import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap
 import it.unimi.dsi.fastutil.ints.IntArrayList
+import it.unimi.dsi.fastutil.objects.ObjectArrayList
 import kotlinx.coroutines.*
 import org.joml.Vector3i
 import java.io.File
@@ -32,6 +35,7 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
     private val quadExtraAttribDataBuffer = register(BufferObject.Immutable())
     private val quadPosIndexBuffer = register(BufferObject.Immutable())
     private val quadAttribIndexBuffer = register(BufferObject.Immutable())
+    val chunk2LayerMap: Int2ObjectOpenHashMap<List<ChunkLayerInfo>>
     val chunkLayerInfo = mutableListOf<ChunkLayerInfo>()
     val chunkPos = mutableListOf<Vector3i>()
 
@@ -80,9 +84,19 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
         )
         println("Quad count: $totalQuadCount")
 
+        val chunk2LayerMap = Int2ObjectOpenHashMap<ObjectArrayList<ChunkLayerInfo>>()
+
         chunkLayerInfo.forEach {
             check(chunkPos[it.chunkIndex] == it.pos) { "chunk pos mismatch" }
+            chunk2LayerMap.computeIfAbsent(it.chunkIndex, Int2ObjectFunction { ObjectArrayList() }).add(it)
         }
+
+        chunk2LayerMap.values.forEach { layers ->
+            layers.sortBy { it.startIndex }
+        }
+
+        @Suppress("UNCHECKED_CAST")
+        this.chunk2LayerMap = chunk2LayerMap as Int2ObjectOpenHashMap<List<ChunkLayerInfo>>
     }
 
     private suspend fun readData(dir: File) {

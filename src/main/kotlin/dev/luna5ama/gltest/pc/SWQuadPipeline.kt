@@ -2,6 +2,7 @@ package dev.luna5ama.gltest.pc
 
 import dev.fastmc.common.ParallelUtils
 import dev.fastmc.common.TickTimer
+import dev.fastmc.common.collection.StaticBitSet
 import dev.luna5ama.gltest.glDebugGroup
 import dev.luna5ama.gltest.structs.CullTestCommand
 import dev.luna5ama.gltest.structs.QuadBatchInfo
@@ -118,15 +119,15 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
                 val localBuffers = List(ParallelUtils.CPU_THREADS) { Arr.malloc(0L) }
                 val localBatchCounts = IntArray(ParallelUtils.CPU_THREADS)
                 var threadIndexCounter = 0
-                val chunkCounter = AtomicInteger(0)
+                var chunkCounter = 0
 
                 coroutineScope {
                     launch {
-                        val chunkIndexSet = IntOpenHashSet()
+                        val chunkIndexBitSet = StaticBitSet(scene.terrainMeshData.chunkPos.size)
                         for (i in chunks.indices) {
                             val chunkInfo = chunks[i]
-                            if (!chunkIndexSet.add(chunkInfo.chunkIndex)) continue
-                            val offset = chunkCounter.getAndIncrement() * ctcStructSize
+                            if (!chunkIndexBitSet.add(chunkInfo.chunkIndex)) continue
+                            val offset = chunkCounter++ * ctcStructSize
                             val ctcStruct = CullTestCommand(ctcUploadBuffer.ptr + ctcBufferBaseOffset + offset)
                             ctcStruct.chunkIndex = chunkInfo.chunkIndex
                         }
@@ -188,11 +189,11 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
                 localBuffers.forEach { it.free() }
 
                 quadCount = quadCountGlobal.get()
-                chunkCount = chunkCounter.get()
+                chunkCount = chunkCounter
 
                 if (batchCount == 0) return
 
-                renderer.cullPipeline.setupIndirect(ctcUploadBuffer.ptr, chunkCounter.get())
+                renderer.cullPipeline.setupIndirect(ctcUploadBuffer.ptr, chunkCounter)
 
                 withContext(scene.gameInstance.mainContext) {
                     val quadMetaLen = quadBatchInfoMetaSize + batchCount * sizeof(QuadBatchInfo)
@@ -223,7 +224,7 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
                         scanBuffer.allocate(scanInputSize, 0)
                     }
 
-                    val ctcLen = ctcBufferBaseOffset + chunkCounter.get() * ctcStructSize
+                    val ctcLen = ctcBufferBaseOffset + chunkCounter * ctcStructSize
                     if (ctcBuffer.size < ctcLen) {
                         ctcBuffer.destroy()
                         ctcBuffer.allocate(ctcLen, ctcUploadBuffer.ptr, GL_DYNAMIC_STORAGE_BIT)
