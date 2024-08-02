@@ -1,7 +1,7 @@
 #version 460 core
 #extension GL_ARB_gpu_shader_int64 : enable
 
-layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+layout(local_size_x = 16, local_size_y = 16) in;
 
 uniform usampler2D usam_vBufferDataTex;
 uniform sampler2D usam_vBufferDepth;

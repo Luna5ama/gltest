@@ -3,7 +3,7 @@
 
 #include "../ColorUtils.glsl"
 
-layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = 1) in;
 
 // Uniforms:
 uniform vec4 uParams = vec4(1.0, 0.1, 0.1, 921600.0);

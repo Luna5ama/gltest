@@ -4,7 +4,7 @@
 
 #include "../GlobalCamera.glsl"
 
-layout(local_size_x = BATCH_SIZE, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = BATCH_SIZE) in;
 
 uniform vec3 uval_originOffset;
 uniform vec4 uval_viewportSize;
