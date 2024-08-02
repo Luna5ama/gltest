@@ -18,7 +18,6 @@ import dev.luna5ama.kmogus.Arr
 import dev.luna5ama.kmogus.Ptr
 import dev.luna5ama.kmogus.ensureCapacity
 import dev.luna5ama.kmogus.memcpy
-import it.unimi.dsi.fastutil.ints.IntOpenHashSet
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -29,6 +28,13 @@ import kotlin.math.min
 class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) :
     TerrainDrawPipeline(scene, renderer) {
     private val vao = register(VertexArrayObject())
+    private val clearShader = register(
+        ShaderProgram(
+            ShaderSource.Comp("pc/geometry/hwvs/Clear.comp")
+        )
+    ).apply {
+        label("HWVS.Clear")
+    }
     private val indirectSetupShaders = List(4) { register(IndirectSetupShader(it)) }
     private val drawShader = register(
         ShaderProgram(
@@ -36,7 +42,7 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
             ShaderSource.Frag("pc/geometry/HW.frag")
         )
     ).apply {
-        label("HWVS.shader")
+        label("HWVS.Draw")
     }
     private val inputIndirectBuffer = register(BufferObject.Immutable()).apply {
         label("HWVS.InputIndirectBuffer")
@@ -194,8 +200,7 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
         if (batchCount == 0) return
 
         if (!scene.gameInstance.toggle3) {
-            indirectSetupShaders[1].dispatch()
-            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT or GL_COMMAND_BARRIER_BIT)
+            cullPass(1)
             drawPass(outputIndirectBuffer)
 
             renderer.cullPipeline.depthBuffer.hwDepthBlit()
@@ -209,16 +214,33 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
             glDepthMask(true)
             glColorMask(true, true, true, true)
 
-            indirectSetupShaders[2].dispatch()
-            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT or GL_COMMAND_BARRIER_BIT)
+            cullPass(2)
             drawPass(outputIndirectBuffer)
         } else {
-//            indirectSetupShaders[3].dispatch()
-//            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT or GL_COMMAND_BARRIER_BIT)
-//            drawPass(outputIndirectBuffer)
-//
+            cullPass(3)
+            drawPass(outputIndirectBuffer)
+
             drawPass(inputIndirectBuffer)
         }
+    }
+
+    private fun cullPass(passIndex: Int) {
+        clearShader.bind()
+        clearShader.applyBinding {
+            buffer(indirectBufferBindings)
+        }
+        glDispatchCompute(1, 1, 1)
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
+        val shader = indirectSetupShaders[passIndex]
+        shader.bind()
+        shader.applyBinding {
+            buffer(indirectBufferBindings)
+            buffer(renderer.bufferBindings)
+            buffer(scene.terrainMeshData.bufferBindings)
+            buffer(scene.camera.uboBinding)
+        }
+        glDispatchCompute((batchCount + 255) / 256, 1, 1)
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT or GL_COMMAND_BARRIER_BIT)
     }
 
     private fun drawPass(buffer: BufferObject.Immutable) {
@@ -255,18 +277,7 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
             define("FLAG_TYPE", renderer.visibilityFlagType.glslTypeName)
             define("CULL_PASS", cullPass)
         },
-    ) {
-        fun dispatch() {
-            bind()
-            applyBinding {
-                buffer(indirectBufferBindings)
-                buffer(renderer.bufferBindings)
-                buffer(scene.terrainMeshData.bufferBindings)
-                buffer(scene.camera.uboBinding)
-            }
-            glDispatchCompute(1, 1, 1)
-        }
-    }
+    )
 
     companion object {
         const val BATCH_MAX_QUAD = 65536 / 4

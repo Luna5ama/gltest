@@ -1,0 +1,23 @@
+#version 460 core
+
+layout(local_size_x = 1) in;
+
+struct DrawElementsIndirectCommand {
+    uint count;
+    uint instanceCount;
+    uint firstIndex;
+    int baseVertex;
+    uint baseInstance;
+};
+
+layout(std430) writeonly buffer OutputIndirectBuffer {
+    uint commandCount;
+    uint _padding1;
+    uint _padding2;
+    uint _padding3;
+    DrawElementsIndirectCommand commands[];
+} ssbo_outputIndirectBuffer;
+
+void main() {
+    ssbo_outputIndirectBuffer.commandCount = 0u;
+}

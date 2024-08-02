@@ -167,26 +167,24 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
                     )
                 }
 
-                batchCount = 0
+                batchCount = localBatchCounts.sum()
+                uploadBuffer.ensureCapacity(quadBatchInfoMetaSize + batchCount * batchStructSize, false)
+
+                var batchOffset = 0
                 localBuffers.forEachIndexed { index, arr ->
                     val localBatchCount = localBatchCounts[index]
-                    uploadBuffer.ensureCapacity(
-                        quadBatchInfoMetaSize + (batchCount + localBatchCount) * batchStructSize,
-                        false
-                    )
                     memcpy(
                         arr.ptr,
                         0L,
                         uploadBuffer.ptr,
-                        quadBatchInfoMetaSize + batchCount * batchStructSize,
+                        quadBatchInfoMetaSize + batchOffset * batchStructSize,
                         localBatchCount * batchStructSize
                     )
-                    batchCount += localBatchCount
+                    batchOffset += localBatchCount
+                    arr.free()
                 }
 
                 uploadBuffer.ptr.setInt(0L, batchCount)
-
-                localBuffers.forEach { it.free() }
 
                 quadCount = quadCountGlobal.get()
                 chunkCount = chunkCounter

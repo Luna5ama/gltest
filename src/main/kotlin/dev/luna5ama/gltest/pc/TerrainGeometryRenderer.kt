@@ -576,7 +576,9 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
     private fun swDraw() {
         swDrawTimer.begin()
 
-        swQuadPipeline.draw()
+        if (swQuadPipeline.batchCount > 0) {
+            swQuadPipeline.draw()
+        }
 //        swPointPipeline.draw()
 
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT or GL_SHADER_STORAGE_BARRIER_BIT)
