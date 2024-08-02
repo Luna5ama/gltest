@@ -166,7 +166,6 @@ void rasterize(uint baseLocalQuadIndex) {
         uint quadIndex = shared_metaFirstCount.x + uint(quadIndexOffset);
 
         #ifdef CUTOUT
-        uint texCoordIdx = ssbo_quadAttribIndexBuffer[quadIndex] * 4u;
         uvec4 texCoordXY = ssbo_quadTexCoordDataBuffer[ssbo_quadAttribIndexBuffer[quadIndex]];
         #endif
 

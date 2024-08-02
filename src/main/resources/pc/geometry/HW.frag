@@ -7,7 +7,7 @@
 uniform sampler2D usam_blockAlbedoAtlas;
 
 layout(std430) readonly buffer QuadTexCoordDataBuffer {
-    uint ssbo_quadTexCoordDataBuffer[];
+    uvec4 ssbo_quadTexCoordDataBuffer[];
 };
 
 layout(std430) readonly buffer QuadAttribIndexBuffer {
@@ -25,14 +25,14 @@ layout(location = 0) out uint rt_vbuffer;
 
 void main() {
     #ifdef CUTOUT
-    uint texCoordIdx = ssbo_quadAttribIndexBuffer[vertDataIn.quadIndex] * 4u;
+    uvec4 texCoordXY = ssbo_quadTexCoordDataBuffer[ssbo_quadAttribIndexBuffer[vertDataIn.quadIndex]];
     vec4 texCoordX = vec4(
-        unpackUnorm2x16(ssbo_quadTexCoordDataBuffer[texCoordIdx]),
-        unpackUnorm2x16(ssbo_quadTexCoordDataBuffer[texCoordIdx + 1u])
+        unpackUnorm2x16(texCoordXY.x),
+        unpackUnorm2x16(texCoordXY.y)
     );
     vec4 texCoordY = vec4(
-        unpackUnorm2x16(ssbo_quadTexCoordDataBuffer[texCoordIdx + 2u]),
-        unpackUnorm2x16(ssbo_quadTexCoordDataBuffer[texCoordIdx + 3u])
+        unpackUnorm2x16(texCoordXY.z),
+        unpackUnorm2x16(texCoordXY.w)
     );
     vec2 texCoord = vec2(dot(texCoordX, vertDataIn.bCoord), dot(texCoordY, vertDataIn.bCoord));
 
