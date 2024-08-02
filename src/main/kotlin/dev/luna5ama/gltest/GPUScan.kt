@@ -41,6 +41,10 @@ class GPUScan : IGLObjContainer by IGLObjContainer.Impl() {
         label("GPUScan.SetupShader")
     }
 
+    private val singleWgShader = register(ShaderProgram(ShaderSource.Comp("scan/SingleWg.comp"))).apply {
+        label("GPUScan.SingleWgShader")
+    }
+
     private val scanShader = register(ShaderProgram(
         ShaderSource.Comp("scan/Scan.comp") {
             define("WORK_GROUP_SIZE", workGroupSize)
@@ -77,15 +81,46 @@ class GPUScan : IGLObjContainer by IGLObjContainer.Impl() {
         outputBuffer: BufferView,
         maxCount: Int
     ) {
+        if (maxCount <= 1) return
+
+        glDebugGroup("GPUScan") {
+            if (maxCount < 2048) {
+                processSingleWg(inputBuffer, countBuffer, outputBuffer, maxCount)
+            } else {
+                processMultiWg(inputBuffer, countBuffer, outputBuffer, maxCount)
+            }
+        }
+    }
+
+    private fun processSingleWg(
+        inputBuffer: BufferView,
+        countBuffer: BufferView,
+        outputBuffer: BufferView,
+        maxCount: Int
+    ) {
+        singleWgShader.bind()
+        singleWgShader.applyBinding {
+            buffer("InputBuffer", inputBuffer, BufferTarget.ShaderStorage)
+            buffer("OutputBuffer", outputBuffer, BufferTarget.ShaderStorage)
+            buffer("CountBuffer", countBuffer, BufferTarget.Uniform)
+        }
+        glDispatchCompute(1, 1, 1)
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
+    }
+
+    private fun processMultiWg(
+        inputBuffer: BufferView,
+        countBuffer: BufferView,
+        outputBuffer: BufferView,
+        maxCount: Int
+    ) {
         var maxPass = 0
         var count = maxCount
         while (count > 1) {
             count = (count + workGroupSize - 1) / workGroupSize
             maxPass++
         }
-        if (maxPass == 0) return
 
-        glDebugGroup("GPUScan") {
             val auxSumCount1 = (maxCount + workGroupSize - 1) / workGroupSize
             val auxSumSize1 = auxSumCount1 * 4L
             if (auxSumBuffer1.size < auxSumSize1) {
@@ -177,6 +212,5 @@ class GPUScan : IGLObjContainer by IGLObjContainer.Impl() {
                 glDispatchComputeIndirect((0 + 3) * 16L)
                 glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
             }
-        }
     }
 }

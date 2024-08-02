@@ -15,7 +15,6 @@ import dev.luna5ama.glwrapper.api.*
 import dev.luna5ama.glwrapper.enums.BufferTarget
 import dev.luna5ama.glwrapper.objects.BufferObject
 import dev.luna5ama.kmogus.*
-import it.unimi.dsi.fastutil.ints.IntOpenHashSet
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -299,9 +298,9 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
         }
         glDispatchCompute(1, 1, 1)
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
-        val setupShader = filterShader[index]
-        setupShader.bind()
-        setupShader.applyBinding {
+        val filterShader = filterShader[index]
+        filterShader.bind()
+        filterShader.applyBinding {
             buffer(renderer.bufferBindings)
             buffer(scene.vbuffer.bufferBinding)
             buffer(bufferBindings)

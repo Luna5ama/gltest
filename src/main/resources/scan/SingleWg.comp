@@ -1,0 +1,95 @@
+#version 460 core
+
+#extension GL_KHR_shader_subgroup_ballot : enable
+#extension GL_KHR_shader_subgroup_arithmetic : enable
+
+layout(std430) readonly buffer InputBuffer {
+    uint ssbo_inputBuffer[];
+};
+
+layout(std430) writeonly buffer OutputBuffer {
+    uint ssbo_outputBuffer[];
+};
+
+layout(std140) uniform CountBuffer {
+    uint ubo_count;
+};
+
+layout(local_size_x = 1024) in;
+
+shared uint shared_sum[2048];
+
+void sum(uint index, uint baseSum) {
+    uint partialSumOffset = 1024;
+    uint partialSumCount = ubo_count;
+
+    uint v1 = index < partialSumCount ? ssbo_inputBuffer[index] : 0u;
+    v1 = subgroupInclusiveAdd(v1);
+    shared_sum[gl_LocalInvocationID.x] = v1;
+    if (gl_SubgroupInvocationID == gl_SubgroupSize - 1) {
+        shared_sum[partialSumOffset + gl_SubgroupID] = v1;
+    }
+    partialSumCount = (partialSumCount + gl_NumSubgroups - 1) / gl_NumSubgroups;
+
+    barrier();
+
+    uint subgroupSize2 = gl_SubgroupSize * gl_SubgroupSize;
+    uint scanLoopCount = (1024 + subgroupSize2 - 1) / subgroupSize2;
+
+    for (uint i = 0; i < scanLoopCount; i++) {
+        uint v2 = shared_sum[partialSumOffset + gl_LocalInvocationID.x];
+        v2 = subgroupInclusiveAdd(v2);
+        shared_sum[partialSumOffset + gl_LocalInvocationID.x] = v2;
+        uint nextPartialSumOffset = partialSumOffset | (partialSumOffset >> 1);
+        if (gl_SubgroupInvocationID == gl_SubgroupSize - 1) {
+            shared_sum[nextPartialSumOffset + gl_SubgroupID] = v2;
+        }
+        partialSumOffset = nextPartialSumOffset;
+        partialSumCount = (partialSumCount + gl_NumSubgroups - 1) / gl_NumSubgroups;
+        barrier();
+    }
+
+    for (uint i = 0; i < scanLoopCount; i++) {
+        uint pass = scanLoopCount - i;
+        uint partialSumOffset = (0xFFFFF000u >> pass) & 2047u;
+        uint writeIndex = partialSumOffset + gl_LocalInvocationID.x;
+        uint addValue = 0;
+        if (gl_SubgroupID > 0 && subgroupElect()) {
+            uint readIndex = ((0xFFFFF000u >> (pass + 1u)) & 2047u) + gl_SubgroupID - 1;
+            addValue = shared_sum[readIndex];
+        }
+        addValue = subgroupBroadcastFirst(addValue);
+        shared_sum[writeIndex] += addValue;
+        barrier();
+    }
+
+    shared_sum[gl_LocalInvocationID.x] += baseSum;
+
+    if (index < ubo_count) {
+        ssbo_outputBuffer[index] = shared_sum[gl_LocalInvocationID.x];
+    }
+}
+
+void init() {
+    uint writeIndex = gl_LocalInvocationID.x * 2u;
+    shared_sum[writeIndex] = 0u;
+    shared_sum[writeIndex + 1] = 0u;
+}
+
+void main() {
+    init();
+    barrier();
+
+    sum(gl_LocalInvocationID.x, 0u);
+
+    uint loopCount = (ubo_count + 1023u) >> 10u;
+    for (uint i = 1; i < loopCount; i++) {
+        barrier();
+        uint baseSum = shared_sum[gl_WorkGroupSize.x - 1u];
+        barrier();
+        init();
+        barrier();
+        uint index = i * 1024u + gl_LocalInvocationID.x;
+        sum(index, baseSum);
+    }
+}
