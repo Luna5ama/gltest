@@ -198,7 +198,7 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
             glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT or GL_COMMAND_BARRIER_BIT)
             drawPass(outputIndirectBuffer)
 
-            renderer.cullPipeline.hwDepthBlit()
+            renderer.cullPipeline.depthBuffer.hwDepthBlit()
             glViewport(0, 0, scene.camera.screenWidth / 8, scene.camera.screenHeight / 8)
             renderer.cullPipeline.draw(ctcBuffer, chunkCount)
 

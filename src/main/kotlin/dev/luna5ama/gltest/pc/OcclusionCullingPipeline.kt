@@ -35,105 +35,7 @@ abstract class OcclusionCullingPipeline(
 
     abstract fun draw(ctcBuffer: BufferObject, count: Int)
 
-    class MeshShader(scene: PointCloudScene, renderer: TerrainGeometryRenderer) :
-        OcclusionCullingPipeline(scene, renderer) {
-        private val cullShader = register(
-            ShaderProgram(
-                ShaderSource.Mesh("pc/geometry/CullTest.mesh") {
-                    define("FLAG_TYPE", renderer.visibilityFlagType.glslTypeName)
-                },
-                ShaderSource.Frag("pc/geometry/CullTest.frag") {
-                    define("MESH_SHADER")
-                    define("FLAG_TYPE", renderer.visibilityFlagType.glslTypeName)
-                }
-            )
-        ).apply {
-            label("CullMSShader")
-        }
-
-        override val ctcBufferBaseOffset: Long
-            get() = 16L
-
-        override fun setupIndirect(ptr: Ptr, count: Int) {
-            val struct = CullMSCommandHeader(ptr)
-            struct.first = 0
-            struct.count = (count + 7) / 8
-            struct.chunkCount = count
-        }
-
-        override fun draw(ctcBuffer: BufferObject, count: Int) {
-            glDebugGroup("CullPass") {
-                glDisable(GL_DEPTH_CLAMP)
-                glEnable(GL_CULL_FACE)
-                glCullFace(GL_BACK)
-                glEnable(GL_DEPTH_TEST)
-                glDepthFunc(GL_GEQUAL)
-                glDepthMask(false)
-                glColorMask(false, false, false, false)
-
-                cullShader.bind()
-                cullShader.applyBinding {
-                    buffer(renderer.bufferBindings)
-                    buffer("CullTestCommandBuffer", ctcBuffer, BufferTarget.ShaderStorage)
-                    buffer(scene.camera.uboBinding)
-                }
-                ctcBuffer.bind(GL_DRAW_INDIRECT_BUFFER)
-                glDrawMeshTasksIndirectNV(0L)
-            }
-        }
-    }
-
-    class VertexShader(scene: PointCloudScene, renderer: TerrainGeometryRenderer) :
-        OcclusionCullingPipeline(scene, renderer) {
-        private val vao = register(VertexArrayObject()).apply {
-            label("CullVS.VAO")
-        }
-
-        private val cullShader = register(
-            ShaderProgram(
-                ShaderSource.Vert("pc/geometry/CullTest.vert") {
-                    define("FLAG_TYPE", renderer.visibilityFlagType.glslTypeName)
-                },
-                ShaderSource.Frag("pc/geometry/CullTest.frag") {
-                    define("FLAG_TYPE", renderer.visibilityFlagType.glslTypeName)
-                }
-            )
-        ).apply {
-            label("CullVSShader")
-        }
-
-        private val cubeElementBuffer = register(BufferObject.Immutable()).apply {
-            label("CullVS.CubeElementBuffer")
-        }
-
-        init {
-            val indices = byteArrayOf(
-                // Left face
-                0, 2, 4, 4, 2, 6,
-                // Right face
-                1, 5, 3, 3, 5, 7,
-                // Bottom face
-                0, 1, 2, 2, 1, 3,
-                // Top face
-                4, 6, 5, 5, 6, 7,
-                // Back face
-                1, 0, 5, 5, 0, 4,
-                // Front face
-                3, 7, 2, 2, 7, 6
-            )
-
-            MemoryStack {
-                val arr = malloc(indices.byteLength)
-                memcpy(indices, 0, arr.ptr, 0, indices.byteLength)
-                cubeElementBuffer.allocate(arr.len, arr.ptr, 0)
-            }
-
-            vao.attachEbo(cubeElementBuffer)
-        }
-
-        override val ctcBufferBaseOffset: Long
-            get() = 32L
-
+    inner class DownScaleDepthBuffer : IGLObjContainer by IGLObjContainer.Impl() {
         private val swDepthBlitShader = register(
             ShaderProgram(
                 ShaderSource.Comp("pc/geometry/culling/CullSWDepthBlit.comp")
@@ -167,7 +69,7 @@ abstract class OcclusionCullingPipeline(
             label("CullVS.CullDepthTex")
         }
 
-        private val cullFbo = register(FramebufferObject()).apply {
+        val fbo = register(FramebufferObject()).apply {
             label("VBuffer.EmptyFBO")
             create()
         }
@@ -180,13 +82,12 @@ abstract class OcclusionCullingPipeline(
             ShaderBindingSpecs.Sampler("usam_cullDepthTex", cullDepthTex)
         )
 
-        override fun update() {
-            super.update()
+        fun update() {
             val width = scene.camera.screenWidth / 4
             val height = scene.camera.screenHeight / 4
             if (cullDepthTex.width != width || cullDepthTex.height != height) {
-                glNamedFramebufferParameteri(cullFbo.id, GL_FRAMEBUFFER_DEFAULT_WIDTH, width)
-                glNamedFramebufferParameteri(cullFbo.id, GL_FRAMEBUFFER_DEFAULT_HEIGHT, height)
+                glNamedFramebufferParameteri(fbo.id, GL_FRAMEBUFFER_DEFAULT_WIDTH, width)
+                glNamedFramebufferParameteri(fbo.id, GL_FRAMEBUFFER_DEFAULT_HEIGHT, height)
 
                 cullTempTex.apply {
                     destroy()
@@ -199,7 +100,7 @@ abstract class OcclusionCullingPipeline(
                 }
 
 
-                cullFbo.apply {
+                fbo.apply {
                     destroyFbo()
                     attachNonLayered(cullDepthTex, GL_DEPTH_ATTACHMENT)
                     check()
@@ -207,15 +108,6 @@ abstract class OcclusionCullingPipeline(
             }
             cullTempTex.clearImage()
             cullDepthTex.clearImage()
-        }
-
-        override fun setupIndirect(ptr: Ptr, count: Int) {
-            val struct = DrawElementsIndirectCommand(ptr)
-            struct.count = 36
-            struct.instanceCount = count
-            struct.firstIndex = 0
-            struct.baseVertex = 0
-            struct.baseInstance = 0
         }
 
         fun swDepthBlit() {
@@ -238,15 +130,19 @@ abstract class OcclusionCullingPipeline(
                 glEnable(GL_DEPTH_TEST)
                 glDepthFunc(GL_ALWAYS)
                 glDisable(GL_DEPTH_CLAMP)
-                glViewport(0, 0, cullFbo.width, cullFbo.height)
+                glViewport(0, 0, fbo.width, fbo.height)
 
                 float2DepthBlitShader.bind()
                 float2DepthBlitShader.applyBinding {
                     sampler(samplerBindings)
                     buffer(scene.camera.uboBinding)
                 }
-                float2DepthBlitShader.uniform2i("uval_viewportSizeI", scene.camera.screenSize.x, scene.camera.screenSize.y)
-                cullFbo.bind()
+                float2DepthBlitShader.uniform2i(
+                    "uval_viewportSizeI",
+                    scene.camera.screenSize.x,
+                    scene.camera.screenSize.y
+                )
+                fbo.bind()
                 scene.basic.drawQuad()
             }
         }
@@ -277,22 +173,152 @@ abstract class OcclusionCullingPipeline(
                 glEnable(GL_DEPTH_TEST)
                 glDepthFunc(GL_ALWAYS)
                 glDisable(GL_DEPTH_CLAMP)
-                glViewport(0, 0, cullFbo.width / 2, cullFbo.height / 2)
+                glViewport(0, 0, fbo.width / 2, fbo.height / 2)
 
                 float2DepthBlitShader.bind()
                 float2DepthBlitShader.applyBinding {
                     sampler(samplerBindings)
                     buffer(scene.camera.uboBinding)
                 }
-                float2DepthBlitShader.uniform2i("uval_viewportSizeI", scene.camera.screenSize.x, scene.camera.screenSize.y)
-                cullFbo.bind()
+                float2DepthBlitShader.uniform2i(
+                    "uval_viewportSizeI",
+                    scene.camera.screenSize.x,
+                    scene.camera.screenSize.y
+                )
+                fbo.bind()
                 scene.basic.drawQuad()
             }
+        }
+    }
+
+    class MeshShader(scene: PointCloudScene, renderer: TerrainGeometryRenderer) :
+        OcclusionCullingPipeline(scene, renderer) {
+        private val cullShader = register(
+            ShaderProgram(
+                ShaderSource.Mesh("pc/geometry/CullTest.mesh") {
+                    define("FLAG_TYPE", renderer.visibilityFlagType.glslTypeName)
+                },
+                ShaderSource.Frag("pc/geometry/CullTest.frag") {
+                    define("MESH_SHADER")
+                    define("FLAG_TYPE", renderer.visibilityFlagType.glslTypeName)
+                }
+            )
+        ).apply {
+            label("CullMSShader")
+        }
+
+        override val ctcBufferBaseOffset: Long
+            get() = 16L
+
+        val depthBuffer = DownScaleDepthBuffer()
+
+        override fun update() {
+            super.update()
+            depthBuffer.update()
+        }
+
+        override fun setupIndirect(ptr: Ptr, count: Int) {
+            val struct = CullMSCommandHeader(ptr)
+            struct.first = 0
+            struct.count = (count + 7) / 8
+            struct.chunkCount = count
         }
 
         override fun draw(ctcBuffer: BufferObject, count: Int) {
             glDebugGroup("CullPass") {
-                cullShader.uniform2i("uval_viewportSizeI", scene.camera.screenSize.x, scene.camera.screenSize.y)
+                depthBuffer.fbo.bind()
+                cullShader.bind()
+                cullShader.applyBinding {
+                    buffer(renderer.bufferBindings)
+                    buffer("CullTestCommandBuffer", ctcBuffer, BufferTarget.ShaderStorage)
+                    buffer(scene.camera.uboBinding)
+                }
+
+
+                glDisable(GL_DEPTH_CLAMP)
+                glEnable(GL_CULL_FACE)
+                glCullFace(GL_BACK)
+                glEnable(GL_DEPTH_TEST)
+                glDepthFunc(GL_GEQUAL)
+                glDepthMask(false)
+                glColorMask(false, false, false, false)
+
+
+                ctcBuffer.bind(GL_DRAW_INDIRECT_BUFFER)
+                glDrawMeshTasksIndirectNV(0L)
+            }
+        }
+    }
+
+    class VertexShader(scene: PointCloudScene, renderer: TerrainGeometryRenderer) :
+        OcclusionCullingPipeline(scene, renderer) {
+        private val vao = register(VertexArrayObject()).apply {
+            label("CullVS.VAO")
+        }
+
+        private val cullShader = register(
+            ShaderProgram(
+                ShaderSource.Vert("pc/geometry/CullTest.vert") {
+                    define("FLAG_TYPE", renderer.visibilityFlagType.glslTypeName)
+                },
+                ShaderSource.Frag("pc/geometry/CullTest.frag") {
+                    define("FLAG_TYPE", renderer.visibilityFlagType.glslTypeName)
+                }
+            )
+        ).apply {
+            label("CullVSShader")
+        }
+
+        private val cubeElementBuffer = register(BufferObject.Immutable()).apply {
+            label("CullVS.CubeElementBuffer")
+        }
+
+        val depthBuffer = DownScaleDepthBuffer()
+
+        init {
+            val indices = byteArrayOf(
+                // Left face
+                0, 2, 4, 4, 2, 6,
+                // Right face
+                1, 5, 3, 3, 5, 7,
+                // Bottom face
+                0, 1, 2, 2, 1, 3,
+                // Top face
+                4, 6, 5, 5, 6, 7,
+                // Back face
+                1, 0, 5, 5, 0, 4,
+                // Front face
+                3, 7, 2, 2, 7, 6
+            )
+
+            MemoryStack {
+                val arr = malloc(indices.byteLength)
+                memcpy(indices, 0, arr.ptr, 0, indices.byteLength)
+                cubeElementBuffer.allocate(arr.len, arr.ptr, 0)
+            }
+
+            vao.attachEbo(cubeElementBuffer)
+        }
+
+        override val ctcBufferBaseOffset: Long
+            get() = 32L
+
+        override fun update() {
+            super.update()
+            depthBuffer.update()
+        }
+
+        override fun setupIndirect(ptr: Ptr, count: Int) {
+            val struct = DrawElementsIndirectCommand(ptr)
+            struct.count = 36
+            struct.instanceCount = count
+            struct.firstIndex = 0
+            struct.baseVertex = 0
+            struct.baseInstance = 0
+        }
+
+        override fun draw(ctcBuffer: BufferObject, count: Int) {
+            glDebugGroup("CullPass") {
                 cullShader.bind()
                 cullShader.applyBinding {
                     buffer(renderer.bufferBindings)
@@ -300,7 +326,7 @@ abstract class OcclusionCullingPipeline(
                     buffer(scene.camera.uboBinding)
                 }
                 vao.bind()
-                cullFbo.bind()
+                depthBuffer.fbo.bind()
 
                 glDisable(GL_DEPTH_CLAMP)
                 glEnable(GL_CULL_FACE)

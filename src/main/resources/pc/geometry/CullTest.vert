@@ -19,8 +19,6 @@ layout(std430) restrict readonly buffer CullTestCommandBuffer {
     CullTestCommand commands[];
 } ssbo_cullTestCommandBuffer;
 
-uniform vec3 uval_originOffset;
-
 const vec3 BOX_VERT_POS[8] = {
 vec3(-1.0, -1.0, -1.0), // 0
 vec3(17.0, -1.0, -1.0), // 1

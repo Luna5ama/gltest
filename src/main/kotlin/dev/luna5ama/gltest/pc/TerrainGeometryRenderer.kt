@@ -438,6 +438,7 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
             fun add(chunkInfo: ChunkLayerInfo) {
                 if (sampleCountArray[chunkInfo.chunkIndex] > 8.0f) {
                     if (!scene.gameInstance.toggle1) {
+//                        hwMs.add(chunkInfo)
                         hwVs.add(chunkInfo)
                     }
                 } else {

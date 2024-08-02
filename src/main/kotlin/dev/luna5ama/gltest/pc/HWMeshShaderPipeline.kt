@@ -108,7 +108,24 @@ class HWMeshShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRend
     override fun draw() {
         if (batchCount == 0) return
 
-        drawPass(0)
+        if (!scene.gameInstance.toggle3) {
+            drawPass(1)
+
+            renderer.cullPipeline.depthBuffer.hwDepthBlit()
+            glViewport(0, 0, scene.camera.screenWidth / 8, scene.camera.screenHeight / 8)
+            renderer.cullPipeline.draw(ctcBuffer, chunkCount)
+
+            glEnable(GL_CULL_FACE)
+            glCullFace(GL_BACK)
+            glEnable(GL_DEPTH_TEST)
+            glDepthFunc(GL_GEQUAL)
+            glDepthMask(true)
+            glColorMask(true, true, true, true)
+
+            drawPass(2)
+        } else {
+            drawPass(0)
+        }
     }
 
     private fun drawPass(index: Int) {

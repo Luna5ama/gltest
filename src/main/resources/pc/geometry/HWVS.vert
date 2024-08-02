@@ -2,21 +2,16 @@
 #define CUTOUT
 
 #include "../GlobalCamera.glsl"
+#include "../utils/SWRUtils.glsl"
 #include "Chunks.glsl"
 
-layout(std430) restrict readonly buffer QuadPosDataBuffer {
-    uint ssbo_quadPosDataBuffer[];
+layout(std430) readonly buffer QuadPosDataBuffer {
+    uvec2 ssbo_quadPosDataBuffer[];
 };
 
-layout(std430) restrict readonly buffer QuadPosIndexBuffer {
+layout(std430) readonly buffer QuadPosIndexBuffer {
     uint ssbo_quadPosIndexBuffer[];
 };
-
-vec4 readPos(uint idx) {
-    uint data1 = ssbo_quadPosDataBuffer[idx];
-    uint data2 = ssbo_quadPosDataBuffer[idx + 1];
-    return vec4(uvec4(data1 & 0xFFFFu, data1 >> 16u, data2 & 0xFFFFu, data2 >> 16u));
-}
 
 layout(location = 0) out VertData {
     flat uint quadIndex;
@@ -41,18 +36,22 @@ void main() {
     vec3 chunkOffset = chunks_getChunkRenderPos(gl_BaseInstance);
 
     vertDataOut.quadIndex = uint(gl_VertexID) / 4;
-    uint quadPosDataIdx = ssbo_quadPosIndexBuffer[vertDataOut.quadIndex] * 6u;
+    uint quadPosDataIdx = ssbo_quadPosIndexBuffer[vertDataOut.quadIndex] * 3u;
+
+    uvec2 posXData = ssbo_quadPosDataBuffer[quadPosDataIdx];
+    uvec2 posYData = ssbo_quadPosDataBuffer[quadPosDataIdx + 1u];
+    uvec2 posZData = ssbo_quadPosDataBuffer[quadPosDataIdx + 2u];
+
+    vec4 posXs = decodePos(posXData);
+    vec4 posYs = decodePos(posYData);
+    vec4 posZs = decodePos(posZData);
 
     vertDataOut.bCoord = BCOORDS[gl_VertexID % 4u];
 
-    vec4 posX = readPos(quadPosDataIdx);
-    vec4 posY = readPos(quadPosDataIdx + 2u);
-    vec4 posZ = readPos(quadPosDataIdx + 4u);
-
     vec4 vertPos = vec4(
-        dot(posX, vertDataOut.bCoord),
-        dot(posY, vertDataOut.bCoord),
-        dot(posZ, vertDataOut.bCoord),
+        dot(posXs, vertDataOut.bCoord),
+        dot(posYs, vertDataOut.bCoord),
+        dot(posZs, vertDataOut.bCoord),
         1.0
     );
 

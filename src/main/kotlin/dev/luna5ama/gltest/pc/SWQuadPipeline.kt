@@ -255,7 +255,7 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
 
             glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
 
-            renderer.cullPipeline.swDepthBlit()
+            renderer.cullPipeline.depthBuffer.swDepthBlit()
             glViewport(0, 0, scene.camera.screenWidth / 4, scene.camera.screenHeight / 4)
             renderer.cullPipeline.draw(ctcBuffer, chunkCount)
             glViewport(0, 0, scene.camera.screenWidth, scene.camera.screenHeight)
