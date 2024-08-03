@@ -1,6 +1,7 @@
 package dev.luna5ama.gltest
 
 import dev.fastmc.common.MathUtil
+import dev.fastmc.common.collection.CircularArray
 import dev.fastmc.common.toRadians
 import dev.luna5ama.glwrapper.ShaderBindingSpecs
 import dev.luna5ama.glwrapper.api.GL_DYNAMIC_STORAGE_BIT
@@ -10,10 +11,7 @@ import dev.luna5ama.kmogus.*
 import org.joml.*
 import org.lwjgl.glfw.GLFW
 import org.lwjgl.glfw.GLFW.*
-import kotlin.math.cos
-import kotlin.math.pow
-import kotlin.math.sin
-import kotlin.math.tan
+import kotlin.math.*
 
 class Camera(val scene: AbstractScene) {
     private var frameIndex = 0
@@ -116,7 +114,16 @@ class Camera(val scene: AbstractScene) {
         }
     }
 
+    val rotationAngleHistory = CircularArray<Float>(3000)
+    private val lastRotation = Vector2f()
+    var maxRotationAngle = 0.0f; private set
+
     fun update(offsetX: Float, offsetY: Float) {
+        val maxRotateAngle = max(abs(rotation.x - lastRotation.x), abs(rotation.y - lastRotation.y))
+        rotationAngleHistory.add(maxRotateAngle)
+        maxRotationAngle = rotationAngleHistory.maxOrNull() ?: 0.0f
+        lastRotation.set(rotation)
+
         jitter.set(offsetX, offsetY)
         nearPlane = 0.01f
         farPlane = viewDistance * 1.5f
@@ -124,8 +131,7 @@ class Camera(val scene: AbstractScene) {
         aspectRatio = screenWidth.toFloat() / screenHeight.toFloat()
 
         noJitterProjection.identity()
-//            .perspective(fov.toRadians(), aspectRatio, nearPlane, farPlane)
-            .infRevZPerspective(fov.toRadians(), aspectRatio, nearPlane)
+            .setupPerspective(fov.toRadians(), aspectRatio, nearPlane, farPlane)
         noJitterModelView.identity()
             .rotate(rotation.y.toRadians(), 1.0f, 0.0f, 0.0f)
             .rotate((rotation.x + 180.0f).toRadians(), 0.0f, 1.0f, 0.0f)
@@ -144,8 +150,7 @@ class Camera(val scene: AbstractScene) {
 
         projection.identity()
             .translate((offsetX * 2.0f) / screenWidth, (offsetY * 2.0f) / screenHeight, 0.0f)
-//            .perspective(fov.toRadians(), screenWidth.toFloat() / screenHeight.toFloat(), nearPlane, farPlane)
-            .infRevZPerspective(fov.toRadians(), screenWidth.toFloat() / screenHeight.toFloat(), nearPlane)
+            .setupPerspective(fov.toRadians(), aspectRatio, nearPlane, farPlane)
         modelView.identity()
             .rotate(rotation.y.toRadians(), 1.0f, 0.0f, 0.0f)
             .rotate((rotation.x + 180.0f).toRadians(), 0.0f, 1.0f, 0.0f)
@@ -155,6 +160,11 @@ class Camera(val scene: AbstractScene) {
         frustum = Frustum(invCombined)
 
         frameIndex = (frameIndex + 1) % 2048
+    }
+
+    fun Matrix4f.setupPerspective(fovY: Float, aspectRatio: Float, zNear: Float, zFar: Float) {
+//        perspective(fovY, aspectRatio, zNear, zFar)
+        infRevZPerspective(fovY, aspectRatio, zNear)
     }
 
     /**

@@ -1,9 +1,6 @@
 package dev.luna5ama.gltest.pc
 
-import dev.fastmc.common.Direction
-import dev.fastmc.common.ParallelUtils
-import dev.fastmc.common.TickTimer
-import dev.fastmc.common.floorToInt
+import dev.fastmc.common.*
 import dev.fastmc.common.sort.IntInsertionSort
 import dev.fastmc.common.sort.IntIntrosort
 import dev.luna5ama.gltest.GPUTimer
@@ -215,7 +212,6 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
 //            println("Min sample count: ${sampleCountArray.min()}")
 //            println("Average sample count: ${sampleCountArray.average()}")
 //            println("Max sample count: ${sampleCountArray.max()}")
-//            println()
             if (hwVsPipeline.batchCount > 0) {
                 println("HW VS: ${chunkCountString(hwVsPipeline)} batches")
             } else {
@@ -227,7 +223,6 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
             println("HW Draw: %.3f ms".format(hwMsDrawTimer.averageMS() + hwVsDrawTimer.averageMS()))
             println("SW Draw: %.3f ms".format(swDrawTimer.averageMS()))
             println("Total Draw: %.3f ms".format(swDrawTimer.averageMS() + hwVsDrawTimer.averageMS() + hwMsDrawTimer.averageMS()))
-            println()
         }
     }
 
@@ -403,7 +398,13 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
         }
 
         private fun CoroutineScope.doFrustumCulling() {
-            val frustumCull = FrustumIntersection(scene.camera.combined, false)
+            val newMatrix = Matrix4f()
+            scene.camera.apply {
+                newMatrix.setupPerspective((min(fov + scene.camera.maxRotationAngle * 4.0f, 180.0f)).toRadians(), aspectRatio, nearPlane, farPlane)
+            }
+            newMatrix.mul(scene.camera.modelView)
+            val frustumCull = FrustumIntersection(newMatrix, false)
+
             ParallelUtils.splitListIndex(
                 scene.terrainMeshData.chunkPos.size,
                 blockForEach = { start, end ->
