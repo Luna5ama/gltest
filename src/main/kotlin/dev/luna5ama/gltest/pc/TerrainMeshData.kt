@@ -82,7 +82,7 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
             "Total buffer usage: %.2f MB"
                 .format(bufferUsage / 1024.0 / 1024.0)
         )
-        println("Quad count: $totalQuadCount")
+        println("Quad count: %,d".format(totalQuadCount))
 
         val chunk2LayerMap = Int2ObjectOpenHashMap<ObjectArrayList<ChunkLayerInfo>>()
 
