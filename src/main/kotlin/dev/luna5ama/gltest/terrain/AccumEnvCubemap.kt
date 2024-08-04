@@ -59,13 +59,7 @@ class AccumEnvCubemap(private val scene: TerrainScene) : IGLObjContainer by IGLO
             viewMatrix.setLookAt(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, -1.0f, 0.0f)
             pack()
 
-            glProgramUniformMatrix4fv(
-                skyboxShader.id,
-                skyboxShader.locateUniform("uBoxMatries"),
-                6,
-                false,
-                buffer.basePtr
-            )
+            skyboxShader.uniformMatrix4fv("uBoxMatries", 6, false, buffer.basePtr)
         }
     }
 

@@ -134,11 +134,6 @@ abstract class OcclusionCullingPipeline(
                     sampler(samplerBindings)
                     buffer(scene.camera.uboBinding)
                 }
-                float2DepthBlitShader.uniform2i(
-                    "uval_viewportSizeI",
-                    scene.camera.screenSize.x,
-                    scene.camera.screenSize.y
-                )
                 fbo.bind()
                 scene.basic.drawQuad()
             }
@@ -177,11 +172,6 @@ abstract class OcclusionCullingPipeline(
                     sampler(samplerBindings)
                     buffer(scene.camera.uboBinding)
                 }
-                float2DepthBlitShader.uniform2i(
-                    "uval_viewportSizeI",
-                    scene.camera.screenSize.x,
-                    scene.camera.screenSize.y
-                )
                 fbo.bind()
                 scene.basic.drawQuad()
             }
