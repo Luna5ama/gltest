@@ -31,7 +31,7 @@ class TerrainVertex(
     val attrib: Byte
 )
 
-@Struct
+@Struct(size = 32)
 class QuadPos(
     val posX1: Short,
     val posX2: Short,

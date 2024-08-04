@@ -35,7 +35,7 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
     private val quadExtraAttribDataBuffer = register(BufferObject.Immutable())
     private val quadPosIndexBuffer = register(BufferObject.Immutable())
     private val quadAttribIndexBuffer = register(BufferObject.Immutable())
-    val chunk2LayerMap: Int2ObjectOpenHashMap<List<ChunkLayerInfo>>
+    val chunk2LayerMap: Int2ObjectOpenHashMap<ObjectArrayList<ChunkLayerInfo>>
     val chunkLayerInfo = mutableListOf<ChunkLayerInfo>()
     val chunkPos = mutableListOf<Vector3i>()
 
@@ -88,15 +88,16 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
 
         chunkLayerInfo.forEach {
             check(chunkPos[it.chunkIndex] == it.pos) { "chunk pos mismatch" }
-            chunk2LayerMap.computeIfAbsent(it.chunkIndex, Int2ObjectFunction { ObjectArrayList() }).add(it)
+            chunk2LayerMap.computeIfAbsent(
+                it.chunkIndex,
+                Int2ObjectFunction { ObjectArrayList.wrap(arrayOfNulls<ChunkLayerInfo>(0)) }).add(it)
         }
 
         chunk2LayerMap.values.forEach { layers ->
             layers.sortBy { it.startIndex }
         }
 
-        @Suppress("UNCHECKED_CAST")
-        this.chunk2LayerMap = chunk2LayerMap as Int2ObjectOpenHashMap<List<ChunkLayerInfo>>
+        this.chunk2LayerMap = chunk2LayerMap
     }
 
     private suspend fun readData(dir: File) {
@@ -112,7 +113,7 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
         val quadPosDataIdxMap = ConcurrentHashMap<PosKey, Int>()
         val quadAttribDataIdxMap = ConcurrentHashMap<AttribKey, Int>()
 
-        val quadPosDataUploadBuffer = Arr.malloc(pointCount * 24L)
+        val quadPosDataUploadBuffer = Arr.malloc(pointCount * sizeof(QuadPos))
         val quadTexCoordUploadBuffer = Arr.malloc(pointCount * 16L)
         val quadExtraAttribUploadBuffer = Arr.malloc(pointCount * 24L)
 
@@ -124,7 +125,7 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
             )
             return quadPosDataIdxMap.computeIfAbsent(key) {
                 val idx = quadPosDataCounter.getAndIncrement()
-                val offset = idx * 24L
+                val offset = idx * sizeof(QuadPos)
                 val pPosStruct = QuadPos(quadPosDataUploadBuffer.ptr + offset)
                 pPosStruct.posX1 = v1.posX
                 pPosStruct.posX2 = v2.posX
@@ -332,11 +333,11 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
                                     }
 
                                     val pos = Vector3i(info.chunkX, info.chunkY, info.chunkZ)
+                                    var quadIndex = quadCounter.getAndAdd(quadCounts.sum())
 
                                     for (i in 0 until 63) {
                                         val faceQuadCount = quadCounts[i]
                                         if (faceQuadCount == 0) continue
-                                        val quadIndex = quadCounter.getAndAdd(faceQuadCount)
 
                                         memcpy(
                                             localPosIdxBufferArrays[i].elements(),
@@ -361,6 +362,8 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
                                             quadIndex,
                                             i + 1
                                         )
+
+                                        quadIndex += faceQuadCount
                                     }
 
                                     localPosIdxBufferArrays.forEach {
@@ -420,7 +423,7 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
 
                 this@TerrainMeshData.totalQuadCount = quadCounter.get()
 
-                quadPosDataBuffer.allocate(quadPosDataCounter.get() * 24L, quadPosDataUploadBuffer.ptr, 0)
+                quadPosDataBuffer.allocate(quadPosDataCounter.get() * sizeof(QuadPos), quadPosDataUploadBuffer.ptr, 0)
                 quadTexCoordDataBuffer.allocate(quadAttribDataCounter.get() * 16L, quadTexCoordUploadBuffer.ptr, 0)
                 quadExtraAttribDataBuffer.allocate(
                     quadAttribDataCounter.get() * 24L,
@@ -443,7 +446,7 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
                 }
             }
 
-            writeFile("pc_quad_pos_data.bin", quadPosDataUploadBuffer, quadPosDataCounter.get() * 24L)
+            writeFile("pc_quad_pos_data.bin", quadPosDataUploadBuffer, quadPosDataCounter.get() * sizeof(QuadPos))
             writeFile("pc_quad_texcoord_data.bin", quadTexCoordUploadBuffer, quadAttribDataCounter.get() * 16L)
             writeFile("pc_quad_extra_attrib_data.bin", quadExtraAttribUploadBuffer, quadAttribDataCounter.get() * 24L)
 
@@ -542,11 +545,11 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
     )
 
     class ChunkLayerInfo(
-        val chunkIndex: Int,
-        val pos: Vector3i,
-        val quadCount: Int,
-        val startIndex: Int,
-        val faceBits: Int
+        @JvmField val chunkIndex: Int,
+        @JvmField val pos: Vector3i,
+        @JvmField val quadCount: Int,
+        @JvmField val startIndex: Int,
+        @JvmField val faceBits: Int
     ) {
         var listIndex = 0
         val minX = pos.x shl 4

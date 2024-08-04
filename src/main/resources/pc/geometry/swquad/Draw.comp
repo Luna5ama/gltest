@@ -67,7 +67,7 @@ layout(std430) readonly buffer BatchIndicesData {
 };
 
 layout(std430) readonly buffer QuadPosDataBuffer {
-    uvec2 ssbo_quadPosDataBuffer[];
+    uvec4 ssbo_quadPosDataBuffer[];
 };
 
 layout(std430) readonly buffer QuadPosIndexBuffer {
@@ -109,15 +109,14 @@ bool cullQuad(uint localQuadIndex) {
     }
 
     uint quadIndex = metaFirst + localQuadIndex;
-    uint quadPosDataIdx = ssbo_quadPosIndexBuffer[quadIndex] * 3u;
+    uint quadPosDataIdx = ssbo_quadPosIndexBuffer[quadIndex] * 2u;
 
-    uvec2 posXData = ssbo_quadPosDataBuffer[quadPosDataIdx];
-    uvec2 posYData = ssbo_quadPosDataBuffer[quadPosDataIdx + 1u];
-    uvec2 posZData = ssbo_quadPosDataBuffer[quadPosDataIdx + 2u];
+    uvec4 data1 = ssbo_quadPosDataBuffer[quadPosDataIdx];
+    uvec4 data2 = ssbo_quadPosDataBuffer[quadPosDataIdx + 1u];
 
-    vec4 posXs = decodePos(posXData);
-    vec4 posYs = decodePos(posYData);
-    vec4 posZs = decodePos(posZData);
+    vec4 posXs = decodePos(data1.xy);
+    vec4 posYs = decodePos(data1.zw);
+    vec4 posZs = decodePos(data2.xy);
 
     posXs = posXs * COORD_CONVERT + chunkOffset.x;
     posYs = posYs * COORD_CONVERT + chunkOffset.y;
@@ -164,15 +163,14 @@ void rasterize(uint baseLocalQuadIndex) {
         uvec4 texCoordXY = ssbo_quadTexCoordDataBuffer[ssbo_quadAttribIndexBuffer[quadIndex]];
         #endif
 
-        uint quadPosDataIdx = ssbo_quadPosIndexBuffer[quadIndex] * 3u;
+        uint quadPosDataIdx = ssbo_quadPosIndexBuffer[quadIndex] * 2u;
 
-        uvec2 posXData = ssbo_quadPosDataBuffer[quadPosDataIdx];
-        uvec2 posYData = ssbo_quadPosDataBuffer[quadPosDataIdx + 1u];
-        uvec2 posZData = ssbo_quadPosDataBuffer[quadPosDataIdx + 2u];
+        uvec4 data1 = ssbo_quadPosDataBuffer[quadPosDataIdx];
+        uvec4 data2 = ssbo_quadPosDataBuffer[quadPosDataIdx + 1u];
 
-        vec4 posXs = decodePos(posXData);
-        vec4 posYs = decodePos(posYData);
-        vec4 posZs = decodePos(posZData);
+        vec4 posXs = decodePos(data1.xy);
+        vec4 posYs = decodePos(data1.zw);
+        vec4 posZs = decodePos(data2.xy);
 
         posXs = posXs * COORD_CONVERT + shared_chunkOffset.x;
         posYs = posYs * COORD_CONVERT + shared_chunkOffset.y;

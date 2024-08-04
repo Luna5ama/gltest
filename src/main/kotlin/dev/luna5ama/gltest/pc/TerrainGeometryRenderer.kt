@@ -161,10 +161,8 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
             chunkPosData.upload(0, arr.len, arr.ptr)
         }
 
-        if (!scene.gameInstance.toggle3) {
-            if (updateTimer.tickAndReset(25)) {
-                UpdateTask().run()
-            }
+        if (updateTimer.tickAndReset(25)) {
+            UpdateTask().run()
         }
         tryUpdate()
 
@@ -186,8 +184,8 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
             }
             val bytesPerGroup = 16 * 128
             glDispatchCompute(((visibleBufferStateLen1 + bytesPerGroup - 1) / bytesPerGroup).toInt(), 1, 1)
-            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
         }
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
 
         glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE)
         glDebugGroup("HW Draw") {
@@ -262,19 +260,24 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
                             val localThreadIndex = threadIndex++
                             launch {
                                 val localUpdateData = updateDataList[localThreadIndex]
-                                val list = ObjectArrayList<ChunkLayerInfo>()
+                                val filteredChunks = arrayOfNulls<ChunkLayerInfo>(63)
 
                                 for (i1 in start until end) {
                                     val chunkIndex = chunkPosIndices[i1]
                                     if (!frustumCullingFlags[chunkIndex].value) continue
 
                                     val rawList = scene.terrainMeshData.chunk2LayerMap[chunkIndex] ?: continue
-                                    rawList.filterTo(list) { faceMaskArray[chunkIndex] and it.faceBits != 0 }
+                                    val rawListArray = rawList.elements()
+                                    var filteredSize = 0
+                                    for (i in rawList.indices) {
+                                        val chunk = rawListArray[i]
+                                        if (faceMaskArray[chunkIndex] and chunk.faceBits == 0) continue
+                                        filteredChunks[filteredSize++] = chunk
+                                    }
 
-                                    if (list.isEmpty) continue
-                                    if (list.size == 1) {
-                                        localUpdateData.add(list[0])
-                                        list.clear()
+                                    if (filteredSize == 0) continue
+                                    if (filteredSize == 1) {
+                                        localUpdateData.add(filteredChunks[0]!!)
                                         continue
                                     }
 
@@ -283,25 +286,26 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
                                         if (startingIndex != -1) {
                                             var quadCount = 0
                                             for (i in startingIndex until n) {
-                                                quadCount += list[i].quadCount
+                                                quadCount += filteredChunks[i]!!.quadCount
                                             }
+                                            val chunkLayerInfo = filteredChunks[startingIndex]!!
                                             localUpdateData.add(
                                                 ChunkLayerInfo(
-                                                    list[startingIndex].chunkIndex,
-                                                    list[startingIndex].pos,
+                                                    chunkLayerInfo.chunkIndex,
+                                                    chunkLayerInfo.pos,
                                                     quadCount,
-                                                    list[startingIndex].startIndex,
+                                                    chunkLayerInfo.startIndex,
                                                     111111
                                                 )
                                             )
                                             startingIndex = -1
                                         } else {
-                                            localUpdateData.add(list[n - 1])
+                                            localUpdateData.add(filteredChunks[n - 1]!!)
                                         }
                                     }
-                                    for (i in 1 until list.size) {
-                                        val last = list[i - 1]
-                                        val current = list[i]
+                                    for (i in 1 until filteredSize) {
+                                        val last = filteredChunks[i - 1]!!
+                                        val current = filteredChunks[i]!!
                                         if (last.startIndex + last.quadCount == current.startIndex) {
                                             if (startingIndex == -1) {
                                                 startingIndex = i - 1
@@ -310,8 +314,7 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
                                         }
                                         flush(i)
                                     }
-                                    flush(list.size)
-                                    list.clear()
+                                    flush(filteredSize)
                                 }
                             }
                         }
@@ -431,7 +434,7 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
         }
 
         inner class UpdateData {
-            private val lists = List(3) { mutableListOf<ChunkLayerInfo>() }
+            private val lists = List(3) { ObjectArrayList<ChunkLayerInfo>() }
             val hwVs = lists[0]
             val hwMs = lists[1]
             val swQuad = lists[2]

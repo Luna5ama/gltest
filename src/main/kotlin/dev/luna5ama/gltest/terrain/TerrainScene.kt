@@ -49,7 +49,6 @@ class TerrainScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard)
 
     val basic = register(Basic())
     val samplers = register(Samplers())
-    val samplerManager = register(SamplerManager())
     val hizGen = register(HiZBufferGen(this))
 
     private val skybox = register(Skybox(this))

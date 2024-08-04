@@ -3,6 +3,8 @@ package dev.luna5ama.gltest
 import dev.fastmc.common.MathUtil
 import dev.fastmc.common.collection.CircularArray
 import dev.fastmc.common.toRadians
+import dev.luna5ama.gltest.terrain.IGLObjContainer
+import dev.luna5ama.gltest.terrain.register
 import dev.luna5ama.glwrapper.ShaderBindingSpecs
 import dev.luna5ama.glwrapper.api.GL_DYNAMIC_STORAGE_BIT
 import dev.luna5ama.glwrapper.enums.BufferTarget
@@ -13,7 +15,7 @@ import org.lwjgl.glfw.GLFW
 import org.lwjgl.glfw.GLFW.*
 import kotlin.math.*
 
-class Camera(val scene: AbstractScene) {
+class Camera(val scene: AbstractScene) : IGLObjContainer by IGLObjContainer.Impl() {
     private var frameIndex = 0
     var speedMultiplier = 1.0
 
@@ -55,19 +57,19 @@ class Camera(val scene: AbstractScene) {
 
     var frustum = Frustum(invCombined); private set
 
-    private val ubo = BufferObject.Immutable().apply {
+    private val ubo = register(BufferObject.Immutable()).apply {
         allocate(UBO_SIZE, GL_DYNAMIC_STORAGE_BIT)
         label("GlobalCameraUBO")
     }
-    private val noJitterUbo = BufferObject.Immutable().apply {
+    private val noJitterUbo = register(BufferObject.Immutable()).apply {
         allocate(UBO_SIZE, GL_DYNAMIC_STORAGE_BIT)
         label("GlobalCameraNoJitterUBO")
     }
-    private val prevUBO = BufferObject.Immutable().apply {
+    private val prevUBO = register(BufferObject.Immutable()).apply {
         allocate(UBO_SIZE, 0)
         label("GlobalCameraPrevUBO")
     }
-    private val prevNoJitterUBO = BufferObject.Immutable().apply {
+    private val prevNoJitterUBO = register(BufferObject.Immutable()).apply {
         allocate(UBO_SIZE, 0)
         label("GlobalCameraPrevNoJitterUBO")
     }

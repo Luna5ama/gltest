@@ -11,7 +11,7 @@ layout(max_vertices = 64, max_primitives = 32) out;
 layout(triangles) out;
 
 layout(std430) restrict readonly buffer QuadPosDataBuffer {
-    uvec2 ssbo_quadPosDataBuffer[];
+    uvec4 ssbo_quadPosDataBuffer[];
 };
 
 layout(std430) restrict readonly buffer QuadPosIndexBuffer {
@@ -63,15 +63,14 @@ bool writeVertexData() {
 
     uint survived = 1;
 
-    uint quadPosDataIdx = ssbo_quadPosIndexBuffer[quadIndex] * 3u;
+    uint quadPosDataIdx = ssbo_quadPosIndexBuffer[quadIndex] * 2u;
 
-    uvec2 posXData = ssbo_quadPosDataBuffer[quadPosDataIdx];
-    uvec2 posYData = ssbo_quadPosDataBuffer[quadPosDataIdx + 1u];
-    uvec2 posZData = ssbo_quadPosDataBuffer[quadPosDataIdx + 2u];
+    uvec4 data1 = ssbo_quadPosDataBuffer[quadPosDataIdx];
+    uvec4 data2 = ssbo_quadPosDataBuffer[quadPosDataIdx + 1u];
 
-    vec4 posXs = decodePos(posXData);
-    vec4 posYs = decodePos(posYData);
-    vec4 posZs = decodePos(posZData);
+    vec4 posXs = decodePos(data1.xy);
+    vec4 posYs = decodePos(data1.zw);
+    vec4 posZs = decodePos(data2.xy);
 
     posXs = posXs * COORD_CONVERT + dataIn.chunkOffset.x;
     posYs = posYs * COORD_CONVERT + dataIn.chunkOffset.y;

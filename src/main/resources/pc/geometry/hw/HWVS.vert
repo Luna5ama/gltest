@@ -6,7 +6,7 @@
 #include "../Chunks.glsl"
 
 layout(std430) readonly buffer QuadPosDataBuffer {
-    uvec2 ssbo_quadPosDataBuffer[];
+    uvec4 ssbo_quadPosDataBuffer[];
 };
 
 layout(std430) readonly buffer QuadPosIndexBuffer {
@@ -34,15 +34,14 @@ void main() {
     vec3 chunkOffset = chunks_getChunkRenderPos(gl_BaseInstance);
 
     vertDataOut.quadIndex = uint(gl_VertexID) >> 2;
-    uint quadPosDataIdx = ssbo_quadPosIndexBuffer[vertDataOut.quadIndex] * 3u;
+    uint quadPosDataIdx = ssbo_quadPosIndexBuffer[vertDataOut.quadIndex] * 2u;
 
-    uvec2 posXData = ssbo_quadPosDataBuffer[quadPosDataIdx];
-    uvec2 posYData = ssbo_quadPosDataBuffer[quadPosDataIdx + 1u];
-    uvec2 posZData = ssbo_quadPosDataBuffer[quadPosDataIdx + 2u];
+    uvec4 data1 = ssbo_quadPosDataBuffer[quadPosDataIdx];
+    uvec4 data2 = ssbo_quadPosDataBuffer[quadPosDataIdx + 1u];
 
-    vec4 posXs = decodePos(posXData);
-    vec4 posYs = decodePos(posYData);
-    vec4 posZs = decodePos(posZData);
+    vec4 posXs = decodePos(data1.xy);
+    vec4 posYs = decodePos(data1.zw);
+    vec4 posZs = decodePos(data2.xy);
 
     vertDataOut.bCoord = BCOORDS[gl_VertexID % 4u];
 

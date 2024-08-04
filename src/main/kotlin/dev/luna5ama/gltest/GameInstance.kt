@@ -239,6 +239,8 @@ class GameInstance(val window: Long) {
 
                 scene.update()
                 scene.renderFrame()
+                glBindFramebuffer(GL_FRAMEBUFFER, 0)
+                scene.samplerManager.clearBinding()
                 glfwSwapBuffers(window)
 
                 now = glfwGetTime()

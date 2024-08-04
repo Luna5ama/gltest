@@ -6,6 +6,7 @@ import dev.luna5ama.glwrapper.enums.CompareMode
 import dev.luna5ama.glwrapper.enums.FilterMode
 import dev.luna5ama.glwrapper.enums.WrapMode
 import dev.luna5ama.glwrapper.objects.SamplerObject
+import dev.luna5ama.kmogus.Ptr
 
 class SamplerManager : IGLObjContainer by IGLObjContainer.Impl() {
 
@@ -32,6 +33,12 @@ class SamplerManager : IGLObjContainer by IGLObjContainer.Impl() {
             key.anisotropy?.let { sampler.parameterf(GL_TEXTURE_MAX_ANISOTROPY, it) }
             sampler
         }
+    }
+
+    private val maxUnit = glGetInteger(GL_MAX_TEXTURE_IMAGE_UNITS)
+
+    fun clearBinding() {
+        glBindSamplers(0, maxUnit, Ptr.NULL)
     }
 
     override fun destroy() {

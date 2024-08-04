@@ -18,7 +18,7 @@ uniform sampler2D usam_lightMap;
 uniform sampler2D usam_vBufferDepth;
 
 layout(std430) restrict readonly buffer QuadPosDataBuffer {
-    uvec2 ssbo_quadPosDataBuffer[];
+    uvec4 ssbo_quadPosDataBuffer[];
 };
 
 layout(std430) restrict readonly buffer QuadPosIndexBuffer {
@@ -57,11 +57,14 @@ void main() {
 
     uint quadIndex = texelFetch(usam_vBufferDataTex, centerCoord, 0).r;
 
-    uint quadPosDataIdx = ssbo_quadPosIndexBuffer[quadIndex >> 1u] * 3u;
+    uint quadPosDataIdx = ssbo_quadPosIndexBuffer[quadIndex >> 1u] * 2u;
 
-    vec4 posXs4 = decodePos(ssbo_quadPosDataBuffer[quadPosDataIdx]) * COORD_CONVERT ;
-    vec4 posYs4 = decodePos(ssbo_quadPosDataBuffer[quadPosDataIdx + 1u]) * COORD_CONVERT ;
-    vec4 posZs4 = decodePos(ssbo_quadPosDataBuffer[quadPosDataIdx + 2u]) * COORD_CONVERT ;
+    uvec4 data1 = ssbo_quadPosDataBuffer[quadPosDataIdx];
+    uvec4 data2 = ssbo_quadPosDataBuffer[quadPosDataIdx + 1u];
+
+    vec4 posXs4 = decodePos(data1.xy) * COORD_CONVERT ;
+    vec4 posYs4 = decodePos(data1.zw) * COORD_CONVERT ;
+    vec4 posZs4 = decodePos(data2.xy) * COORD_CONVERT ;
 
     vec3 ndcCoord = vec3(vec2(centerCoord) + 0.5, depth);
     ndcCoord.xy *= uval_viewportSize.zw;
