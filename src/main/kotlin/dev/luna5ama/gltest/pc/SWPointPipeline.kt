@@ -10,7 +10,7 @@ import dev.luna5ama.glwrapper.objects.BufferObject
 import org.joml.Vector4f
 
 class SWPointPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) :
-    TerrainDrawPipeline(scene, renderer) {
+    TerrainDrawPipeline("SWPoint", scene, renderer) {
     private val batchInfoBuffer = register(BufferObject.Immutable())
 
     val bufferBinding = ShaderBindingSpecs.Buffer("PointBatchInfoBuffer", batchInfoBuffer, BufferTarget.ShaderStorage)

@@ -2,9 +2,8 @@ package dev.luna5ama.gltest.pc
 
 import dev.fastmc.common.ParallelUtils
 import dev.fastmc.common.TickTimer
-import dev.fastmc.common.collection.StaticBitSet
-import dev.luna5ama.gltest.structs.CullTestCommand
 import dev.luna5ama.gltest.structs.DrawElementsIndirectCommand
+import dev.luna5ama.gltest.structs.QuadBatchInfo
 import dev.luna5ama.gltest.structs.sizeof
 import dev.luna5ama.gltest.terrain.register
 import dev.luna5ama.glwrapper.ShaderBindingSpecs
@@ -26,7 +25,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.min
 
 class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) :
-    TerrainDrawPipeline(scene, renderer) {
+    TerrainDrawPipeline("HWVS", scene, renderer) {
     private val vao = register(VertexArrayObject())
     private val clearShader = register(
         ShaderProgram(
@@ -56,10 +55,6 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
         label("HWVS.ElementBuffer")
     }
 
-    private val ctcBuffer = register(BufferObject.Immutable()).apply {
-        label("SWQuad.CullTestCommandBuffer")
-    }
-
     private val indirectBufferBindings = listOf(
         ShaderBindingSpecs.Buffer("InputIndirectBuffer", inputIndirectBuffer, BufferTarget.ShaderStorage),
         ShaderBindingSpecs.Buffer("OutputIndirectBuffer", outputIndirectBuffer, BufferTarget.ShaderStorage),
@@ -85,26 +80,16 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
 
     override suspend fun update(chunks: List<TerrainMeshData.ChunkLayerInfo>) {
         val batchStructSize = sizeof(DrawElementsIndirectCommand)
-        val ctcBufferBaseOffset = renderer.cullPipeline.ctcBufferBaseOffset
-        val ctcStructSize = sizeof(CullTestCommand)
-        Arr.malloc(chunks.size * batchStructSize).use { indirectCmdUpload ->
-            Arr.malloc(ctcBufferBaseOffset + chunks.size * ctcStructSize).use { ctcUploadBuffer ->
+        Arr.malloc(chunks.size * batchStructSize).use { uploadBuffer ->
+            coroutineScope {
                 val quadCountGlobal = AtomicInteger(0)
                 val localBuffers = List(ParallelUtils.CPU_THREADS) { Arr.malloc(0L) }
                 val localBatchCounts = IntArray(ParallelUtils.CPU_THREADS)
                 var threadIndexCounter = 0
-                var chunkCounter = 0
 
                 coroutineScope {
                     launch {
-                        val chunkIndexBitSet = StaticBitSet(scene.terrainMeshData.chunkPos.size)
-                        for (i in chunks.indices) {
-                            val chunkInfo = chunks[i]
-                            if (!chunkIndexBitSet.add(chunkInfo.chunkIndex)) continue
-                            val offset = chunkCounter++ * ctcStructSize
-                            val ctcStruct = CullTestCommand(ctcUploadBuffer.ptr + ctcBufferBaseOffset + offset)
-                            ctcStruct.chunkIndex = chunkInfo.chunkIndex
-                        }
+                        updateCtcBuffer(chunks)
                     }
                     ParallelUtils.splitListIndex(
                         chunks.size,
@@ -145,56 +130,45 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
                     )
                 }
 
-                batchCount = 0
+                quadCount = quadCountGlobal.get()
+                batchCount = localBatchCounts.sum()
+                if (batchCount == 0) return@coroutineScope
+
+                val quadBatchInfoMetaSize = 16L
+
+                uploadBuffer.ensureCapacity(quadBatchInfoMetaSize + batchCount * batchStructSize, false)
+
+                var batchOffset = 0
                 localBuffers.forEachIndexed { index, arr ->
                     val localBatchCount = localBatchCounts[index]
-                    indirectCmdUpload.ensureCapacity(16L + (batchCount + localBatchCount) * batchStructSize, false)
                     memcpy(
                         arr.ptr,
                         0L,
-                        indirectCmdUpload.ptr,
-                        16L + batchCount * batchStructSize,
+                        uploadBuffer.ptr,
+                        quadBatchInfoMetaSize + batchOffset * batchStructSize,
                         localBatchCount * batchStructSize
                     )
-                    batchCount += localBatchCount
+                    batchOffset += localBatchCount
+                    arr.free()
                 }
 
-                localBuffers.forEach { it.free() }
-
-                quadCount = quadCountGlobal.get()
-                chunkCount = chunkCounter
-
-                if (batchCount == 0) return
-
-                renderer.cullPipeline.setupIndirect(ctcUploadBuffer.ptr, chunkCounter)
+                uploadBuffer.ptr.setInt(batchCount)
 
                 withContext(scene.gameInstance.mainContext) {
-                    indirectCmdUpload.ptr.setInt(batchCount)
                     val indirectCmdLen = 16L + batchCount * batchStructSize
                     if (inputIndirectBuffer.size < indirectCmdLen) {
                         inputIndirectBuffer.destroy()
-                        inputIndirectBuffer.allocate(indirectCmdLen, indirectCmdUpload.ptr, GL_DYNAMIC_STORAGE_BIT)
+                        inputIndirectBuffer.allocate(indirectCmdLen, uploadBuffer.ptr, GL_DYNAMIC_STORAGE_BIT)
                         outputIndirectBuffer.destroy()
                         outputIndirectBuffer.allocate(indirectCmdLen, Ptr.NULL, 0)
                     } else {
                         inputIndirectBuffer.invalidate()
-                        inputIndirectBuffer.upload(0L, indirectCmdLen, indirectCmdUpload.ptr)
-                    }
-
-                    val ctcLen = ctcBufferBaseOffset + chunkCounter * ctcStructSize
-                    if (ctcBuffer.size < ctcLen) {
-                        ctcBuffer.destroy()
-                        ctcBuffer.allocate(ctcLen, ctcUploadBuffer.ptr, GL_DYNAMIC_STORAGE_BIT)
-                    } else {
-                        ctcBuffer.invalidate()
-                        ctcBuffer.upload(0L, ctcLen, ctcUploadBuffer.ptr)
+                        inputIndirectBuffer.upload(0L, indirectCmdLen, uploadBuffer.ptr)
                     }
                 }
             }
         }
     }
-
-    private val printTimer = TickTimer()
 
     override fun draw() {
         if (batchCount == 0) return
@@ -261,12 +235,6 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
             buffer(scene.terrainMeshData.bufferBindings)
             buffer(renderer.bufferBindings)
         }
-//        drawShader.uniform3f(
-//            "uval_originOffset",
-//            (PointCloudScene.originX - scene.camera.pos.x - 0.5).toFloat(),
-//            (PointCloudScene.originY - scene.camera.pos.y - 1.62).toFloat(),
-//            (PointCloudScene.originZ - scene.camera.pos.z - 0.5).toFloat()
-//        )
         buffer.bind(GL_DRAW_INDIRECT_BUFFER)
         buffer.bind(GL_PARAMETER_BUFFER)
         glMultiDrawElementsIndirectCount(GL_TRIANGLES, GL_UNSIGNED_SHORT, 16L, 0L, batchCount, 0)

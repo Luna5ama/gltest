@@ -2,9 +2,7 @@ package dev.luna5ama.gltest.pc
 
 import dev.fastmc.common.ParallelUtils
 import dev.fastmc.common.TickTimer
-import dev.fastmc.common.collection.StaticBitSet
 import dev.luna5ama.gltest.glDebugGroup
-import dev.luna5ama.gltest.structs.CullTestCommand
 import dev.luna5ama.gltest.structs.QuadBatchInfo
 import dev.luna5ama.gltest.structs.sizeof
 import dev.luna5ama.gltest.terrain.register
@@ -22,7 +20,8 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.max
 import kotlin.math.min
 
-class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) : TerrainDrawPipeline(scene, renderer) {
+class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) :
+    TerrainDrawPipeline("SWQuad", scene, renderer) {
     val debugQuadCount = false
 
     private val workGroupSize = renderer.threadBatchSize
@@ -103,34 +102,21 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
         label("SWQuad.DrawShader")
     }
 
-    private val ctcBuffer = register(BufferObject.Immutable()).apply {
-        label("SWQuad.CullTestCommandBuffer")
-    }
-
     override suspend fun update(chunks: List<TerrainMeshData.ChunkLayerInfo>) {
         val batchStructSize = sizeof(QuadBatchInfo)
-        val ctcBufferBaseOffset = renderer.cullPipeline.ctcBufferBaseOffset
-        val ctcStructSize = sizeof(CullTestCommand)
         val quadBatchInfoMetaSize = 16L
         Arr.malloc(quadBatchInfoMetaSize + chunks.size * batchStructSize).use { uploadBuffer ->
-            Arr.malloc(ctcBufferBaseOffset + chunks.size * ctcStructSize).use { ctcUploadBuffer ->
+            coroutineScope {
+                launch {
+                    updateCtcBuffer(chunks)
+                }
+
                 val quadCountGlobal = AtomicInteger(0)
                 val localBuffers = List(ParallelUtils.CPU_THREADS) { Arr.malloc(0L) }
                 val localBatchCounts = IntArray(ParallelUtils.CPU_THREADS)
                 var threadIndexCounter = 0
-                var chunkCounter = 0
 
                 coroutineScope {
-                    launch {
-                        val chunkIndexBitSet = StaticBitSet(scene.terrainMeshData.chunkPos.size)
-                        for (i in chunks.indices) {
-                            val chunkInfo = chunks[i]
-                            if (!chunkIndexBitSet.add(chunkInfo.chunkIndex)) continue
-                            val offset = chunkCounter++ * ctcStructSize
-                            val ctcStruct = CullTestCommand(ctcUploadBuffer.ptr + ctcBufferBaseOffset + offset)
-                            ctcStruct.chunkIndex = chunkInfo.chunkIndex
-                        }
-                    }
                     ParallelUtils.splitListIndex(
                         chunks.size,
                         blockForEach = { start, end ->
@@ -148,7 +134,8 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
                                         val batchQuadCount = min(chunkInfo.quadCount - quadIdx, quadsPerWorkGroup)
 
                                         localBuffer.ensureCapacity((localBatchCount + 1L) * batchStructSize, false)
-                                        val struct = QuadBatchInfo(localBuffer.ptr + localBatchCount * batchStructSize)
+                                        val struct =
+                                            QuadBatchInfo(localBuffer.ptr + localBatchCount * batchStructSize)
                                         struct.chunkIndex = chunkInfo.chunkIndex
                                         struct.first = chunkInfo.startIndex + quadIdx
                                         struct.count = batchQuadCount
@@ -166,68 +153,61 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
                     )
                 }
 
-                batchCount = localBatchCounts.sum()
-                uploadBuffer.ensureCapacity(quadBatchInfoMetaSize + batchCount * batchStructSize, false)
-
-                var batchOffset = 0
-                localBuffers.forEachIndexed { index, arr ->
-                    val localBatchCount = localBatchCounts[index]
-                    memcpy(
-                        arr.ptr,
-                        0L,
-                        uploadBuffer.ptr,
-                        quadBatchInfoMetaSize + batchOffset * batchStructSize,
-                        localBatchCount * batchStructSize
-                    )
-                    batchOffset += localBatchCount
-                    arr.free()
-                }
-
-                uploadBuffer.ptr.setInt(0L, batchCount)
-
                 quadCount = quadCountGlobal.get()
-                chunkCount = chunkCounter
+                batchCount = localBatchCounts.sum()
+                if (batchCount == 0) return@coroutineScope
 
-                if (batchCount == 0) return
+                coroutineScope {
+                    launch(scene.gameInstance.mainContext) {
+                        val batchIndicesLen = 16L + batchCount * 4L
+                        if (batchIndices.size < batchIndicesLen) {
+                            batchIndices.destroy()
+                            batchIndices.allocate(batchIndicesLen, 0)
+                        }
 
-                renderer.cullPipeline.setupIndirect(ctcUploadBuffer.ptr, chunkCounter)
+                        val batchMaskBallotsLen = batchCount * renderer.visibilityFlagType.byteSize.toLong()
+                        if (batchFilterFlag.size < batchMaskBallotsLen) {
+                            batchFilterFlag.destroy()
+                            batchFilterFlag.allocate(batchMaskBallotsLen, 0)
+                        }
 
-                withContext(scene.gameInstance.mainContext) {
-                    val quadMetaLen = quadBatchInfoMetaSize + batchCount * sizeof(QuadBatchInfo)
-                    if (quadBatchInfo.size < quadMetaLen) {
-                        quadBatchInfo.destroy()
-                        quadBatchInfo.allocate(quadMetaLen, uploadBuffer.ptr, GL_DYNAMIC_STORAGE_BIT)
-                    } else {
-                        quadBatchInfo.invalidate()
-                        quadBatchInfo.upload(0L, quadMetaLen, uploadBuffer.ptr)
+                        val scanWorkGroupCount = scene.gpuScan.workGroupSize
+                        val scanInputSize = 16L + (batchCount + scanWorkGroupCount - 1) / scanWorkGroupCount * 4L
+                        if (scanBuffer.size < scanInputSize) {
+                            scanBuffer.destroy()
+                            scanBuffer.allocate(scanInputSize, 0)
+                        }
                     }
 
-                    val batchIndicesLen = 16L + batchCount * 4L
-                    if (batchIndices.size < batchIndicesLen) {
-                        batchIndices.destroy()
-                        batchIndices.allocate(batchIndicesLen, 0)
-                    }
+                    launch {
+                        uploadBuffer.ensureCapacity(quadBatchInfoMetaSize + batchCount * batchStructSize, false)
 
-                    val batchMaskBallotsLen = batchCount * renderer.visibilityFlagType.byteSize.toLong()
-                    if (batchFilterFlag.size < batchMaskBallotsLen) {
-                        batchFilterFlag.destroy()
-                        batchFilterFlag.allocate(batchMaskBallotsLen, 0)
-                    }
+                        var batchOffset = 0
+                        localBuffers.forEachIndexed { index, arr ->
+                            val localBatchCount = localBatchCounts[index]
+                            memcpy(
+                                arr.ptr,
+                                0L,
+                                uploadBuffer.ptr,
+                                quadBatchInfoMetaSize + batchOffset * batchStructSize,
+                                localBatchCount * batchStructSize
+                            )
+                            batchOffset += localBatchCount
+                            arr.free()
+                        }
 
-                    val scanWorkGroupCount = scene.gpuScan.workGroupSize
-                    val scanInputSize = 16L + (batchCount + scanWorkGroupCount - 1) / scanWorkGroupCount * 4L
-                    if (scanBuffer.size < scanInputSize) {
-                        scanBuffer.destroy()
-                        scanBuffer.allocate(scanInputSize, 0)
-                    }
+                        uploadBuffer.ptr.setInt(0L, batchCount)
 
-                    val ctcLen = ctcBufferBaseOffset + chunkCounter * ctcStructSize
-                    if (ctcBuffer.size < ctcLen) {
-                        ctcBuffer.destroy()
-                        ctcBuffer.allocate(ctcLen, ctcUploadBuffer.ptr, GL_DYNAMIC_STORAGE_BIT)
-                    } else {
-                        ctcBuffer.invalidate()
-                        ctcBuffer.upload(0L, ctcLen, ctcUploadBuffer.ptr)
+                        withContext(scene.gameInstance.mainContext) {
+                            val quadMetaLen = quadBatchInfoMetaSize + batchCount * sizeof(QuadBatchInfo)
+                            if (quadBatchInfo.size < quadMetaLen) {
+                                quadBatchInfo.destroy()
+                                quadBatchInfo.allocate(quadMetaLen, uploadBuffer.ptr, GL_DYNAMIC_STORAGE_BIT)
+                            } else {
+                                quadBatchInfo.invalidate()
+                                quadBatchInfo.upload(0L, quadMetaLen, uploadBuffer.ptr)
+                            }
+                        }
                     }
                 }
             }
@@ -271,13 +251,13 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
         }
 
         if (debugQuadCount && printTimer.tickAndReset(3000)) {
-                MemoryStack {
-                    val ptr = malloc(tempBuffer.size).ptr
-                    glGetNamedBufferSubData(tempBuffer.id, 0, tempBuffer.size, ptr)
-                    println("Input Quad Count: %,d".format(ptr.getInt(0)))
-                    println("Output Quad Count: %,d".format(ptr.getInt(4)))
-                }
+            MemoryStack {
+                val ptr = malloc(tempBuffer.size).ptr
+                glGetNamedBufferSubData(tempBuffer.id, 0, tempBuffer.size, ptr)
+                println("Input Quad Count: %,d".format(ptr.getInt(0)))
+                println("Output Quad Count: %,d".format(ptr.getInt(4)))
             }
+        }
     }
 
     private fun drawPass(pass: Int) {
