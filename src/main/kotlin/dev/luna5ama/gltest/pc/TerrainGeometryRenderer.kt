@@ -57,8 +57,8 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
     val swQuadPipeline = register(SWQuadPipeline(scene, this))
     //    val swPointPipeline = register(SWPointPipeline(scene, this))
 
-//    val cullPipeline = register(OcclusionCullingPipeline.VertexShader(scene, this))
-    val cullPipeline = register(OcclusionCullingPipeline.MeshShader(scene, this))
+    val cullPipeline = register(OcclusionCullingPipeline.VertexShader(scene, this))
+//    val cullPipeline = register(OcclusionCullingPipeline.MeshShader(scene, this))
 //    val cullPipeline = register(OcclusionCullingPipeline.SWRaster(scene, this))
 
     private val visibleBuffer = register(BufferObject.Immutable()).apply {
@@ -439,8 +439,8 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
             fun add(chunkInfo: ChunkLayerInfo) {
                 if (sampleCountArray[chunkInfo.chunkIndex] > 8.0f) {
                     if (!scene.gameInstance.toggle1) {
-                        hwMs.add(chunkInfo)
-//                        hwVs.add(chunkInfo)
+//                        hwMs.add(chunkInfo)
+                        hwVs.add(chunkInfo)
                     }
                 } else {
                     if (!scene.gameInstance.toggle2) {

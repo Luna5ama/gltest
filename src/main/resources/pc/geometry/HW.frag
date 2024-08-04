@@ -17,7 +17,6 @@ layout(std430) readonly buffer QuadAttribIndexBuffer {
 
 layout(location = 0) in VertData {
     flat uint quadIndex;
-    flat uint chunkIndex;
     vec4 bCoord;
 } vertDataIn;
 

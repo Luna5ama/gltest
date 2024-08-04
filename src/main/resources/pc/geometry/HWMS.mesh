@@ -29,7 +29,6 @@ taskNV in Task {
 
 layout(location = 0) out VertData {
     flat uint quadIndex;
-    flat uint chunkIndex;
     vec4 bCoord;
 } vertDataOut[];
 
@@ -61,11 +60,6 @@ bool writeVertexData() {
     vertDataOut[writeIdx2].quadIndex = quadIndex;
     vertDataOut[writeIdx3].quadIndex = quadIndex;
     vertDataOut[writeIdx4].quadIndex = quadIndex;
-
-    vertDataOut[writeIdx1].chunkIndex = dataIn.chunkIndex;
-    vertDataOut[writeIdx2].chunkIndex = dataIn.chunkIndex;
-    vertDataOut[writeIdx3].chunkIndex = dataIn.chunkIndex;
-    vertDataOut[writeIdx4].chunkIndex = dataIn.chunkIndex;
 
     uint survived = 1;
 

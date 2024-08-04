@@ -15,7 +15,6 @@ layout(std430) readonly buffer QuadPosIndexBuffer {
 
 layout(location = 0) out VertData {
     flat uint quadIndex;
-    flat uint chunkIndex;
     vec4 bCoord;
 } vertDataOut;
 
@@ -32,10 +31,9 @@ const uvec3 CHUNK_OFFSET_BITMASK = (uvec3(1u) << uvec3(13u, 6u, 13u)) - uvec3(1u
 const uvec3 CHUNK_OFFSET_BITSHIFT = uvec3(0u, 13u, 13u + 6u);
 
 void main() {
-    vertDataOut.chunkIndex = gl_BaseInstance;
     vec3 chunkOffset = chunks_getChunkRenderPos(gl_BaseInstance);
 
-    vertDataOut.quadIndex = uint(gl_VertexID) / 4;
+    vertDataOut.quadIndex = uint(gl_VertexID) >> 2;
     uint quadPosDataIdx = ssbo_quadPosIndexBuffer[vertDataOut.quadIndex] * 3u;
 
     uvec2 posXData = ssbo_quadPosDataBuffer[quadPosDataIdx];

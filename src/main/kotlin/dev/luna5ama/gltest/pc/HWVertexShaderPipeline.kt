@@ -1,9 +1,8 @@
 package dev.luna5ama.gltest.pc
 
 import dev.fastmc.common.ParallelUtils
-import dev.fastmc.common.TickTimer
+import dev.luna5ama.gltest.glDebugGroup
 import dev.luna5ama.gltest.structs.DrawElementsIndirectCommand
-import dev.luna5ama.gltest.structs.QuadBatchInfo
 import dev.luna5ama.gltest.structs.sizeof
 import dev.luna5ama.gltest.terrain.register
 import dev.luna5ama.glwrapper.ShaderBindingSpecs
@@ -174,8 +173,7 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
         if (batchCount == 0) return
 
         if (!scene.gameInstance.toggle3) {
-            cullPass(1)
-            drawPass(outputIndirectBuffer)
+            drawPass(1)
 
             renderer.cullPipeline.depthBuffer.hwDepthBlit()
             glViewport(0, 0, scene.camera.screenWidth / 8, scene.camera.screenHeight / 8)
@@ -188,36 +186,37 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
             glDepthMask(true)
             glColorMask(true, true, true, true)
 
-            cullPass(2)
-            drawPass(outputIndirectBuffer)
+            drawPass(2)
         } else {
-            cullPass(3)
-            drawPass(outputIndirectBuffer)
-
-            drawPass(inputIndirectBuffer)
+            drawPass(3)
         }
     }
 
-    private fun cullPass(passIndex: Int) {
-        clearShader.bind()
-        clearShader.applyBinding {
-            buffer(indirectBufferBindings)
+    private fun drawPass(passIndex: Int) {
+        glDebugGroup("DrawPass-$passIndex-Setup") {
+            clearShader.bind()
+            clearShader.applyBinding {
+                buffer(indirectBufferBindings)
+            }
+            glDispatchCompute(1, 1, 1)
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
+            val shader = indirectSetupShaders[passIndex]
+            shader.bind()
+            shader.applyBinding {
+                buffer(indirectBufferBindings)
+                buffer(renderer.bufferBindings)
+                buffer(scene.terrainMeshData.bufferBindings)
+                buffer(scene.camera.uboBinding)
+            }
+            glDispatchCompute((batchCount + 255) / 256, 1, 1)
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT or GL_COMMAND_BARRIER_BIT)
         }
-        glDispatchCompute(1, 1, 1)
-        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
-        val shader = indirectSetupShaders[passIndex]
-        shader.bind()
-        shader.applyBinding {
-            buffer(indirectBufferBindings)
-            buffer(renderer.bufferBindings)
-            buffer(scene.terrainMeshData.bufferBindings)
-            buffer(scene.camera.uboBinding)
+        glDebugGroup("DrawPass-$passIndex-Draw") {
+            draw0(outputIndirectBuffer)
         }
-        glDispatchCompute((batchCount + 255) / 256, 1, 1)
-        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT or GL_COMMAND_BARRIER_BIT)
     }
 
-    private fun drawPass(buffer: BufferObject.Immutable) {
+    private fun draw0(buffer: BufferObject.Immutable) {
         scene.vbuffer.fbo.bind()
         glViewport(0, 0, scene.vbuffer.fbo.width, scene.vbuffer.fbo.height)
         glEnable(GL_CULL_FACE)
