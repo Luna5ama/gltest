@@ -86,9 +86,6 @@ abstract class OcclusionCullingPipeline(
             val width = scene.camera.screenWidth / 4
             val height = scene.camera.screenHeight / 4
             if (cullDepthTex.width != width || cullDepthTex.height != height) {
-                glNamedFramebufferParameteri(fbo.id, GL_FRAMEBUFFER_DEFAULT_WIDTH, width)
-                glNamedFramebufferParameteri(fbo.id, GL_FRAMEBUFFER_DEFAULT_HEIGHT, height)
-
                 cullTempTex.apply {
                     destroy()
                     allocate(1, ImageFormat.R32_F, width, height)
