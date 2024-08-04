@@ -51,14 +51,13 @@ class HiZBufferGen(val scene: TerrainScene) : IGLObjContainer by IGLObjContainer
 
         if (input.id != output.id) {
             glViewport(0, 0, inputWidth, inputHeight)
-            scene.samplers.nearestClampEdge.bindSamplerUnit(0)
 
             glNamedFramebufferTexture(fbo.id, GL_DEPTH_ATTACHMENT, output.id, 0)
             fbo.check()
             fbo.bind()
             scene.basic.blitShader.bind()
             scene.basic.blitShader.applyBinding {
-                sampler("usam_input", input)
+                sampler("usam_input", input, scene.samplers.nearestClampEdge)
                 subroutine(scene.basic.sampleRRRBinding)
                 subroutine(depthType.subroutineBindings)
                 subroutine(kernelType.subroutineBinding)
@@ -67,7 +66,6 @@ class HiZBufferGen(val scene: TerrainScene) : IGLObjContainer by IGLObjContainer
         }
 
         output.bindTextureUnit(0)
-        scene.samplers.nearestClampEdge.bindSamplerUnit(0)
 
         depthShader.uniform2f("uval_planeZ", planeZ)
 
@@ -120,21 +118,19 @@ class HiZBufferGen(val scene: TerrainScene) : IGLObjContainer by IGLObjContainer
 
         if (input.id != output.id) {
             glViewport(0, 0, inputWidth, inputHeight)
-            scene.samplers.nearestClampEdge.bindSamplerUnit(0)
 
             glNamedFramebufferTexture(fbo.id, GL_COLOR_ATTACHMENT0, output.id, 0)
             fbo.check()
             fbo.bind()
             scene.basic.blitShader.bind()
             scene.basic.blitShader.applyBinding {
-                sampler("usam_input", input)
+                sampler("usam_input", input, scene.samplers.nearestClampEdge)
                 subroutine(scene.basic.sampleRGBABinding)
             }
             scene.basic.drawQuad()
         }
 
         output.bindTextureUnit(0)
-        scene.samplers.nearestClampEdge.bindSamplerUnit(0)
 
         for (i in 1 until output.levels) {
             glNamedFramebufferTexture(fbo.id, GL_COLOR_ATTACHMENT0, output.id, i)
