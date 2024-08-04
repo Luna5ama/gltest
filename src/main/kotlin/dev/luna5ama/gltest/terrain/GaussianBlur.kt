@@ -75,10 +75,10 @@ class GaussianBlur(private val scene: TerrainScene) : IGLObjContainer by IGLObjC
 
             val swapTexture = getTexture2D(input.internalformat!!, max(inputWidth, outputWidth), max(inputHeight, outputHeight))
             fbo1.clearAttachments()
-            fbo1.attachNonLayered(swapTexture, GL_COLOR_ATTACHMENT0, 0)
+            fbo1.attach(swapTexture, GL_COLOR_ATTACHMENT0, 0)
 
             fbo2.clearAttachments()
-            fbo2.attachNonLayered(output, GL_COLOR_ATTACHMENT0, outputLevel)
+            fbo2.attach(output, GL_COLOR_ATTACHMENT0, outputLevel)
 
             shader.bind()
             shader.uniform1f("uval_radiusMul", radiusMul)

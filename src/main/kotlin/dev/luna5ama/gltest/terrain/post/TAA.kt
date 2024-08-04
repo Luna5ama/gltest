@@ -123,7 +123,7 @@ class TAA(private val scene: TerrainScene, samples: Int, private val radius: Flo
             prevFrameTex.allocate(1, ImageFormat.R16_G16_B16_A16_F, scene.camera.screenWidth, scene.camera.screenHeight)
             prevFrameTex.linearClampEdge()
 
-            lastFrameFbo.attachNonLayered(prevFrameTex, GL_COLOR_ATTACHMENT0)
+            lastFrameFbo.attach(prevFrameTex, GL_COLOR_ATTACHMENT0)
             lastFrameFbo.setDrawBufferAll()
             lastFrameFbo.check()
             lastFrameFbo.clearColor(0, 0.0f, 0.0f, 0.0f, 0.0f)

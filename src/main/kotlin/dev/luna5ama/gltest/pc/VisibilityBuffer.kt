@@ -56,15 +56,15 @@ class VisibilityBuffer(private val scene: PointCloudScene) : IGLObjContainer by 
 
             fbo.apply {
                 destroyFbo()
-                attachNonLayered(dataTex, GL_COLOR_ATTACHMENT0)
-                attachNonLayered(depthTex, GL_DEPTH_ATTACHMENT)
+                attach(dataTex, GL_COLOR_ATTACHMENT0)
+                attach(depthTex, GL_DEPTH_ATTACHMENT)
                 setDrawBufferAll()
                 check()
             }
 
             depthFbo.apply {
                 destroyFbo()
-                attachNonLayered(depthTex, GL_DEPTH_ATTACHMENT)
+                attach(depthTex, GL_DEPTH_ATTACHMENT)
                 check()
             }
 

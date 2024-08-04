@@ -75,7 +75,7 @@ class AccumEnvCubemap(private val scene: TerrainScene) : IGLObjContainer by IGLO
     init {
         texture.allocate(1, ImageFormat.R16_G16_B16_F, 4096, 4096)
         texture.setFilter(GL_LINEAR, GL_LINEAR)
-        cubeMapFbo.attachLayerAll(texture, GL_COLOR_ATTACHMENT0)
+        cubeMapFbo.attach(texture, GL_COLOR_ATTACHMENT0)
         cubeMapFbo.check()
     }
 

@@ -37,7 +37,7 @@ class WaterRef(private val scene: TerrainScene) : IGLObjContainer by IGLObjConta
                 linearClampEdge()
             }
             fbo.apply {
-                attachNonLayered(refUvTex, GL_COLOR_ATTACHMENT0)
+                attach(refUvTex, GL_COLOR_ATTACHMENT0)
                 check()
             }
         }
@@ -47,7 +47,7 @@ class WaterRef(private val scene: TerrainScene) : IGLObjContainer by IGLObjConta
         update()
 
         fbo.apply {
-            attachNonLayered(input.depthStencilTex, GL_DEPTH_ATTACHMENT)
+            attach(input.depthStencilTex, GL_DEPTH_ATTACHMENT)
             check()
             bind()
         }

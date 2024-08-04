@@ -96,8 +96,8 @@ class VelocityBuffer(private val scene: TerrainScene) : IGLObjContainer by IGLOb
                 linearClampEdge()
             }
             fbo.apply {
-                attachNonLayered(uvDiffTex, GL_COLOR_ATTACHMENT0)
-                attachNonLayered(worldVelocity, GL_COLOR_ATTACHMENT1)
+                attach(uvDiffTex, GL_COLOR_ATTACHMENT0)
+                attach(worldVelocity, GL_COLOR_ATTACHMENT1)
                 setDrawBufferAll()
                 check()
             }

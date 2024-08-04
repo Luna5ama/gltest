@@ -3,7 +3,6 @@ package dev.luna5ama.gltest
 import dev.luna5ama.gltest.terrain.IGLObjContainer
 import dev.luna5ama.gltest.terrain.register
 import dev.luna5ama.glwrapper.api.GL_COLOR_ATTACHMENT0
-import dev.luna5ama.glwrapper.api.GL_DEPTH_ATTACHMENT
 import dev.luna5ama.glwrapper.api.GL_DEPTH_STENCIL_ATTACHMENT
 import dev.luna5ama.glwrapper.enums.ImageFormat
 import dev.luna5ama.glwrapper.objects.FramebufferObject
@@ -33,8 +32,8 @@ class MainFbo(private val scene: AbstractScene, private val name: String) : IGLO
 
             fbo.apply {
                 clearAttachments()
-                attachNonLayered(colorTex, GL_COLOR_ATTACHMENT0) // Regular color
-                attachNonLayered(depthStencilTex, GL_DEPTH_STENCIL_ATTACHMENT) // Depth & Stencil
+                attach(colorTex, GL_COLOR_ATTACHMENT0) // Regular color
+                attach(depthStencilTex, GL_DEPTH_STENCIL_ATTACHMENT) // Depth & Stencil
                 check()
                 label("MainFBO.$name.FBO")
             }

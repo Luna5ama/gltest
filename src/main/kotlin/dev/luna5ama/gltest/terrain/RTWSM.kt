@@ -2,7 +2,6 @@ package dev.luna5ama.gltest.terrain
 
 import dev.fastmc.common.MathUtil
 import dev.fastmc.common.TickTimer
-import dev.fastmc.common.toRadians
 import dev.luna5ama.gltest.*
 import dev.luna5ama.gltest.Frustum
 import dev.luna5ama.glwrapper.ShaderBindingSpecs
@@ -112,7 +111,7 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
 
     private val imap2DFbo = register(FramebufferObject()).apply {
         label("RTWSM.Importance2DFBO")
-        attachNonLayered(imap2D, GL_COLOR_ATTACHMENT0)
+        attach(imap2D, GL_COLOR_ATTACHMENT0)
         apply { check() }
     }
 
@@ -145,7 +144,7 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
     }
 
     private val renderFbo = register(FramebufferObject()).apply {
-        attachNonLayered(shadowDepthTexture, GL_DEPTH_ATTACHMENT, 0)
+        attach(shadowDepthTexture, GL_DEPTH_ATTACHMENT, 0)
         check()
     }
 

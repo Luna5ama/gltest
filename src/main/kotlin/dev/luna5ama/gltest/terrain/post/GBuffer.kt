@@ -99,9 +99,9 @@ class GBuffer(private val scene: TerrainScene, val name: String) : IGLObjContain
                 setWrap(GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE)
             }
             fbo.apply {
-                attachNonLayered(tex1, GL_COLOR_ATTACHMENT0, 0)
-                attachNonLayered(tex2, GL_COLOR_ATTACHMENT1, 0)
-                attachNonLayered(depthStencilTex, GL_DEPTH_STENCIL_ATTACHMENT, 0)
+                attach(tex1, GL_COLOR_ATTACHMENT0, 0)
+                attach(tex2, GL_COLOR_ATTACHMENT1, 0)
+                attach(depthStencilTex, GL_DEPTH_STENCIL_ATTACHMENT, 0)
                 check()
             }
         }

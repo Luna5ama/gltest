@@ -64,7 +64,7 @@ class Bloom(private val scene: TerrainScene) : IGLObjContainer by IGLObjContaine
 
         val fbo = swapFbos.fbos[0]
         glClearNamedFramebufferf(fbo.id, GL_COLOR, 0, 0.0f, 0.0f, 0.0f, 0.0f)
-        fbo.attachNonLayered(scene.waterGBuffer.depthStencilTex, GL_DEPTH_ATTACHMENT)
+        fbo.attach(scene.waterGBuffer.depthStencilTex, GL_DEPTH_ATTACHMENT)
         fbo.bind()
 
         initPass.bind()
@@ -172,7 +172,7 @@ class Bloom(private val scene: TerrainScene) : IGLObjContainer by IGLObjContaine
                             linearClampEdge()
                     }
                     fbos[i].apply {
-                        attachNonLayered(textures[i], GL_COLOR_ATTACHMENT0) // Color
+                        attach(textures[i], GL_COLOR_ATTACHMENT0) // Color
                         check()
                     }
                 }

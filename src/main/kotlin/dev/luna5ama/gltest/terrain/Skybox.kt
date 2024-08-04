@@ -87,7 +87,7 @@ class Skybox(private val scene: TerrainScene) : IGLObjContainer by IGLObjContain
 
     init {
         texture.allocate(1, ImageFormat.R16_G16_B16_F, 4096, 4096)
-        cubeMapFbo.attachLayerAll(texture, GL_COLOR_ATTACHMENT0, 0)
+        cubeMapFbo.attach(texture, GL_COLOR_ATTACHMENT0, 0)
         cubeMapFbo.check()
     }
 

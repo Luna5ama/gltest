@@ -151,10 +151,10 @@ class SolidLighting(private val scene: TerrainScene) : IGLObjContainer by IGLObj
             }
             fbo.apply {
                 clearAttachments()
-                attachNonLayered(tex1, GL_COLOR_ATTACHMENT0)
-                attachNonLayered(tex2, GL_COLOR_ATTACHMENT1)
-                attachNonLayered(fboGroup.output.colorTex, GL_COLOR_ATTACHMENT2)
-                attachNonLayered(fboGroup.input.depthStencilTex, GL_DEPTH_STENCIL_ATTACHMENT)
+                attach(tex1, GL_COLOR_ATTACHMENT0)
+                attach(tex2, GL_COLOR_ATTACHMENT1)
+                attach(fboGroup.output.colorTex, GL_COLOR_ATTACHMENT2)
+                attach(fboGroup.input.depthStencilTex, GL_DEPTH_STENCIL_ATTACHMENT)
                 setDrawBufferAll()
                 check()
             }

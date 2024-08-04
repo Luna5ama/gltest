@@ -102,7 +102,7 @@ abstract class OcclusionCullingPipeline(
 
                 fbo.apply {
                     destroyFbo()
-                    attachNonLayered(cullDepthTex, GL_DEPTH_ATTACHMENT)
+                    attach(cullDepthTex, GL_DEPTH_ATTACHMENT)
                     check()
                 }
             }

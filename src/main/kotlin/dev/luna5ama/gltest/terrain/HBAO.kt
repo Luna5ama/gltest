@@ -55,7 +55,7 @@ class HBAO(private val scene: TerrainScene, private val solidLighting: SolidLigh
             }
             finalFbo.apply {
                 clearAttachments()
-                attachNonLayered(finalTex, GL_COLOR_ATTACHMENT0)
+                attach(finalTex, GL_COLOR_ATTACHMENT0)
                 setDrawBufferAll()
                 check()
             }
