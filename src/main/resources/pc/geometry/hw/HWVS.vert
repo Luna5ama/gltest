@@ -1,9 +1,9 @@
 #version 460 core
 #define CUTOUT
 
-#include "../GlobalCamera.glsl"
-#include "../utils/SWRUtils.glsl"
-#include "Chunks.glsl"
+#include "../../GlobalCamera.glsl"
+#include "../../utils/SWRUtils.glsl"
+#include "../Chunks.glsl"
 
 layout(std430) readonly buffer QuadPosDataBuffer {
     uvec2 ssbo_quadPosDataBuffer[];

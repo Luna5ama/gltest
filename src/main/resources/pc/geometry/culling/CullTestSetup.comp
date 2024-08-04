@@ -3,10 +3,10 @@
 #extension GL_KHR_shader_subgroup_arithmetic : enable
 #extension GL_KHR_shader_subgroup_ballot : enable
 
-#include "../vbuffer/VBuffers.glsl"
-#include "../GlobalCamera.glsl"
-#include "../utils/SWRUtils.glsl"
-#include "Chunks.glsl"
+#include "../../vbuffer/VBuffers.glsl"
+#include "../../GlobalCamera.glsl"
+#include "../../utils/SWRUtils.glsl"
+#include "../Chunks.glsl"
 
 layout(local_size_x = 128) in;
 

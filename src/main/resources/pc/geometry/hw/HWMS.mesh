@@ -2,8 +2,8 @@
 #extension GL_KHR_shader_subgroup_ballot : enable
 #extension GL_NV_mesh_shader : enable
 
-#include "../GlobalCamera.glsl"
-#include "../utils/SWRUtils.glsl"
+#include "../../GlobalCamera.glsl"
+#include "../../utils/SWRUtils.glsl"
 
 layout(local_size_x = 16) in;
 

@@ -1,7 +1,7 @@
 #version 460 core
 #define CUTOUT
 
-#include "../vbuffer/VBuffers.glsl"
+#include "../../vbuffer/VBuffers.glsl"
 
 #ifdef CUTOUT
 uniform sampler2D usam_blockAlbedoAtlas;

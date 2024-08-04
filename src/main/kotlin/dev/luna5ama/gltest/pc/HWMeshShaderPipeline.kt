@@ -1,9 +1,7 @@
 package dev.luna5ama.gltest.pc
 
 import dev.fastmc.common.ParallelUtils
-import dev.fastmc.common.collection.StaticBitSet
 import dev.luna5ama.gltest.glDebugGroup
-import dev.luna5ama.gltest.structs.CullTestCommand
 import dev.luna5ama.gltest.structs.MeshShaderBatchInfo
 import dev.luna5ama.gltest.structs.sizeof
 import dev.luna5ama.gltest.terrain.register
@@ -132,12 +130,12 @@ class HWMeshShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRend
     }
 
     inner class DrawShader(cullPass: Int) : ShaderProgram(
-        ShaderSource.Task("pc/geometry/HWMS.task") {
+        ShaderSource.Task("pc/geometry/hw/HWMS.task") {
             define("CULL_PASS", cullPass)
             define("FLAG_TYPE", renderer.visibilityFlagType.glslTypeName)
         },
-        ShaderSource.Mesh("pc/geometry/HWMS.mesh"),
-        ShaderSource.Frag("pc/geometry/HW.frag") {
+        ShaderSource.Mesh("pc/geometry/hw/HWMS.mesh"),
+        ShaderSource.Frag("pc/geometry/hw/HW.frag") {
             define("MESH_SHADER")
         }
     ) {

@@ -28,7 +28,7 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
     private val vao = register(VertexArrayObject())
     private val clearShader = register(
         ShaderProgram(
-            ShaderSource.Comp("pc/geometry/hwvs/Clear.comp")
+            ShaderSource.Comp("pc/geometry/hw/Clear.comp")
         )
     ).apply {
         label("HWVS.Clear")
@@ -36,8 +36,8 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
     private val indirectSetupShaders = List(4) { register(IndirectSetupShader(it)) }
     private val drawShader = register(
         ShaderProgram(
-            ShaderSource.Vert("pc/geometry/HWVS.vert"),
-            ShaderSource.Frag("pc/geometry/HW.frag")
+            ShaderSource.Vert("pc/geometry/hw/HWVS.vert"),
+            ShaderSource.Frag("pc/geometry/hw/HW.frag")
         )
     ).apply {
         label("HWVS.Draw")
@@ -240,7 +240,7 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
     }
 
     private inner class IndirectSetupShader(cullPass: Int) : ShaderProgram(
-        ShaderSource.Comp("pc/geometry/CullIndirectSetup.comp") {
+        ShaderSource.Comp("pc/geometry/culling/CullIndirectSetup.comp") {
             define("FLAG_TYPE", renderer.visibilityFlagType.glslTypeName)
             define("CULL_PASS", cullPass)
         },

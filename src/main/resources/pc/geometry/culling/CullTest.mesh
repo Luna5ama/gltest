@@ -2,8 +2,8 @@
 
 #extension GL_NV_mesh_shader : enable
 
-#include "Chunks.glsl"
-#include "../GlobalCamera.glsl"
+#include "../Chunks.glsl"
+#include "../../GlobalCamera.glsl"
 
 #define BOX_PER_GROUP 8
 #define VERT_PER_BOX 8

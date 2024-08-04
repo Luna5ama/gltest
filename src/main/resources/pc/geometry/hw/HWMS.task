@@ -8,7 +8,7 @@
 
 #extension GL_NV_mesh_shader : enable
 
-#include "Chunks.glsl"
+#include "../Chunks.glsl"
 
 layout(local_size_x = 1) in;
 

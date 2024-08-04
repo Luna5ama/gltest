@@ -1,7 +1,7 @@
 #version 460 core
 
-#include "Chunks.glsl"
-#include "../GlobalCamera.glsl"
+#include "../Chunks.glsl"
+#include "../../GlobalCamera.glsl"
 
 struct CullTestCommand {
     uint chunkIndex;
