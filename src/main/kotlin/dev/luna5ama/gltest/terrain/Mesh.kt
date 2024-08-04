@@ -414,7 +414,7 @@ class TerrainMesh(private val scene: TerrainScene, dir: File) : IGLObjContainer 
                 )
                 shader.applyBinding {
                     buffer(visibleBufferBinding)
-                    buffer("indirectCounter", indirect, BufferTarget.AtomicCounter)
+                    buffer("indirectCounter", indirect, BufferTarget.ShaderStorage)
                     buffer("ChunkOffsetBuffer", chunkOffsetBuffer, BufferTarget.ShaderStorage)
                     buffer("RawIndirectBuffer", layer.rawIndirectBuffer, BufferTarget.ShaderStorage)
                     buffer(
