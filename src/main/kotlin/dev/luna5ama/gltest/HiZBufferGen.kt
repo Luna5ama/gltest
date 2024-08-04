@@ -3,30 +3,30 @@ package dev.luna5ama.gltest
 import dev.luna5ama.gltest.terrain.IGLObjContainer
 import dev.luna5ama.gltest.terrain.TerrainScene
 import dev.luna5ama.gltest.terrain.register
-import dev.luna5ama.glwrapper.ShaderBindingSpecs
 import dev.luna5ama.glwrapper.ShaderProgram
 import dev.luna5ama.glwrapper.ShaderSource
 import dev.luna5ama.glwrapper.api.*
 import dev.luna5ama.glwrapper.enums.ImageFormat
-import dev.luna5ama.glwrapper.enums.ShaderStage
 import dev.luna5ama.glwrapper.objects.FramebufferObject
 import dev.luna5ama.glwrapper.objects.TextureObject
 import org.joml.Vector2f
 import kotlin.math.max
 
 class HiZBufferGen(val scene: TerrainScene) : IGLObjContainer by IGLObjContainer.Impl() {
-    private val depthShader = ShaderProgram(
-        ShaderSource.Vert("terrain/filters/HiZ.vert.glsl"),
-        ShaderSource.Frag("terrain/filters/HiZ.frag.glsl") {
-            define("DEPTH_OUTPUT")
+    private val shaders = object : ShaderProgram.Variants<ShaderKey>() {
+        override fun create(key: ShaderKey): ShaderProgram {
+            return register(ShaderProgram(
+                ShaderSource.Vert("terrain/filters/HiZ.vert.glsl"),
+                ShaderSource.Frag("terrain/filters/HiZ.frag.glsl") {
+                    if (key.depthOutput) {
+                        define("DEPTH_OUTPUT")
+                    }
+                    define(key.kernelType.defineName)
+                    key.depthType?.let { define(it.defineName) }
+                }
+            ))
         }
-    )
-    private val colorShader = ShaderProgram(
-        ShaderSource.Vert("terrain/filters/HiZ.vert.glsl"),
-        ShaderSource.Frag("terrain/filters/HiZ.frag.glsl") {
-            define("COLOR_OUTPUT")
-        }
-    )
+    }
 
     private val fbo = register(FramebufferObject())
 
@@ -34,7 +34,7 @@ class HiZBufferGen(val scene: TerrainScene) : IGLObjContainer by IGLObjContainer
         input: TextureObject.Texture2D,
         output: TextureObject.Texture2D,
         kernelType: KernelType,
-        depthType: DepthType ,
+        depthType: DepthType,
         planeZ: Vector2f
     ) {
         require(input.internalformat is ImageFormat.Depth) { "Input texture must be depth texture" }
@@ -55,18 +55,17 @@ class HiZBufferGen(val scene: TerrainScene) : IGLObjContainer by IGLObjContainer
             glNamedFramebufferTexture(fbo.id, GL_DEPTH_ATTACHMENT, output.id, 0)
             fbo.check()
             fbo.bind()
-            scene.basic.blitShader.bind()
-            scene.basic.blitShader.applyBinding {
+            val shader = scene.basic.blitShader[Basic.SampleChannel.RRR]
+            shader.bind()
+            shader.applyBinding {
                 sampler("usam_input", input, scene.samplers.nearestClampEdge)
-                subroutine(scene.basic.sampleRRRBinding)
-                subroutine(depthType.subroutineBindings)
-                subroutine(kernelType.subroutineBinding)
             }
             scene.basic.drawQuad()
         }
 
         output.bindTextureUnit(0)
 
+        val depthShader = shaders[ShaderKey(kernelType, depthType)]
         depthShader.uniform2f("uval_planeZ", planeZ)
 
         for (i in 1 until output.levels) {
@@ -87,8 +86,6 @@ class HiZBufferGen(val scene: TerrainScene) : IGLObjContainer by IGLObjContainer
             depthShader.uniform1i("uval_level", max(0, i - 1))
             depthShader.applyBinding {
                 sampler("usam_input", output, scene.samplers.nearestClampEdge)
-                subroutine(kernelType.subroutineBinding)
-                subroutine(depthType.subroutineBindings)
             }
 
             glViewport(0, 0, halfWidth, halfHeight)
@@ -122,10 +119,10 @@ class HiZBufferGen(val scene: TerrainScene) : IGLObjContainer by IGLObjContainer
             glNamedFramebufferTexture(fbo.id, GL_COLOR_ATTACHMENT0, output.id, 0)
             fbo.check()
             fbo.bind()
-            scene.basic.blitShader.bind()
-            scene.basic.blitShader.applyBinding {
+            val shader = scene.basic.blitShader[Basic.SampleChannel.RGBA]
+            shader.bind()
+            shader.applyBinding {
                 sampler("usam_input", input, scene.samplers.nearestClampEdge)
-                subroutine(scene.basic.sampleRGBABinding)
             }
             scene.basic.drawQuad()
         }
@@ -139,6 +136,7 @@ class HiZBufferGen(val scene: TerrainScene) : IGLObjContainer by IGLObjContainer
             val halfWidth = inputWidth / 2
             val halfHeight = inputHeight / 2
 
+            val colorShader = shaders[ShaderKey(kernelType)]
             colorShader.bind()
             colorShader.uniform4f(
                 "uval_InputSize",
@@ -150,7 +148,6 @@ class HiZBufferGen(val scene: TerrainScene) : IGLObjContainer by IGLObjContainer
             colorShader.uniform1i("uval_level", max(0, i - 1))
             colorShader.applyBinding {
                 sampler("usam_input", output, scene.samplers.nearestClampEdge)
-                subroutine(kernelType.subroutineBinding)
             }
 
             glViewport(0, 0, halfWidth, halfHeight)
@@ -167,26 +164,41 @@ class HiZBufferGen(val scene: TerrainScene) : IGLObjContainer by IGLObjContainer
         glDepthFunc(GL_LEQUAL)
     }
 
-    enum class KernelType(val subroutineBinding: ShaderBindingSpecs.Subroutine) {
-        MIN(ShaderBindingSpecs.Subroutine("usubroutine_kernel", ShaderStage.FragmentShader, "Kernel_min")),
-        MAX(ShaderBindingSpecs.Subroutine("usubroutine_kernel", ShaderStage.FragmentShader, "Kernel_max")),
-        AVG(ShaderBindingSpecs.Subroutine("usubroutine_kernel", ShaderStage.FragmentShader, "Kernel_avg"))
+    private class ShaderKey private constructor(
+        val kernelType: KernelType,
+        val depthType: DepthType?,
+        val depthOutput: Boolean
+    ) {
+        constructor(kernelType: KernelType) : this(kernelType, null, false)
+        constructor(kernelType: KernelType, depthType: DepthType) : this(kernelType, depthType, true)
+
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (other !is ShaderKey) return false
+
+            if (kernelType != other.kernelType) return false
+            if (depthType != other.depthType) return false
+            if (depthOutput != other.depthOutput) return false
+
+            return true
+        }
+
+        override fun hashCode(): Int {
+            var result = kernelType.hashCode()
+            result = 31 * result + depthType.hashCode()
+            result = 31 * result + depthOutput.hashCode()
+            return result
+        }
     }
 
-    enum class DepthType(vararg subroutineBindings: ShaderBindingSpecs.Subroutine) {
-        LINEAR(
-            ShaderBindingSpecs.Subroutine(
-                "usubroutine_depthToFloat",
-                ShaderStage.FragmentShader,
-                "DepthToFloat_Linear"
-            ),
-            ShaderBindingSpecs.Subroutine("usubroutine_floatToDepth", ShaderStage.FragmentShader, "FloatToDepth_Linear")
-        ),
-        LOG(
-            ShaderBindingSpecs.Subroutine("usubroutine_depthToFloat", ShaderStage.FragmentShader, "DepthToFloat_Log"),
-            ShaderBindingSpecs.Subroutine("usubroutine_floatToDepth", ShaderStage.FragmentShader, "FloatToDepth_Log")
-        );
+    enum class KernelType(val defineName: String) {
+        MIN("KERNEL_MIN"),
+        MAX("KERNEL_MAX"),
+        AVG("KERNEL_AVG");
+    }
 
-        val subroutineBindings = subroutineBindings.toList()
+    enum class DepthType(val defineName: String) {
+        LINEAR("DEPTH_LINEAR"),
+        LOG("DEPTH_LOG");
     }
 }

@@ -12,48 +12,40 @@ uniform int uval_level;
 
 in vec2 fTexCoordI;
 
-subroutine DATA_TYPE Kernal(DATA_TYPE a, DATA_TYPE b, DATA_TYPE c, DATA_TYPE d);
-
-subroutine(Kernal) DATA_TYPE Kernel_avg(DATA_TYPE a, DATA_TYPE b, DATA_TYPE c, DATA_TYPE d) {
+#if defined(KERNEL_AVG)
+DATA_TYPE kernel(DATA_TYPE a, DATA_TYPE b, DATA_TYPE c, DATA_TYPE d) {
     return (a + b + c + d) * 0.25;
 }
-
-subroutine(Kernal) DATA_TYPE Kernel_min(DATA_TYPE a, DATA_TYPE b, DATA_TYPE c, DATA_TYPE d) {
+#elif defined(KERNEL_MIN)
+DATA_TYPE kernel(DATA_TYPE a, DATA_TYPE b, DATA_TYPE c, DATA_TYPE d) {
     return min(min(a, b), min(c, d));
 }
-
-subroutine(Kernal) DATA_TYPE Kernel_max(DATA_TYPE a, DATA_TYPE b, DATA_TYPE c, DATA_TYPE d) {
+#elif defined(KERNEL_MAX)
+DATA_TYPE kernel(DATA_TYPE a, DATA_TYPE b, DATA_TYPE c, DATA_TYPE d) {
     return max(max(a, b), max(c, d));
 }
-
-subroutine uniform Kernal usubroutine_kernel;
+#endif
 
 #if defined(DEPTH_OUTPUT)
 uniform vec2 uval_planeZ;
 
-subroutine float DepthToFloat(float depth);
-subroutine float FloatToDepth(float depth);
-
-subroutine(DepthToFloat) float DepthToFloat_Linear(float depth) {
+#if defined(DEPTH_LINEAR)
+float depthToFloat(float depth) {
     return mix(uval_planeZ.x, uval_planeZ.y, depth);
 }
-
-subroutine(DepthToFloat) float DepthToFloat_Log(float depth) {
-    return (uval_planeZ.x * uval_planeZ.y) / (depth * (uval_planeZ.x - uval_planeZ.y) + uval_planeZ.y);
-}
-
-subroutine(FloatToDepth) float FloatToDepth_Linear(float depth) {
+float floatToDepth(float depth) {
     return (depth - uval_planeZ.x) / (uval_planeZ.y - uval_planeZ.x);
 }
-
-subroutine(FloatToDepth) float FloatToDepth_Log(float depth) {
+#elif defined(DEPTH_LOG)
+float depthToFloat(float depth) {
+    return (uval_planeZ.x * uval_planeZ.y) / (depth * (uval_planeZ.x - uval_planeZ.y) + uval_planeZ.y);
+}
+float floatToDepth(float depth) {
     float farMinusNear = uval_planeZ.y - uval_planeZ.x;
     float farPlusNear = uval_planeZ.y + uval_planeZ.x;
     return depth * (-farPlusNear / farMinusNear) - ((2.0 * uval_planeZ.y * uval_planeZ.x) / farMinusNear);
 }
-
-subroutine uniform DepthToFloat usubroutine_depthToFloat;
-subroutine uniform FloatToDepth usubroutine_floatToDepth;
+#endif
 
 void main() {
     ivec2 intTexCoord = ivec2(fTexCoordI);
@@ -66,7 +58,7 @@ void main() {
     float c4 = texelFetchOffset(usam_input, intTexCoord, uval_level, ivec2(1, 1)).r;
     c4 = usubroutine_depthToFloat(c4);
 
-    float v = usubroutine_kernel(c1, c2, c3, c4);
+    float v = kernel(c1, c2, c3, c4);
 
     gl_FragDepth = usubroutine_floatToDepth(v);
 }
@@ -80,6 +72,6 @@ void main() {
     vec4 c3 = texelFetchOffset(usam_input, intTexCoord, uval_level, ivec2(0, 1));
     vec4 c4 = texelFetchOffset(usam_input, intTexCoord, uval_level, ivec2(1, 1));
 
-    fragColor = usubroutine_kernel(c1, c2, c3, c4);
+    fragColor = kernel(c1, c2, c3, c4);
 }
 #endif

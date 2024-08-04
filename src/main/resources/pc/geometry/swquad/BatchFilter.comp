@@ -42,7 +42,6 @@ layout(std430) writeonly buffer BatchIndicesData {
     uint ssbo_batchIndicesData[];
 };
 
-#if CULL_PASS != 0
 layout(std430) readonly buffer VisibleBuffer {
     uint lastOffset;
     uint _padding1;
@@ -50,7 +49,6 @@ layout(std430) readonly buffer VisibleBuffer {
     uint _padding3;
     FLAG_TYPE states[];
 } ssbo_visibleBuffer;
-#endif
 
 shared uint shared_commandCount = 0u;
 
@@ -58,26 +56,27 @@ void main() {
     uint index = gl_GlobalInvocationID.x;
     bool batchFlag = false;
     if (index < ssbo_quadBatchInfo.batchCount) {
-        #if CULL_PASS != 0
         QuadBatchInfo command = ssbo_quadBatchInfo.batches[index];
         uint chunkIndex = command.chunkIndex;
         vec3 chunkOffset = chunks_getChunkRenderPos(chunkIndex);
-        #endif
 
-        #if CULL_PASS == 1
+        #if defined(VISIBILITY_STATE_LAST_VISIBLE)
         bool isCameraChunk = dot(chunkOffset, chunkOffset) < 1024.0;
         bool last = bool(ssbo_visibleBuffer.states[chunkIndex + ssbo_visibleBuffer.lastOffset]);
         batchFlag = last || isCameraChunk;
-        #elif CULL_PASS == 2
+
+        #elif defined(VISIBILITY_STATE_NEWLY_VISIBLE)
         bool last = bool(ssbo_visibleBuffer.states[chunkIndex + ssbo_visibleBuffer.lastOffset]);
         bool curr = bool(ssbo_visibleBuffer.states[chunkIndex]);
         batchFlag = !last && curr;
-        #elif CULL_PASS == 3
+
+        #elif defined(VISIBILITY_STATE_CURRENT_VISIBLE)
         bool isCameraChunk = dot(chunkOffset, chunkOffset) < 1024.0;
         bool curr = bool(ssbo_visibleBuffer.states[chunkIndex]) || isCameraChunk;
         batchFlag = curr;
         #else
         batchFlag = true;
+
         #endif
     }
 

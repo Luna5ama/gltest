@@ -404,7 +404,7 @@ class TerrainMesh(private val scene: TerrainScene, dir: File) : IGLObjContainer 
                     chunkInfo.chunkX == cameraChunkX && chunkInfo.chunkY == cameraChunkY && chunkInfo.chunkZ == cameraChunkZ
                 } ?: -1
 
-                val shader = indirectSetupCompShader
+                val shader = indirectSetupCompShader[visibleState]
                 shader.bind()
                 shader.uniform1ui("uval_prevVisibleOffset", chunkInfoSize)
                 shader.uniform3f("uval_originOffset",
@@ -422,7 +422,6 @@ class TerrainMesh(private val scene: TerrainScene, dir: File) : IGLObjContainer 
                         indirect.createView(16L, chunkInfoSize * sizeof(DrawElementsIndirectCommand)),
                         BufferTarget.ShaderStorage
                     )
-                    subroutine(visibleState.subroutineBinding)
                 }
 
                 glDispatchCompute((chunkInfoSize + 127) / 128, 1, 1)
@@ -440,9 +439,15 @@ class TerrainMesh(private val scene: TerrainScene, dir: File) : IGLObjContainer 
         }
     }
 
-    private val indirectSetupCompShader = ShaderProgram(
-        ShaderSource.Comp("terrain/culling/IndirectSetup.comp.glsl")
-    )
+    private val indirectSetupCompShader = object : ShaderProgram.Variants<VisibleState>() {
+        override fun create(key: VisibleState): ShaderProgram {
+            return register(ShaderProgram(
+                ShaderSource.Comp("terrain/culling/IndirectSetup.comp.glsl") {
+                    define(key.defineName)
+                }
+            ))
+        }
+    }
 
     class ChunkInfo(
         val chunkIndex: Int,
@@ -473,10 +478,10 @@ class TerrainMesh(private val scene: TerrainScene, dir: File) : IGLObjContainer 
         }
     }
 
-    enum class VisibleState(val subroutineBinding: ShaderBindingSpecs.Subroutine) {
-        LAST_VISIBLE(ShaderBindingSpecs.Subroutine("usubroutine_VisibleStateCompute", ShaderStage.ComputeShader, "lastVisible")),
-        NEWLY_VISIBLE(ShaderBindingSpecs.Subroutine("usubroutine_VisibleStateCompute", ShaderStage.ComputeShader, "newlyVisible")),
-        CURRENT_VISIBLE(ShaderBindingSpecs.Subroutine("usubroutine_VisibleStateCompute", ShaderStage.ComputeShader, "currentVisible")),
+    enum class VisibleState(val defineName: String) {
+        LAST_VISIBLE("VISIBLE_STATE_LAST"),
+        NEWLY_VISIBLE("VISIBLE_STATE_NEW"),
+        CURRENT_VISIBLE("VISIBLE_STATE_CURRENT"),
     }
 
     companion object {

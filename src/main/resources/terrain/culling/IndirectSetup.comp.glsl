@@ -24,11 +24,11 @@ layout(std430) restrict readonly buffer ChunkOffsetBuffer {
 };
 
 layout(std430) restrict buffer VisibleBufferRW {
-    uint_t visibleBufferRW[];
+uint_t visibleBufferRW[];
 };
 
 layout(std430) restrict readonly buffer VisibleBuffer {
-    uint_t visibleBuffer[];
+uint_t visibleBuffer[];
 };
 
 layout(std430) restrict readonly buffer RawIndirectBuffer {
@@ -39,11 +39,12 @@ layout(std430) restrict writeonly buffer OutIndirectBuffer {
     IndirectDrawCommand outIndirects[];
 };
 
-subroutine void VisibleStateCompute();
+void main() {
+    if (gl_GlobalInvocationID.x >= uval_prevVisibleOffset) {
+        return;
+    }
 
-subroutine uniform VisibleStateCompute usubroutine_VisibleStateCompute;
-
-subroutine(VisibleStateCompute) void lastVisible() {
+    #if defined(VISIBLE_STATE_LAST)
     IndirectDrawCommand cmd = rawIndirects[gl_GlobalInvocationID.x];
     vec3 offset = vec3(uvec3(chunkOffsets[cmd.baseInstance]) >> uvec3(0u, 8u, 16u) & uvec3(255u));
     vec3 coord = offset * 16.0f + uval_originOffset;
@@ -56,22 +57,20 @@ subroutine(VisibleStateCompute) void lastVisible() {
         return;
     }
 
+    #elif defined(VISIBLE_STATE_NEW)
     uint outIndex = atomicCounterIncrement(indirectCounter);
     outIndirects[outIndex] = rawIndirects[gl_GlobalInvocationID.x];
-}
 
-subroutine(VisibleStateCompute) void newlyVisible() {
     bool prev = bool(uint(visibleBuffer[gl_GlobalInvocationID.x + uval_prevVisibleOffset]));
     bool curr = bool(uint(visibleBuffer[gl_GlobalInvocationID.x]));
     if (prev || !curr) {
         return;
     }
 
+    #elif defined(VISIBLE_STATE_CURRENT)
     uint outIndex = atomicCounterIncrement(indirectCounter);
     outIndirects[outIndex] = rawIndirects[gl_GlobalInvocationID.x];
-}
 
-subroutine(VisibleStateCompute) void currentVisible() {
     IndirectDrawCommand cmd = rawIndirects[gl_GlobalInvocationID.x];
     vec3 offset = 8.0f + unpackUnorm4x8(chunkOffsets[cmd.baseInstance]).xyz * 16.0f + uval_originOffset;
 
@@ -83,12 +82,5 @@ subroutine(VisibleStateCompute) void currentVisible() {
 
     uint outIndex = atomicCounterIncrement(indirectCounter);
     outIndirects[outIndex] = cmd;
-}
-
-void main() {
-    if (gl_GlobalInvocationID.x >= uval_prevVisibleOffset) {
-        return;
-    }
-
-    usubroutine_VisibleStateCompute();
+    #endif
 }

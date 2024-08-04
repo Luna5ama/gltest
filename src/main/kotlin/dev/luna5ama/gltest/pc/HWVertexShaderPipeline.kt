@@ -1,6 +1,7 @@
 package dev.luna5ama.gltest.pc
 
 import dev.fastmc.common.ParallelUtils
+import dev.luna5ama.gltest.VisibilityState
 import dev.luna5ama.gltest.glDebugGroup
 import dev.luna5ama.gltest.structs.DrawElementsIndirectCommand
 import dev.luna5ama.gltest.structs.sizeof
@@ -33,7 +34,18 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
     ).apply {
         label("HWVS.Clear")
     }
-    private val indirectSetupShaders = List(4) { register(IndirectSetupShader(it)) }
+    private val indirectSetupShaders = object : ShaderProgram.Variants<VisibilityState>() {
+        override fun create(key: VisibilityState): ShaderProgram {
+            return register(ShaderProgram(
+                    ShaderSource.Comp("pc/geometry/culling/CullIndirectSetup.comp") {
+                        define("FLAG_TYPE", renderer.visibilityFlagType.glslTypeName)
+                        define(key.defineName)
+                    },
+            )).apply {
+                label("HWVS.IndirectSetup-$key")
+            }
+        }
+    }
     private val drawShader = register(
         ShaderProgram(
             ShaderSource.Vert("pc/geometry/hw/HWVS.vert"),
@@ -173,7 +185,7 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
         if (batchCount == 0) return
 
         if (!scene.gameInstance.toggle3) {
-            drawPass(1)
+            drawPass(VisibilityState.LAST_VISIBLE)
 
             renderer.cullPipeline.depthBuffer.hwDepthBlit()
             glViewport(0, 0, scene.camera.screenWidth / 8, scene.camera.screenHeight / 8)
@@ -186,21 +198,21 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
             glDepthMask(true)
             glColorMask(true, true, true, true)
 
-            drawPass(2)
+            drawPass(VisibilityState.NEWLY_VISIBLE)
         } else {
-            drawPass(3)
+            drawPass(VisibilityState.CURRENT_VISIBLE)
         }
     }
 
-    private fun drawPass(passIndex: Int) {
-        glDebugGroup("DrawPass-$passIndex-Setup") {
+    private fun drawPass(state: VisibilityState) {
+        glDebugGroup("DrawPass-$state-Setup") {
             clearShader.bind()
             clearShader.applyBinding {
                 buffer(indirectBufferBindings)
             }
             glDispatchCompute(1, 1, 1)
             glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
-            val shader = indirectSetupShaders[passIndex]
+            val shader = indirectSetupShaders[state]
             shader.bind()
             shader.applyBinding {
                 buffer(indirectBufferBindings)
@@ -211,7 +223,7 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
             glDispatchCompute((batchCount + 255) / 256, 1, 1)
             glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT or GL_COMMAND_BARRIER_BIT)
         }
-        glDebugGroup("DrawPass-$passIndex-Draw") {
+        glDebugGroup("DrawPass-$state-Draw") {
             draw0(outputIndirectBuffer)
         }
     }
@@ -238,13 +250,6 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
         buffer.bind(GL_PARAMETER_BUFFER)
         glMultiDrawElementsIndirectCount(GL_TRIANGLES, GL_UNSIGNED_SHORT, 16L, 0L, batchCount, 0)
     }
-
-    private inner class IndirectSetupShader(cullPass: Int) : ShaderProgram(
-        ShaderSource.Comp("pc/geometry/culling/CullIndirectSetup.comp") {
-            define("FLAG_TYPE", renderer.visibilityFlagType.glslTypeName)
-            define("CULL_PASS", cullPass)
-        },
-    )
 
     companion object {
         const val BATCH_MAX_QUAD = 65536 / 4

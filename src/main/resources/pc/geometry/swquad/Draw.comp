@@ -54,16 +54,6 @@ layout(std430) readonly buffer QuadAttribIndexBuffer {
 };
 #endif
 
-#if CULL_PASS != 0
-layout(std430) readonly buffer VisibleBuffer {
-    uint lastOffset;
-    uint _padding1;
-    uint _padding2;
-    uint _padding3;
-    FLAG_TYPE states[];
-} ssbo_visibleBuffer;
-#endif
-
 layout(std430) readonly buffer QuadBatchInfoBuffer {
     uint batchCount;
     uint _padding1;

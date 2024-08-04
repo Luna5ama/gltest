@@ -6,16 +6,21 @@ import dev.luna5ama.kmogus.MemoryStack
 import dev.luna5ama.gltest.terrain.IGLObjContainer
 import dev.luna5ama.gltest.terrain.register
 import dev.luna5ama.glwrapper.*
-import dev.luna5ama.glwrapper.enums.*
 import dev.luna5ama.glwrapper.enums.GLDataType
 import dev.luna5ama.glwrapper.objects.BufferObject
 import dev.luna5ama.glwrapper.objects.VertexArrayObject
 
 class Basic : IGLObjContainer by IGLObjContainer.Impl() {
-    val blitShader = register(ShaderProgram(
-        ShaderSource.Vert("terrain/Blit.vert.glsl"),
-        ShaderSource.Frag("terrain/Blit.frag.glsl")
-    ))
+    val blitShader: ShaderProgram.Variants<SampleChannel> = object : ShaderProgram.Variants<SampleChannel>() {
+        override fun create(key: SampleChannel): ShaderProgram {
+            return register(ShaderProgram(
+                ShaderSource.Vert("terrain/Blit.vert.glsl"),
+                ShaderSource.Frag("terrain/Blit.frag.glsl") {
+                    define(key.defineName)
+                }
+            ))
+        }
+    }
     val blitDepthOutputShader = register(ShaderProgram(
         ShaderSource.Vert("terrain/Blit.vert.glsl"),
         ShaderSource.Frag("terrain/Blit.frag.glsl") {
@@ -78,12 +83,18 @@ class Basic : IGLObjContainer by IGLObjContainer.Impl() {
         })
     }
 
-    val sampleRRRBinding = ShaderBindingSpecs.Subroutine("usubroutine_SampleChannel", ShaderStage.FragmentShader, "sampleRRR")
-    val sampleRGBABinding = ShaderBindingSpecs.Subroutine("usubroutine_SampleChannel", ShaderStage.FragmentShader, "sampleRGBA")
-    val sampleRGBBinding = ShaderBindingSpecs.Subroutine("usubroutine_SampleChannel", ShaderStage.FragmentShader, "sampleRGB")
-
     fun drawQuad() {
         blitVao.bind()
         glDrawArrays(GL_TRIANGLES, 0, 6)
+    }
+
+    enum class SampleChannel(val defineName: String) {
+        RRR("SAMPLE_CHANNEL_RRR"),
+        GGG("SAMPLE_CHANNEL_GGG"),
+        BBB("SAMPLE_CHANNEL_BBB"),
+        AAA("SAMPLE_CHANNEL_AAA"),
+        RGB("SAMPLE_CHANNEL_RGB"),
+        RGBA("SAMPLE_CHANNEL_RGBA"),
+        RGBPA("SAMPLE_CHANNEL_RGBA"),
     }
 }

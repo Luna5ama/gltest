@@ -38,7 +38,6 @@ layout(std430) buffer OutputIndirectBuffer {
     DrawElementsIndirectCommand commands[];
 } ssbo_outputIndirectBuffer;
 
-#if CULL_PASS != 0
 layout(std430) readonly buffer VisibleBuffer {
     uint lastOffset;
     uint _padding1;
@@ -46,28 +45,25 @@ layout(std430) readonly buffer VisibleBuffer {
     uint _padding3;
     FLAG_TYPE states[];
 } ssbo_visibleBuffer;
-#endif
 
 void main() {
     bool valid = false;
     if (gl_GlobalInvocationID.x < ssbo_inputIndirectBuffer.commandCount) {
-        #if CULL_PASS != 0
         DrawElementsIndirectCommand command = ssbo_inputIndirectBuffer.commands[gl_GlobalInvocationID.x];
         uint chunkIndex = command.baseInstance;
         vec3 chunkOffset = chunks_getChunkRenderPos(chunkIndex);
-        #endif
 
-        #if CULL_PASS == 1
+        #if defined(VISIBILITY_STATE_LAST_VISIBLE)
         bool isCameraChunk = dot(chunkOffset, chunkOffset) < 1024.0;
         bool last = bool(ssbo_visibleBuffer.states[chunkIndex + ssbo_visibleBuffer.lastOffset]) || isCameraChunk;
         valid = last;
 
-        #elif CULL_PASS == 2
+        #elif defined(VISIBILITY_STATE_NEWLY_VISIBLE)
         bool last = bool(ssbo_visibleBuffer.states[chunkIndex + ssbo_visibleBuffer.lastOffset]);
         bool curr = bool(ssbo_visibleBuffer.states[chunkIndex]);
         valid = !last && curr;
 
-        #elif CULL_PASS == 3
+        #elif defined(VISIBILITY_STATE_CURRENT_VISIBLE)
         bool isCameraChunk = dot(chunkOffset, chunkOffset) < 1024.0;
         bool curr = bool(ssbo_visibleBuffer.states[chunkIndex]) || isCameraChunk;
         valid = curr;

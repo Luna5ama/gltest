@@ -1,10 +1,10 @@
 package dev.luna5ama.gltest.terrain
 
+import dev.luna5ama.glwrapper.*
 import dev.luna5ama.glwrapper.api.GL_BLEND
 import dev.luna5ama.glwrapper.api.GL_COLOR_ATTACHMENT0
 import dev.luna5ama.glwrapper.api.glDisable
 import dev.luna5ama.glwrapper.api.glViewport
-import dev.luna5ama.glwrapper.*
 import dev.luna5ama.glwrapper.enums.*
 import dev.luna5ama.glwrapper.objects.*
 import java.math.BigInteger
@@ -12,17 +12,14 @@ import kotlin.math.abs
 import kotlin.math.max
 
 class GaussianBlur(private val scene: TerrainScene) : IGLObjContainer by IGLObjContainer.Impl() {
-    private val map = mutableMapOf<ParamKey, ShaderProgram>()
-    
+    private val map = mutableMapOf<ParamKey, ProgramPair>()
+
     private val fbo1 = register(FramebufferObject())
     private val fbo2 = register(FramebufferObject())
     private val sampler = scene.samplerManager.get {
         filter(FilterMode.Linear, FilterMode.Linear)
         wrap(WrapMode.ClampToEdge, WrapMode.ClampToEdge, WrapMode.ClampToEdge)
     }
-
-    private val sampleHBinding = ShaderBindingSpecs.Subroutine("usubroutine_SampleDirection", ShaderStage.FragmentShader, "sampleH")
-    private val sampleVBinding = ShaderBindingSpecs.Subroutine("usubroutine_SampleDirection", ShaderStage.FragmentShader, "sampleV")
 
     fun process(
         type: Type,
@@ -55,7 +52,7 @@ class GaussianBlur(private val scene: TerrainScene) : IGLObjContainer by IGLObjC
             output, 0, 0, output.width, output.height, outputLevel
         )
     }
-    
+
     fun process(
         type: Type,
         kernelBaseRadius: Int,
@@ -73,23 +70,21 @@ class GaussianBlur(private val scene: TerrainScene) : IGLObjContainer by IGLObjC
 
             val shader = getShaderProgram(ParamKey(type, kernelBaseRadius, kernelRealSize))
 
-            val swapTexture = getTexture2D(input.internalformat!!, max(inputWidth, outputWidth), max(inputHeight, outputHeight))
+            val swapTexture =
+                getTexture2D(input.internalformat!!, max(inputWidth, outputWidth), max(inputHeight, outputHeight))
             fbo1.clearAttachments()
             fbo1.attach(swapTexture, GL_COLOR_ATTACHMENT0, 0)
 
             fbo2.clearAttachments()
             fbo2.attach(output, GL_COLOR_ATTACHMENT0, outputLevel)
 
-            shader.bind()
-            shader.uniform1f("uval_radiusMul", radiusMul)
-
             fbo1.bind()
             glViewport(0, 0, outputWidth, inputHeight)
-            renderPass(shader, sampleHBinding, input, inputLevel, inputX, inputY, inputWidth, inputHeight)
+            renderPass(shader.h, input, radiusMul, inputLevel, inputX, inputY, inputWidth, inputHeight)
 
             fbo2.bind()
             glViewport(outputX, outputY, outputWidth, outputHeight)
-            renderPass(shader, sampleVBinding, swapTexture, 0, 0, 0, outputWidth, inputHeight)
+            renderPass(shader.v, swapTexture, radiusMul, 0, 0, 0, outputWidth, inputHeight)
 
             glViewport(0, 0, scene.camera.screenWidth, scene.camera.screenHeight)
         }
@@ -97,12 +92,14 @@ class GaussianBlur(private val scene: TerrainScene) : IGLObjContainer by IGLObjC
 
     private fun renderPass(
         shader: ShaderProgram,
-        subroutineBinding: ShaderBindingSpecs.Subroutine,
         input: TextureObject.Texture2D,
+        radiusMul: Float,
         inputLevel: Int, inputX: Int, inputY: Int, inputWidth: Int, inputHeight: Int
     ) {
         val levelWidth = input.width shr inputLevel
         val levelHeight = input.height shr inputLevel
+        shader.bind()
+        shader.uniform1f("uval_radiusMul", radiusMul)
         shader.uniform4f(
             "uval_inputUVRange",
             inputX.toFloat() / levelWidth,
@@ -113,16 +110,15 @@ class GaussianBlur(private val scene: TerrainScene) : IGLObjContainer by IGLObjC
         shader.uniform2f("uval_inputTexelSize", 1.0f / levelWidth, 1.0f / levelHeight)
         shader.applyBinding {
             sampler("usam_input", input, sampler)
-            subroutine(subroutineBinding)
         }
         scene.basic.drawQuad()
     }
 
-    private fun getShaderProgram(key: ParamKey): ShaderProgram {
-        return map.getOrPut(key) { register(createShaderProgram(key)) }
+    private fun getShaderProgram(key: ParamKey): ProgramPair {
+        return map.getOrPut(key) { createShaderProgram(key) }
     }
 
-    private fun createShaderProgram(key: ParamKey): ShaderProgram {
+    private fun createShaderProgram(key: ParamKey): ProgramPair {
         val params = createParams(key)
         val offsets = params.offsets
         val weights = params.weights
@@ -156,12 +152,19 @@ class GaussianBlur(private val scene: TerrainScene) : IGLObjContainer by IGLObjC
             }
         }
 
-        return ShaderProgram(
-            ShaderSource.Vert("terrain/filters/LinearGaussian.vert"),
-            ShaderSource.Frag("terrain/filters/LinearGaussian.frag") {
-                define("CODE_H", codeH)
-                define("CODE_V", codeV)
-            }
+        return ProgramPair(
+            register(ShaderProgram(
+                ShaderSource.Vert("terrain/filters/LinearGaussian.vert"),
+                ShaderSource.Frag("terrain/filters/LinearGaussian.frag") {
+                    define("CODE", codeH)
+                }
+            )),
+            register(ShaderProgram(
+                ShaderSource.Vert("terrain/filters/LinearGaussian.vert"),
+                ShaderSource.Frag("terrain/filters/LinearGaussian.frag") {
+                    define("CODE", codeV)
+                }
+            ))
         )
     }
 
@@ -170,7 +173,6 @@ class GaussianBlur(private val scene: TerrainScene) : IGLObjContainer by IGLObjC
         val weights: DoubleArray
 
         val pascalOriginal = pascalTriangle(key.radius * 2 + 1)
-        val sumOriginal = pascalOriginal.sumOf { it }.toBigDecimal(32)
         val pSize = key.realSize
         val halfWeight0 = Array(pSize) {
             pascalOriginal[it + key.radius]
@@ -274,6 +276,8 @@ class GaussianBlur(private val scene: TerrainScene) : IGLObjContainer by IGLObjC
             return key.hashCode()
         }
     }
+
+    private class ProgramPair(val h: ShaderProgram, val v: ShaderProgram)
 
     enum class Type {
         DISCRETE, LINEAR

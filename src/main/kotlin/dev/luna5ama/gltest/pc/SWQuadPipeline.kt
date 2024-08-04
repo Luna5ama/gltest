@@ -2,6 +2,7 @@ package dev.luna5ama.gltest.pc
 
 import dev.fastmc.common.ParallelUtils
 import dev.fastmc.common.TickTimer
+import dev.luna5ama.gltest.VisibilityState
 import dev.luna5ama.gltest.glDebugGroup
 import dev.luna5ama.gltest.structs.QuadBatchInfo
 import dev.luna5ama.gltest.structs.sizeof
@@ -62,14 +63,16 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
         label("SWQuad.ClearShader")
     }
 
-    private val filterShader = List(4) {
-        register(ShaderProgram(
-            ShaderSource.Comp("pc/geometry/swquad/BatchFilter.comp") {
-                define("FLAG_TYPE", renderer.visibilityFlagType.glslTypeName)
-                define("CULL_PASS", it)
+    private val filterShader = object : ShaderProgram.Variants<VisibilityState>() {
+        override fun create(key: VisibilityState): ShaderProgram {
+            return register(ShaderProgram(
+                ShaderSource.Comp("pc/geometry/swquad/BatchFilter.comp") {
+                    define("FLAG_TYPE", renderer.visibilityFlagType.glslTypeName)
+                    define(key.defineName)
+                }
+            )).apply {
+                label("SWQuad.SWQuadBatchFilter-$key")
             }
-        )).apply {
-            label("SWQuad.SWQuadBatchFilter-$it")
         }
     }
 
@@ -228,7 +231,7 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
         }
 
         if (!scene.gameInstance.toggle3) {
-            drawPass(1)
+            drawPass(VisibilityState.LAST_VISIBLE)
 
             glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
 
@@ -245,9 +248,9 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
 
             glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
 
-            drawPass(2)
+            drawPass(VisibilityState.NEWLY_VISIBLE)
         } else {
-            drawPass(3)
+            drawPass(VisibilityState.CURRENT_VISIBLE)
         }
 
         if (debugQuadCount && printTimer.tickAndReset(3000)) {
@@ -260,68 +263,61 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
         }
     }
 
-    private fun drawPass(pass: Int) {
-        glDebugGroup("DrawPass-$pass-Setup") {
-            passSetup(pass)
+    private fun drawPass(state: VisibilityState) {
+        glDebugGroup("DrawPass-$state-Setup") {
+            val scanWorkGroupSize = scene.gpuScan.workGroupSize
+            val scanGroupCount = (batchCount + scanWorkGroupSize - 1) / scanWorkGroupSize
+            clearShader.bind()
+            clearShader.applyBinding {
+                buffer(bufferBindings)
+            }
+            glDispatchCompute(1, 1, 1)
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
+            val filterShader1 = filterShader[state]
+            filterShader1.bind()
+            filterShader1.applyBinding {
+                buffer(renderer.bufferBindings)
+                buffer(scene.vbuffer.bufferBinding)
+                buffer(bufferBindings)
+            }
+            glDispatchCompute(scanGroupCount, 1, 1)
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT or GL_UNIFORM_BARRIER_BIT or GL_COMMAND_BARRIER_BIT)
+            val scanDataView = scanBuffer.createView(16L)
+            scene.gpuScan.process(
+                scanDataView,
+                scanBuffer.createView(0L, 16L),
+                scanDataView,
+                scanGroupCount
+            )
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
+            batchIndicesShader.bind()
+            batchIndicesShader.applyBinding {
+                buffer(bufferBindings)
+            }
+            glDispatchCompute(scanGroupCount, 1, 1)
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT or GL_COMMAND_BARRIER_BIT)
         }
-        glDebugGroup("DrawPass-$pass-Draw") {
-            passDraw()
+        glDebugGroup("DrawPass-$state-Draw") {
+            glEnable(GL_CULL_FACE)
+            glCullFace(GL_BACK)
+            glEnable(GL_DEPTH_TEST)
+            glDepthFunc(GL_GEQUAL)
+            glDepthMask(true)
+            glColorMask(true, true, true, true)
+            scene.bindSWDrawShader(drawShader)
+            drawShader.applyBinding {
+                sampler(scene.textures.blockAlbedo)
+                buffer(scene.camera.uboBinding)
+                buffer(scene.terrainMeshData.bufferBindings)
+                buffer(scene.vbuffer.bufferBinding)
+                buffer(bufferBindings)
+                buffer(renderer.bufferBindings)
+                image(scene.vbuffer.imageBindings)
+                image("uimg_overdrawCounter", scene.overdrawCounterTex)
+            }
+            batchIndices.bind(GL_DISPATCH_INDIRECT_BUFFER)
+            glDispatchComputeIndirect(0L)
         }
     }
 
-    private fun passSetup(index: Int) {
-        val scanWorkGroupSize = scene.gpuScan.workGroupSize
-        val scanGroupCount = (batchCount + scanWorkGroupSize - 1) / scanWorkGroupSize
-        clearShader.bind()
-        clearShader.applyBinding {
-            buffer(bufferBindings)
-        }
-        glDispatchCompute(1, 1, 1)
-        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
-        val filterShader = filterShader[index]
-        filterShader.bind()
-        filterShader.applyBinding {
-            buffer(renderer.bufferBindings)
-            buffer(scene.vbuffer.bufferBinding)
-            buffer(bufferBindings)
-        }
-        glDispatchCompute(scanGroupCount, 1, 1)
-        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT or GL_UNIFORM_BARRIER_BIT or GL_COMMAND_BARRIER_BIT)
-        val scanDataView = scanBuffer.createView(16L)
-        scene.gpuScan.process(
-            scanDataView,
-            scanBuffer.createView(0L, 16L),
-            scanDataView,
-            scanGroupCount
-        )
-        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
-        batchIndicesShader.bind()
-        batchIndicesShader.applyBinding {
-            buffer(bufferBindings)
-        }
-        glDispatchCompute(scanGroupCount, 1, 1)
-        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT or GL_COMMAND_BARRIER_BIT)
-    }
-
-    private fun passDraw() {
-        glEnable(GL_CULL_FACE)
-        glCullFace(GL_BACK)
-        glEnable(GL_DEPTH_TEST)
-        glDepthFunc(GL_GEQUAL)
-        glDepthMask(true)
-        glColorMask(true, true, true, true)
-        scene.bindSWDrawShader(drawShader)
-        drawShader.applyBinding {
-            sampler(scene.textures.blockAlbedo)
-            buffer(scene.camera.uboBinding)
-            buffer(scene.terrainMeshData.bufferBindings)
-            buffer(scene.vbuffer.bufferBinding)
-            buffer(bufferBindings)
-            buffer(renderer.bufferBindings)
-            image(scene.vbuffer.imageBindings)
-            image("uimg_overdrawCounter", scene.overdrawCounterTex)
-        }
-        batchIndices.bind(GL_DISPATCH_INDIRECT_BUFFER)
-        glDispatchComputeIndirect(0L)
-    }
 }
