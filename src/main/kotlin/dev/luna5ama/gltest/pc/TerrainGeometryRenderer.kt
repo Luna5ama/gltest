@@ -57,8 +57,8 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
     val swQuadPipeline = register(SWQuadPipeline(scene, this))
     //    val swPointPipeline = register(SWPointPipeline(scene, this))
 
-    val cullPipeline = register(OcclusionCullingPipeline.VertexShader(scene, this))
-//    val cullPipeline = register(OcclusionCullingPipeline.MeshShader(scene, this))
+//    val cullPipeline = register(OcclusionCullingPipeline.VertexShader(scene, this))
+    val cullPipeline = register(OcclusionCullingPipeline.MeshShader(scene, this))
 //    val cullPipeline = register(OcclusionCullingPipeline.SWRaster(scene, this))
 
     private val visibleBuffer = register(BufferObject.Immutable()).apply {
@@ -388,7 +388,7 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
                                 (Direction.B_EAST * (((worldPosX - 1) - scene.camera.pos.x).floorToInt() ushr 31)) or
                                         (Direction.B_WEST * ((scene.camera.pos.x - (worldPosX + 17)).floorToInt() ushr 31)) or
                                         (Direction.B_UP * (((worldPosY - 1) - scene.camera.pos.y).floorToInt() ushr 31)) or
-                                        (Direction.B_DOWN * ((scene.camera.pos.y - worldPosY + 17).floorToInt() ushr 31)) or
+                                        (Direction.B_DOWN * ((scene.camera.pos.y - (worldPosY + 17)).floorToInt() ushr 31)) or
                                         (Direction.B_SOUTH * (((worldPosZ - 1) - scene.camera.pos.z).floorToInt() ushr 31)) or
                                         (Direction.B_NORTH * ((scene.camera.pos.z - (worldPosZ + 17)).floorToInt() ushr 31))
                         }
@@ -400,7 +400,7 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
         private fun CoroutineScope.doFrustumCulling() {
             val newMatrix = Matrix4f()
             scene.camera.apply {
-                newMatrix.setupPerspective((min(fov + scene.camera.maxRotationAngle * 4.0f, 180.0f)).toRadians(), aspectRatio, nearPlane, farPlane)
+                newMatrix.setupPerspective((min(fov + scene.camera.maxRotationAngle * 32.0f, 180.0f)).toRadians(), aspectRatio, nearPlane, farPlane)
             }
             newMatrix.mul(scene.camera.modelView)
             val frustumCull = FrustumIntersection(newMatrix, false)
@@ -439,8 +439,8 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
             fun add(chunkInfo: ChunkLayerInfo) {
                 if (sampleCountArray[chunkInfo.chunkIndex] > 8.0f) {
                     if (!scene.gameInstance.toggle1) {
-//                        hwMs.add(chunkInfo)
-                        hwVs.add(chunkInfo)
+                        hwMs.add(chunkInfo)
+//                        hwVs.add(chunkInfo)
                     }
                 } else {
                     if (!scene.gameInstance.toggle2) {
