@@ -247,7 +247,7 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
 
             drawPass(2)
         } else {
-            drawPass(0)
+            drawPass(3)
         }
 
         if (debugQuadCount && printTimer.tickAndReset(3000)) {

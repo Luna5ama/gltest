@@ -97,7 +97,7 @@ class HWMeshShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRend
 
             drawPass(2)
         } else {
-            drawPass(0)
+            drawPass(3)
         }
     }
 
