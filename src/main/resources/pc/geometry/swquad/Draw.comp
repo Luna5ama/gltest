@@ -342,8 +342,8 @@ void rasterize(uint baseLocalQuadIndex) {
                     }
                 }
 
-                t1b += t1bDy;
-                t2b += t2bDy;
+                t1b.xyz += t1bDy.xyz;
+                t2b.xyz += t2bDy.xyz;
             }
         } else {
             t1bDy.xyz -= t1bDx.xyz * texelNF.x;
