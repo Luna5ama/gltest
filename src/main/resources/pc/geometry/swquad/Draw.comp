@@ -452,9 +452,9 @@ void main() {
         rasterize(i * gl_WorkGroupSize.x);
     }
 
+    #ifdef DEBUG_QUAD_COUNT
     if (gl_LocalInvocationID.x == 0u){
-        #ifdef DEBUG_QUAD_COUNT
         atomicAdd(ssbo_tempBuffer.v2, shared_quadCount);
-        #endif
     }
+    #endif
 }
