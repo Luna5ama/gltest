@@ -90,13 +90,13 @@ class AutoExposure(private val scene: TerrainScene) : IGLObjContainer by IGLObjC
     }
 
     fun render(fboGroup: FboGroup) {
-        val targetLuma = 0.1f
-        val minInc = 0.05f
-        val maxInc = 8.0f
-        val exposureMul = 1.0f
+//        val targetLuma = 0.1f
+//        val minInc = 0.05f
+//        val maxInc = 8.0f
+//        val exposureMul = 1.0f
 
         autoExposureShader.bind()
-        autoExposureShader.uniform4f("uParams", targetLuma, minInc, maxInc, exposureMul)
+//        autoExposureShader.uniform4f("uParams", targetLuma, minInc, maxInc, exposureMul)
         autoExposureShader.applyBinding {
             sampler(avgLumSamplerBinding)
             sampler(fboGroup.inputBindings)

@@ -192,11 +192,15 @@ open class TerrainDrawShader(
     vararg srcs: ShaderSource
 ) : ShaderProgram(*srcs) {
     internal fun setOriginOffset(x: Double, y: Double, z: Double) {
-        uniform3f(
-            "originOffset",
-            (x - 0.5).toFloat(),
-            y.toFloat(),
-            (z - 0.5).toFloat()
-        )
+        try {
+            uniform3f(
+                "originOffset",
+                (x - 0.5).toFloat(),
+                y.toFloat(),
+                (z - 0.5).toFloat()
+            )
+        } catch (e: IllegalArgumentException) {
+            // ignore
+        }
     }
 }

@@ -396,32 +396,23 @@ class TerrainMesh(private val scene: TerrainScene, dir: File) : IGLObjContainer 
 
                 glClearNamedBufferData(indirect.id, GL_R32UI, GL_RED_INTEGER, GL_UNSIGNED_INT, Ptr.NULL)
 
-                val cameraChunkX = ((scene.camera.pos.x) / 16).floorToInt()
-                val cameraChunkY = ((scene.camera.pos.y) / 16).floorToInt()
-                val cameraChunkZ = ((scene.camera.pos.z) / 16).floorToInt()
-                val cameraChunkIdx = layer.chunkInfos.indices.find {
-                    val chunkInfo = layer.chunkInfos[it]
-                    chunkInfo.chunkX == cameraChunkX && chunkInfo.chunkY == cameraChunkY && chunkInfo.chunkZ == cameraChunkZ
-                } ?: -1
-
                 val shader = indirectSetupCompShader[visibleState]
                 shader.bind()
                 shader.uniform1ui("uval_prevVisibleOffset", chunkInfoSize)
-                shader.uniform3f("uval_originOffset",
-                    (scene.originX - scene.camera.pos.x - 0.5).toFloat(),
-                    (scene.originY - scene.camera.pos.y).toFloat(),
-                    (scene.originZ - scene.camera.pos.z - 0.5).toFloat()
-                )
+                try {
+                    shader.uniform3f("uval_originOffset",
+                        (scene.originX - scene.camera.pos.x - 0.5).toFloat(),
+                        (scene.originY - scene.camera.pos.y).toFloat(),
+                        (scene.originZ - scene.camera.pos.z - 0.5).toFloat()
+                    )
+                } catch (e: IllegalArgumentException) {
+                    // Ignore
+                }
                 shader.applyBinding {
                     buffer(visibleBufferBinding)
-                    buffer("indirectCounter", indirect, BufferTarget.ShaderStorage)
                     buffer("ChunkOffsetBuffer", chunkOffsetBuffer, BufferTarget.ShaderStorage)
                     buffer("RawIndirectBuffer", layer.rawIndirectBuffer, BufferTarget.ShaderStorage)
-                    buffer(
-                        "OutIndirectBuffer",
-                        indirect.createView(16L, chunkInfoSize * sizeof(DrawElementsIndirectCommand)),
-                        BufferTarget.ShaderStorage
-                    )
+                    buffer("OutIndirectBuffer", indirect, BufferTarget.ShaderStorage)
                 }
 
                 glDispatchCompute((chunkInfoSize + 127) / 128, 1, 1)

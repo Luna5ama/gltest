@@ -16,6 +16,5 @@ vec4 sampleValue(vec2 coord) {
 
 void main() {
     outputValue = vec4(0.0);
-    usubroutine_SampleDirection();
     CODE;
 }

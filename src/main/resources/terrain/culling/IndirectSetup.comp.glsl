@@ -36,16 +36,21 @@ layout(std430) restrict readonly buffer RawIndirectBuffer {
 };
 
 layout(std430) restrict writeonly buffer OutIndirectBuffer {
-    IndirectDrawCommand outIndirects[];
-};
+    uint count;
+    uint _padding1;
+    uint _padding2;
+    uint _padding3;
+    IndirectDrawCommand cmds[];
+} ssbo_outIndirects;
 
 void main() {
     if (gl_GlobalInvocationID.x >= uval_prevVisibleOffset) {
         return;
     }
 
-    #if defined(VISIBLE_STATE_LAST)
     IndirectDrawCommand cmd = rawIndirects[gl_GlobalInvocationID.x];
+
+    #if defined(VISIBLE_STATE_LAST)
     vec3 offset = vec3(uvec3(chunkOffsets[cmd.baseInstance]) >> uvec3(0u, 8u, 16u) & uvec3(255u));
     vec3 coord = offset * 16.0f + uval_originOffset;
 
@@ -57,9 +62,9 @@ void main() {
         return;
     }
 
+    uint outIndex = atomicAdd(ssbo_outIndirects.count, 1u);
+    ssbo_outIndirects.cmds[outIndex] = cmd;
     #elif defined(VISIBLE_STATE_NEW)
-    uint outIndex = atomicCounterIncrement(indirectCounter);
-    outIndirects[outIndex] = rawIndirects[gl_GlobalInvocationID.x];
 
     bool prev = bool(uint(visibleBuffer[gl_GlobalInvocationID.x + uval_prevVisibleOffset]));
     bool curr = bool(uint(visibleBuffer[gl_GlobalInvocationID.x]));
@@ -67,11 +72,9 @@ void main() {
         return;
     }
 
+    uint outIndex = atomicAdd(ssbo_outIndirects.count, 1u);
+    ssbo_outIndirects.cmds[outIndex] = cmd;
     #elif defined(VISIBLE_STATE_CURRENT)
-    uint outIndex = atomicCounterIncrement(indirectCounter);
-    outIndirects[outIndex] = rawIndirects[gl_GlobalInvocationID.x];
-
-    IndirectDrawCommand cmd = rawIndirects[gl_GlobalInvocationID.x];
     vec3 offset = 8.0f + unpackUnorm4x8(chunkOffsets[cmd.baseInstance]).xyz * 16.0f + uval_originOffset;
 
     bool isCameraChunk = dot(offset, offset) < 1024.0;
@@ -80,7 +83,7 @@ void main() {
         return;
     }
 
-    uint outIndex = atomicCounterIncrement(indirectCounter);
-    outIndirects[outIndex] = cmd;
+    uint outIndex = atomicAdd(ssbo_outIndirects.count, 1u);
+    ssbo_outIndirects.cmds[outIndex] = cmd;
     #endif
 }

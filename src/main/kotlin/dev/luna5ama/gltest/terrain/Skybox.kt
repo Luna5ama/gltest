@@ -32,13 +32,6 @@ class Skybox(private val scene: TerrainScene) : IGLObjContainer by IGLObjContain
             ShaderSource.Geom("terrain/sky/Skybox.geom.glsl"),
             ShaderSource.Frag("terrain/sky/Skybox.frag.glsl")
         )
-    )
-
-    private val drawShader = register(
-        ShaderProgram(
-            ShaderSource.Vert("terrain/sky/SkyboxDraw.vert.glsl"),
-            ShaderSource.Frag("terrain/sky/SkyboxDraw.frag.glsl")
-        )
     ).apply {
         MemoryStack {
             val projectionMatrix = Matrix4f()
@@ -69,9 +62,16 @@ class Skybox(private val scene: TerrainScene) : IGLObjContainer by IGLObjContain
             viewMatrix.setLookAt(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, -1.0f, 0.0f)
             pack()
 
-            skyboxShader.uniformMatrix4fv("uBoxMatries", 6, false, buffer.basePtr)
+            uniformMatrix4fv("uBoxMatries[0]", 6, false, buffer.basePtr)
         }
     }
+
+    private val drawShader = register(
+        ShaderProgram(
+            ShaderSource.Vert("terrain/sky/SkyboxDraw.vert.glsl"),
+            ShaderSource.Frag("terrain/sky/SkyboxDraw.frag.glsl")
+        )
+    )
 
     private val texture = register(TextureObject.TextureCubemap())
     val textureBinding = ShaderBindingSpecs.Sampler("usam_skyboxCube", texture, scene.samplerManager.get {
@@ -160,7 +160,7 @@ class Skybox(private val scene: TerrainScene) : IGLObjContainer by IGLObjContain
                 MathUtil.clamp(scene.camera.pos.y - 32.0, 1.0, 512.0) * 16.0,
                 0.0
             )
-            skyboxShader.uniform1f("uTime", GLFW.glfwGetTime().toFloat())
+//            skyboxShader.uniform1f("uTime", GLFW.glfwGetTime().toFloat())
 
             vao.bind()
             glDrawArrays(GL_TRIANGLES, 0, 6 * 6)

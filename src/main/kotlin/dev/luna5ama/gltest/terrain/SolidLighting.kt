@@ -111,8 +111,8 @@ class SolidLighting(private val scene: TerrainScene) : IGLObjContainer by IGLObj
 
         glDebugGroup("Composite") {
             indirectShader.bind()
-            indirectShader.uniform4f("uval_aoParams", 2.0f, 4.0f, 2.0f, 0.3f)
-            indirectShader.uniform1f("uval_giParams", if (scene.gameInstance.toggle1) 0.0f else 4.0f)
+            indirectShader.uniform4f("uval_aoParams", 1.0f, 2.0f, 0.5f, 0.3f)
+            indirectShader.uniform1f("uval_giParams", if (scene.gameInstance.toggle1) 0.0f else 8.0f)
             indirectShader.applyBinding {
                 sampler(texBingings)
                 sampler(hbao.texBinding)

@@ -380,7 +380,7 @@ class TerrainScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard)
 
         val shader = old.water
         shader.bind()
-        shader.uniform4f("skyColor", skyColor.x, skyColor.y, skyColor.z, skyColor.w)
+//        shader.uniform4f("skyColor", skyColor.x, skyColor.y, skyColor.z, skyColor.w)
         shader.applyBinding {
             sampler(solidGBuffer.texBindings)
             sampler(waterGBuffer.texBindings)

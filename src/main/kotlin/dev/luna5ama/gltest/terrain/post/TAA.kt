@@ -67,19 +67,19 @@ class TAA(private val scene: TerrainScene, samples: Int, private val radius: Flo
         val pixelVel = 0.0f
         val pixelVelMinMix = 0.5f
 
-        shader.uniform3f(
-            "uClampPixel",
-            clampPixelPrev,
-            clampPixelMin,
-            clampPixelMax
-        )
+//        shader.uniform3f(
+//            "uClampPixel",
+//            clampPixelPrev,
+//            clampPixelMin,
+//            clampPixelMax
+//        )
 
-        shader.uniform3f(
-            "uClampWorld",
-            clampWorldPrev,
-            clampWorldMin,
-            clampWorldMax
-        )
+//        shader.uniform3f(
+//            "uClampWorld",
+//            clampWorldPrev,
+//            clampWorldMin,
+//            clampWorldMax
+//        )
 
         shader.uniform3f(
             "uMix",
@@ -88,23 +88,23 @@ class TAA(private val scene: TerrainScene, samples: Int, private val radius: Flo
             maxMix
         )
 
-        shader.uniform2f(
-            "uWorldVelDiff",
-            worldVelDiff,
-            worldVelDiffMin
-        )
+//        shader.uniform2f(
+//            "uWorldVelDiff",
+//            worldVelDiff,
+//            worldVelDiffMin
+//        )
 
-        shader.uniform2f(
-            "uWorldVelCurr",
-            worldVelCurr,
-            worldVelCurrMin
-        )
+//        shader.uniform2f(
+//            "uWorldVelCurr",
+//            worldVelCurr,
+//            worldVelCurrMin
+//        )
 
-        shader.uniform2f(
-            "uPixelVelocity",
-            pixelVel,
-            pixelVelMinMix
-        )
+//        shader.uniform2f(
+//            "uPixelVelocity",
+//            pixelVel,
+//            pixelVelMinMix
+//        )
 
         shader.uniform2f(
             "uJitter",

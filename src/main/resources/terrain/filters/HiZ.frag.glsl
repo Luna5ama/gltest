@@ -50,17 +50,17 @@ float floatToDepth(float depth) {
 void main() {
     ivec2 intTexCoord = ivec2(fTexCoordI);
     float c1 = texelFetch(usam_input, intTexCoord, uval_level).r;
-    c1 = usubroutine_depthToFloat(c1);
+    c1 = depthToFloat(c1);
     float c2 = texelFetchOffset(usam_input, intTexCoord, uval_level, ivec2(1, 0)).r;
-    c2 = usubroutine_depthToFloat(c2);
+    c2 = depthToFloat(c2);
     float c3 = texelFetchOffset(usam_input, intTexCoord, uval_level, ivec2(0, 1)).r;
-    c3 = usubroutine_depthToFloat(c3);
+    c3 = depthToFloat(c3);
     float c4 = texelFetchOffset(usam_input, intTexCoord, uval_level, ivec2(1, 1)).r;
-    c4 = usubroutine_depthToFloat(c4);
+    c4 = depthToFloat(c4);
 
     float v = kernel(c1, c2, c3, c4);
 
-    gl_FragDepth = usubroutine_floatToDepth(v);
+    gl_FragDepth = floatToDepth(v);
 }
 #else
 out vec4 fragColor;

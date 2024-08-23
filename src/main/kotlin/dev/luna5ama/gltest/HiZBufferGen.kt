@@ -69,7 +69,8 @@ class HiZBufferGen(val scene: TerrainScene) : IGLObjContainer by IGLObjContainer
         depthShader.uniform2f("uval_planeZ", planeZ)
 
         for (i in 1 until output.levels) {
-            glNamedFramebufferTexture(fbo.id, GL_DEPTH_ATTACHMENT, output.id, i)
+            fbo.clearAttachments()
+            fbo.attach(output, GL_DEPTH_ATTACHMENT, i)
             fbo.bind()
 
             val halfWidth = inputWidth / 2
