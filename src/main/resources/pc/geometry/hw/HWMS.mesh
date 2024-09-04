@@ -18,6 +18,15 @@ layout(std430) restrict readonly buffer QuadPosIndexBuffer {
     uint ssbo_quadPosIndexBuffer[];
 };
 
+#ifdef DEBUG_QUAD_COUNT
+layout(std430) buffer TempBuffer {
+    uint v1;
+    uint v2;
+    uint v3;
+    uint v4;
+} ssbo_tempBuffer;
+#endif
+
 uniform vec4 uval_viewportSize;
 
 taskNV in Task {
@@ -145,7 +154,16 @@ void main() {
         writeIndices(localQuadIndex);
     }
 
+    #ifdef DEBUG_QUAD_COUNT
+    if (gl_GlobalInvocationID.x == 0) {
+        atomicAdd(ssbo_tempBuffer.v1, dataIn.quadCount);
+    }
+    #endif
+
     if (gl_LocalInvocationID.x == 0) {
         gl_PrimitiveCountNV = subgroupCount * 2;
+        #ifdef DEBUG_QUAD_COUNT
+        atomicAdd(ssbo_tempBuffer.v2, subgroupCount);
+        #endif
     }
 }

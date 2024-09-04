@@ -23,8 +23,6 @@ import kotlin.math.min
 
 class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) :
     TerrainDrawPipeline("SWQuad", scene, renderer) {
-    val debugQuadCount = false
-
     private val workGroupSize = renderer.threadBatchSize
     private val quadsPerWorkGroup = workGroupSize * 4
 
@@ -44,11 +42,6 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
         label("SWQuad.ScanBuffer")
     }
 
-    private val tempBuffer = register(BufferObject.Immutable()).apply {
-        label("SWQuad.TempBuffer")
-        allocate(128L, 0)
-    }
-
     private val bufferBindings = listOf(
         ShaderBindingSpecs.Buffer("QuadBatchInfoBuffer", quadBatchInfo, BufferTarget.ShaderStorage),
         ShaderBindingSpecs.Buffer("BatchIndicesIndirect", batchIndices.createView(0L, 16L), BufferTarget.ShaderStorage),
@@ -56,7 +49,6 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
         ShaderBindingSpecs.Buffer("BatchFilterFlag", batchFilterFlag, BufferTarget.ShaderStorage),
         ShaderBindingSpecs.Buffer("ScanBuffer", scanBuffer, BufferTarget.ShaderStorage),
         ShaderBindingSpecs.Buffer("ScanBufferCount", scanBuffer.createView(0L, 16L), BufferTarget.ShaderStorage),
-        ShaderBindingSpecs.Buffer("TempBuffer", tempBuffer, BufferTarget.ShaderStorage),
     )
 
     private val clearShader = register(ShaderProgram(ShaderSource.Comp("pc/geometry/swquad/Clear.comp"))).apply {
@@ -97,7 +89,7 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
             if (scene.overdrawDebug) {
                 define("OVERDRAW_DEBUG")
             }
-            if (debugQuadCount) {
+            if (renderer.debugQuadCount) {
                 define("DEBUG_QUAD_COUNT")
             }
         }
@@ -226,8 +218,8 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
     override fun draw() {
         if (batchCount == 0) return
 
-        if (debugQuadCount) {
-            tempBuffer.clear(GL_R32UI, GL_RED_INTEGER, GL_UNSIGNED_INT, Ptr.NULL)
+        if (renderer.debugQuadCount) {
+            renderer.tempBuffer.clear(GL_R32UI, GL_RED_INTEGER, GL_UNSIGNED_INT, Ptr.NULL)
         }
 
         if (!scene.gameInstance.toggle3) {
@@ -253,12 +245,12 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
             drawPass(VisibilityState.CURRENT_VISIBLE)
         }
 
-        if (debugQuadCount && printTimer.tickAndReset(3000)) {
+        if (renderer.debugQuadCount && printTimer.tickAndReset(3000)) {
             MemoryStack {
-                val ptr = malloc(tempBuffer.size).ptr
-                glGetNamedBufferSubData(tempBuffer.id, 0, tempBuffer.size, ptr)
-                println("Input Quad Count: %,d".format(ptr.getInt(0)))
-                println("Output Quad Count: %,d".format(ptr.getInt(4)))
+                val ptr = malloc(renderer.tempBuffer.size).ptr
+                glGetNamedBufferSubData(renderer.tempBuffer.id, 0, renderer.tempBuffer.size, ptr)
+                println("SWQuad: Input Quad Count: %,d".format(ptr.getInt(0)))
+                println("SWQuad: Output Quad Count: %,d".format(ptr.getInt(4)))
             }
         }
     }

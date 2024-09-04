@@ -13,6 +13,15 @@ layout(std430) readonly buffer QuadPosIndexBuffer {
     uint ssbo_quadPosIndexBuffer[];
 };
 
+#ifdef DEBUG_QUAD_COUNT
+layout(std430) buffer TempBuffer {
+    uint v1;
+    uint v2;
+    uint v3;
+    uint v4;
+} ssbo_tempBuffer;
+#endif
+
 layout(location = 0) out VertData {
     flat uint quadIndex;
     vec4 bCoord;
@@ -31,6 +40,13 @@ const uvec3 CHUNK_OFFSET_BITMASK = (uvec3(1u) << uvec3(13u, 6u, 13u)) - uvec3(1u
 const uvec3 CHUNK_OFFSET_BITSHIFT = uvec3(0u, 13u, 13u + 6u);
 
 void main() {
+    #ifdef DEBUG_QUAD_COUNT
+    if ((gl_VertexID & 3) == 0) {
+//        atomicAdd(ssbo_tempBuffer.v1, 1u);
+    }
+//    atomicAdd(ssbo_tempBuffer.v2, 1u);
+    #endif
+
     vec3 chunkOffset = chunks_getChunkRenderPos(gl_BaseInstance);
 
     vertDataOut.quadIndex = uint(gl_VertexID) >> 2;

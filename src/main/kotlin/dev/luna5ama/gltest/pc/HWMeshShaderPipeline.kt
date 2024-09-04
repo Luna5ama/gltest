@@ -1,6 +1,7 @@
 package dev.luna5ama.gltest.pc
 
 import dev.fastmc.common.ParallelUtils
+import dev.fastmc.common.TickTimer
 import dev.luna5ama.gltest.VisibilityState
 import dev.luna5ama.gltest.glDebugGroup
 import dev.luna5ama.gltest.structs.MeshShaderBatchInfo
@@ -14,6 +15,8 @@ import dev.luna5ama.glwrapper.api.*
 import dev.luna5ama.glwrapper.enums.BufferTarget
 import dev.luna5ama.glwrapper.objects.BufferObject
 import dev.luna5ama.kmogus.Arr
+import dev.luna5ama.kmogus.MemoryStack
+import dev.luna5ama.kmogus.Ptr
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -28,7 +31,11 @@ class HWMeshShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRend
                     define(key.defineName)
                     define("FLAG_TYPE", renderer.visibilityFlagType.glslTypeName)
                 },
-                ShaderSource.Mesh("pc/geometry/hw/HWMS.mesh"),
+                ShaderSource.Mesh("pc/geometry/hw/HWMS.mesh") {
+                    if (renderer.debugQuadCount) {
+                        define("DEBUG_QUAD_COUNT")
+                    }
+                },
                 ShaderSource.Frag("pc/geometry/hw/HW.frag") {
                     define("MESH_SHADER")
                 }
@@ -116,8 +123,14 @@ class HWMeshShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRend
         }
     }
 
+    private val printTimer = TickTimer()
+
     private fun drawPass(state: VisibilityState) {
         glDebugGroup("DrawPass-$state") {
+            if (renderer.debugQuadCount) {
+                renderer.tempBuffer.clear(GL_R32UI, GL_RED_INTEGER, GL_UNSIGNED_INT, Ptr.NULL)
+            }
+
             scene.vbuffer.fbo.bind()
             glViewport(0, 0, scene.vbuffer.fbo.width, scene.vbuffer.fbo.height)
             glEnable(GL_CULL_FACE)
@@ -143,6 +156,15 @@ class HWMeshShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRend
             )
             scene.vbuffer.fbo.bind()
             glDrawMeshTasksNV(0, batchCount)
+
+            if (renderer.debugQuadCount && printTimer.tickAndReset(3000)) {
+                MemoryStack {
+                    val ptr = malloc(renderer.tempBuffer.size).ptr
+                    glGetNamedBufferSubData(renderer.tempBuffer.id, 0, renderer.tempBuffer.size, ptr)
+                    println("HWMS: Quad Count: %,d".format(ptr.getInt(0)))
+                    println("HWMS: Vertex Count: %,d".format(ptr.getInt(4)))
+                }
+            }
         }
     }
 }

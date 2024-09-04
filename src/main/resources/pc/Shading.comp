@@ -4,6 +4,7 @@
 #include "GlobalCamera.glsl"
 #include "geometry/Chunks.glsl"
 #include "utils/SWRUtils.glsl"
+#include "utils/R2Seqs.glsl"
 
 layout(local_size_x = 16, local_size_y = 16) in;
 
@@ -143,38 +144,22 @@ void main() {
     bCoordThis += tbDx * float(centerCoord.x - screenBound.x);
     bCoordThis += tbDy * float(centerCoord.y - screenBound.y);
     bCoordThis = (bCoordThis * invPosWs) / dot(bCoordThis, invPosWs);
-
     vec2 texCoordThis = vec2(dot(texCoordX, bCoordThis), dot(texCoordY, bCoordThis));
 
     vec3 bCoordDx = tbBase;
     bCoordDx += tbDx * (1.0 + float(centerCoord.x - screenBound.x));
     bCoordDx += tbDy * (0.0 + float(centerCoord.y - screenBound.y));
     bCoordDx = (bCoordDx * invPosWs) / dot(bCoordDx, invPosWs);
-
     vec2 texCoordDx = vec2(dot(texCoordX, bCoordDx), dot(texCoordY, bCoordDx));
 
     vec3 bCoordDy = tbBase;
     bCoordDy += tbDx * (0.0 + float(centerCoord.x - screenBound.x));
     bCoordDy += tbDy * (1.0 + float(centerCoord.y - screenBound.y));
     bCoordDy = (bCoordDy * invPosWs) / dot(bCoordDy, invPosWs);
-
     vec2 texCoordDy = vec2(dot(texCoordX, bCoordDy), dot(texCoordY, bCoordDy));
 
     vec2 tTexCoordDx = (texCoordDx - texCoordThis);
     vec2 tTexCoordDy = (texCoordDy - texCoordThis);
-
-    vec2 textureSize0 = vec2(textureSize(usam_blockAlbedoAtlas, 0));
-    vec2 texelDx = tTexCoordDx * textureSize0;
-    vec2 texelDy = tTexCoordDy * textureSize0;
-    float lod = max(dot(texelDx, texelDx), dot(texelDy, texelDy));
-    lod = clamp(0.5 * log2(lod) - 2.0, 0.0, 4.0);
-
-    vec2 invTextureSize = 1.0 / textureSize0;
-    vec2 texCoordTile = floor(texCoordThis * textureSize0 / 16.0) * 16.0;
-    float edge = exp2(ceil(lod) - 1.0);
-    vec2 texCoordTileMin = (texCoordTile + 0.0 + edge) * invTextureSize;
-    vec2 texCoordTileMax = (texCoordTile + 16.0 - edge) * invTextureSize;
-    vec2 texCoordThisC = clamp(texCoordThis, texCoordTileMin, texCoordTileMax);
 
     uint extraAttribIdx = attribIdx * 6u;
     vec4 lightCoordXRaw = unpackUnorm4x8(ssbo_quadExtraAttribDataBuffer[extraAttribIdx]);
@@ -196,11 +181,36 @@ void main() {
     );
     uint materialID = ssbo_quadExtraAttribDataBuffer[extraAttribIdx + 5u];
 
-    vec4 colorMinLod = textureLod(usam_blockAlbedoAtlas, texCoordThis, 0.0);
-//    vec4 colorNormal = textureGrad(usam_blockAlbedoAtlas, texCoordThisC, tTexCoordDx, tTexCoordDy);
-    vec4 colorNormal = textureLod(usam_blockAlbedoAtlas, texCoordThisC, lod);
+    vec2 textureSize0 = vec2(textureSize(usam_blockAlbedoAtlas, 0));
+    vec2 invTextureSize = 1.0 / textureSize0;
+    vec2 texCoordTile = floor(texCoordThis * textureSize0 / 16.0) * 16.0;
+    float edge = 0.5;
+    vec2 texCoordTileMin = (texCoordTile + 0.0 + edge) * invTextureSize;
+    vec2 texCoordTileMax = (texCoordTile + 16.0 - edge) * invTextureSize;
 
-    vec4 colorFinal = mix(colorMinLod, colorNormal, step(0.9, colorNormal.a) * float(materialID & 1u));
+    #define SAMPLE_COUNT 4
+    uint rIndex = ubo_cameraDefault.gFrameIndex * SAMPLE_COUNT;
+
+    vec4 colorV = vec4(0.0);
+    float divN = 0.0;
+    float cutoutFlag = float((materialID >> 1u) & 1u);
+
+    for (uint i = 0u; i < SAMPLE_COUNT; i++) {
+        vec2 r2v = r2Seq2(rIndex++) - 0.5;
+        vec2 texCoordJitter = texCoordThis;
+        texCoordJitter += r2v.x * tTexCoordDx;
+        texCoordJitter += r2v.y * tTexCoordDy;
+        texCoordJitter = clamp(texCoordJitter, texCoordTileMin, texCoordTileMax);
+
+        vec4 colorSample = textureLod(usam_blockAlbedoAtlas, texCoordJitter, 0.0);
+        colorV += colorSample;
+        divN += mix(1.0, step(0.9, colorSample.a), cutoutFlag);
+    }
+
+    colorV /= max(divN, 1.0);
+
+    vec4 colorCenter = textureLod(usam_blockAlbedoAtlas, texCoordThis, 0.0);
+    vec4 colorFinal = mix(colorCenter, colorV, step(0.5, divN));
 
     colorFinal.rgb *= colorMul;
     colorFinal.rgb *= textureLod(usam_lightMap, lightCoord, 0.0).rgb;

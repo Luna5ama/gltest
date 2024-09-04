@@ -45,7 +45,9 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
     }
 //    val visibilityFlagType = VisibilityFlagType.INT32
 
-    val threadBatchSize = if (GLWrapper.instance.vendor == GpuVendor.NVIDIA) 96 else 128
+    val threadBatchSize = if (GLWrapper.instance.vendor == GpuVendor.NVIDIA) 96 else 12
+
+    val debugQuadCount = true
 
     init {
         println("Visibility flag type: ${visibilityFlagType.name}")
@@ -69,9 +71,15 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
         label("Terrain.ChunkPosData")
     }
 
+    val tempBuffer = register(BufferObject.Immutable()).apply {
+        label("Terrain.TempBuffer")
+        allocate(128L, 0)
+    }
+
     val bufferBindings = listOf(
         ShaderBindingSpecs.Buffer("VisibleBuffer", visibleBuffer, BufferTarget.ShaderStorage),
-        ShaderBindingSpecs.Buffer("ChunkPosData", chunkPosData, BufferTarget.ShaderStorage)
+        ShaderBindingSpecs.Buffer("ChunkPosData", chunkPosData, BufferTarget.ShaderStorage),
+        ShaderBindingSpecs.Buffer("TempBuffer", tempBuffer, BufferTarget.ShaderStorage),
     )
 
     val visibleBufferStateLen1: Long

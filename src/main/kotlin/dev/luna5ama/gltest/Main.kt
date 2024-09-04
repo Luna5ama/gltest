@@ -1,6 +1,5 @@
 package dev.luna5ama.gltest
 
-import dev.luna5ama.glwrapper.ShaderSource
 import kotlinx.coroutines.cancel
 import org.lwjgl.glfw.Callbacks.glfwFreeCallbacks
 import org.lwjgl.glfw.GLFW.*

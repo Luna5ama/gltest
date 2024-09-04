@@ -1,6 +1,7 @@
 package dev.luna5ama.gltest.pc
 
 import dev.fastmc.common.ParallelUtils
+import dev.fastmc.common.TickTimer
 import dev.luna5ama.gltest.VisibilityState
 import dev.luna5ama.gltest.glDebugGroup
 import dev.luna5ama.gltest.structs.DrawElementsIndirectCommand
@@ -13,10 +14,7 @@ import dev.luna5ama.glwrapper.api.*
 import dev.luna5ama.glwrapper.enums.BufferTarget
 import dev.luna5ama.glwrapper.objects.BufferObject
 import dev.luna5ama.glwrapper.objects.VertexArrayObject
-import dev.luna5ama.kmogus.Arr
-import dev.luna5ama.kmogus.Ptr
-import dev.luna5ama.kmogus.ensureCapacity
-import dev.luna5ama.kmogus.memcpy
+import dev.luna5ama.kmogus.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -48,7 +46,11 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
     }
     private val drawShader = register(
         ShaderProgram(
-            ShaderSource.Vert("pc/geometry/hw/HWVS.vert"),
+            ShaderSource.Vert("pc/geometry/hw/HWVS.vert") {
+                if (renderer.debugQuadCount) {
+                    define("DEBUG_QUAD_COUNT")
+                }
+            },
             ShaderSource.Frag("pc/geometry/hw/HW.frag")
         )
     ).apply {
@@ -204,8 +206,14 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
         }
     }
 
+    private val printTimer = TickTimer()
+
     private fun drawPass(state: VisibilityState) {
         glDebugGroup("DrawPass-$state-Setup") {
+            if (renderer.debugQuadCount) {
+                renderer.tempBuffer.clear(GL_R32UI, GL_RED_INTEGER, GL_UNSIGNED_INT, Ptr.NULL)
+            }
+
             clearShader.bind()
             clearShader.applyBinding {
                 buffer(indirectBufferBindings)
@@ -225,6 +233,15 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
         }
         glDebugGroup("DrawPass-$state-Draw") {
             draw0(outputIndirectBuffer)
+
+            if (renderer.debugQuadCount && printTimer.tickAndReset(3000)) {
+                MemoryStack {
+                    val ptr = malloc(renderer.tempBuffer.size).ptr
+                    glGetNamedBufferSubData(renderer.tempBuffer.id, 0, renderer.tempBuffer.size, ptr)
+                    println("HWVS: Quad Count: %,d".format(ptr.getInt(0)))
+                    println("HWVS: Vertex Count: %,d".format(ptr.getInt(4)))
+                }
+            }
         }
     }
 
