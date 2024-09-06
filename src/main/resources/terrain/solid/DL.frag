@@ -10,6 +10,7 @@ layout(early_fragment_tests) in;
 #include "../LightParams.glsl"
 #include "../utils/R2Seqs.glsl"
 #include "../utils/Rand.glsl"
+#include "../BSDF.glsl"
 
 #include "../rtwsm/ShadowSamplers.glsl"
 #include "../SolidGBuffer.glsl"
@@ -27,8 +28,8 @@ in vec2 fTexCoordI;
 in mat3 fNormalMatrix;
 in vec3 fViewDir;
 
-layout(location = 0) out vec4 outColor;
-layout(location = 1) out vec4 outParams;
+layout(location = 0) out vec4 rt_tex1;
+layout(location = 1) out vec4 rt_tex2;
 layout(location = 2) out vec4 rt_mainFboOutput;
 
 ivec2 intTexCoord = ivec2(fTexCoordI);
@@ -91,7 +92,7 @@ float calcShadow(vec3 lightViewNormal, float sssFactor) {
 
     vec2 texelSize;
     shadowCoord.xy = rtwsm_warpTexCoordTexelSize(usam_warpingMap, shadowCoord.xy, texelSize);
-    shadowCoord.z -= 0.000001 / (texelSize.x + texelSize.y);
+    shadowCoord.z -= 0.00001 / (texelSize.x + texelSize.y);
     shadowCoord.z -= lightDirOffset;
 
     float blockerDistance = searchBlocker(shadowCoord, texelSize);
@@ -125,6 +126,57 @@ float calcShadow(vec3 lightViewNormal, float sssFactor) {
     return shadow;
 }
 
+const float AIR_IOR = 1.0003;
+
+vec3 fresnel(float vDotH, float reflectance) {
+    /*
+        Metal	    Bit Value	N (R, G, B)	                K (R, G, B)
+        Iron	    230	        2.9114,  2.9497,  2.5845	3.0893, 2.9318, 2.7670
+        Gold	    231	        0.18299, 0.42108, 1.3734	3.4242, 2.3459, 1.7704
+        Aluminum	232	        1.3456,  0.96521, 0.61722	7.4746, 6.3995, 5.3031
+        Chrome	    233	        3.1071,  3.1812,  2.3230	3.3314, 3.3291, 3.1350
+        Copper	    234	        0.27105, 0.67693, 1.3164	3.6092, 2.6248, 2.2921
+        Lead	    235	        1.9100,  1.8300,  1.4400	3.5100, 3.4000, 3.1800
+        Platinum	236	        2.3757,  2.0847,  1.8453	4.2655, 3.7153, 3.1365
+        Silver	    237	        0.15943, 0.14512, 0.13547	3.9291, 3.1900, 2.3808
+    */
+    const vec3[] METAL_IOR = vec3[](
+        vec3(2.9114, 2.9497, 2.5845),
+        vec3(0.18299, 0.42108, 1.3734),
+        vec3(1.3456, 0.96521, 0.61722),
+        vec3(3.1071, 3.1812, 2.3230),
+        vec3(0.27105, 0.67693, 1.3164),
+        vec3(1.9100, 1.8300, 1.4400),
+        vec3(2.3757, 2.0847, 1.8453),
+        vec3(0.15943, 0.14512, 0.13547)
+    );
+
+    const vec3[] METAL_K = vec3[](
+        vec3(3.0893, 2.9318, 2.7670),
+        vec3(3.4242, 2.3459, 1.7704),
+        vec3(7.4746, 6.3995, 5.3031),
+        vec3(3.3314, 3.3291, 3.1350),
+        vec3(3.6092, 2.6248, 2.2921),
+        vec3(3.5100, 3.4000, 3.1800),
+        vec3(4.2655, 3.7153, 3.1365),
+        vec3(3.9291, 3.1900, 2.3808)
+    );
+
+    vec3 f;
+    if (reflectance < 229.5 / 255.0) {
+        f = cts_frenel_cook_torrance(vDotH, vec3(reflectance));
+    } else if (reflectance < 237.5 / 255.0) {
+        uint metalIdx = clamp(uint(reflectance * 255.0) - 230u, 0u, 7u);
+        vec3 ior = METAL_IOR[metalIdx];
+        vec3 k = METAL_K[metalIdx];
+        f = cts_fresnel_lazanyi(vDotH, ior, vec3(AIR_IOR), k);
+    } else {
+        f = cts_frenel_schlick_f0(vDotH, gs_data.albedo.rgb);
+    }
+
+    return f;
+}
+
 void doStuff() {
     // Specular Mapping
     vec4 specMap = textureLod(usam_blockSpecularAtlas, gs_data.texCoord, 0.0);
@@ -144,7 +196,7 @@ void doStuff() {
 //    emissive = 0.0;
 
     float sssFactor = sqrt(sssStrength / max(length(gs_data.worldCoord) / 64.0, 1.0));
-//    sssFactor = 1.0;
+//    sssFactor = 0.0;
 
     // TBN
     vec3 bitangent = cross(gs_data.worldNormal, gs_data.worldTangent);
@@ -160,33 +212,45 @@ void doStuff() {
     vec3 viewDir = normalize(-gs_data.worldCoord);
 
     float blockLightMul = 4.0;
-    float skyLightMul = 32.0;
+    float skyLightMul = 16.0;
     vec3 ambientLight = calcAmbient(usam_lightMap, mappedNormal, mappedNormal, alpha, gs_data.lightCoord, blockLightMul, skyLightMul);
 
-    float sssBase = 0.1;
-    float sssSheen = min(1.0 - dot(mappedNormal, viewDir), 1.0);
-    sssSheen = sssSheen * 0.5;
-    float sssValue = sssFactor * (sssBase + sssSheen);
+    float sssBase = max(-dot(mappedNormal, uShadowMap.lightDir), 0.0);
+    float sssSheen = dot(mappedNormal, viewDir);
+    sssSheen = 1.0 - (sssSheen * sssSheen * sssSheen);
+    float sssValue = sssFactor * (0.2 * sssBase +  sssSheen);
     // Shadow
     float shadow = calcShadow(fNormalMatrix * gs_data.worldNormal, sssFactor);
-    float diffuseIL = brdf_diffuse_orenNayar(uShadowMap.lightDir, mappedNormal, mappedNormal, alpha);
-    float directLightIl = shadow * (diffuseIL + sssValue);
 
-    vec3 v = vec3(0.0);
-    v += materialAo * ambientLight;
-    v += directLightIl * SUN_LIGHT_INTENSITY * SUN_LIGHT_COLOR;
+    float nDotL = dot(mappedNormal, uShadowMap.lightDir);
+    float nDotV = dot(mappedNormal, viewDir);
+    vec3 h = normalize(uShadowMap.lightDir + viewDir);
+    float nDotH = dot(mappedNormal, h);
+    float lDotV = dot(uShadowMap.lightDir, viewDir);
+    float vDotH = dot(viewDir, h);
+    vec3 albedo = gs_data.albedo.rgb;
+    float a = alpha;
 
-    outColor.rgb = v;
-    outColor.a = emissive;
+    vec3 f = fresnel(vDotH, reflectance);
 
-    outParams.rgb = mappedNormal;
-    outParams.a = roughness;
+    rt_tex1.rgb = albedo;
+    rt_tex1.a = shadow;
 
-    float diffuseDL = brdf_diffuse_orenNayar(uShadowMap.lightDir, viewDir, mappedNormal, alpha);
-    float directLightDL = shadow * (diffuseDL + sssValue);
+    rt_tex2.rgb = mappedNormal;
+    rt_tex2.a = emissive;
+
+    vec3 diffuseDL = bsdf_diffuseHammon(nDotL, nDotV, nDotH, lDotV, albedo, a);
+    diffuseDL += sssValue * albedo;
+    diffuseDL *= shadow;
+    diffuseDL *= vec3(1.0) - f;
+
+    vec3 m = h;
+    vec3 specularDL = shadow * cts_main(mappedNormal, uShadowMap.lightDir, viewDir, f, alpha);
+    specularDL = max(vec3(0.0), specularDL);
 
     rt_mainFboOutput = vec4(0.0, 0.0, 0.0, 1.0);
-    rt_mainFboOutput.rgb += directLightDL * SUN_LIGHT_INTENSITY * SUN_LIGHT_COLOR * gs_data.albedo.rgb;
+    rt_mainFboOutput.rgb += diffuseDL * SUN_LIGHT_INTENSITY * SUN_LIGHT_COLOR;
+    rt_mainFboOutput.rgb += specularDL * SUN_LIGHT_INTENSITY * SUN_LIGHT_COLOR;
     rt_mainFboOutput.rgb += emissive * EMISSIVE_INTENSITY * gs_data.albedo.rgb;
 }
 

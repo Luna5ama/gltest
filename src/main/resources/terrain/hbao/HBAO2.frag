@@ -143,10 +143,6 @@ void main() {
                 sampleWeight = 1.0;
             }
 
-//            float xda1 = (stepIdxF) / HBAO_STEP_SAMPLES;
-//            float xda2 = (stepIdxF + 1.0) / HBAO_STEP_SAMPLES;
-//            sampleWeight *= (xda2 * xda2 * xda2) / 3.0 - (xda1 * xda1 * xda1) / 3.0;
-
             vec4 sample1 = texture(usam_solidLighting1, sampleTexCoord);
             vec4 sample2 = texture(usam_solidLighting2, sampleTexCoord);
 
@@ -156,29 +152,13 @@ void main() {
             vec3 dirToThat = normalize(gSampleData.worldCoord - gs_data.worldCoord);
             vec3 worldNormalThat = sample2.rgb;
 
-            float angle = dot(-dirToThat, worldNormalThat);
-            angle = (1.0 - occlusion) * (angle * 0.5 + 0.5);
-
-            vec3 emissiveLightThat = sample1.a * EMISSIVE_INTENSITY * 8.0 * gSampleData.albedo.rgb;
-            vec3 diffuseLightThat = uval_giStrength.x * angle * sample1.rgb * gSampleData.albedo.rgb + emissiveLightThat;
-
-            float specThat = blinnPhong(uShadowMap.lightDir, -dirToThat, worldNormalThat, roughnessThat);
-            vec3 specLightThat = uval_giStrength.y * (sample1.rgb * specThat * angle + emissiveLightThat);
-
-            vec3 incomingLight = specLightThat + diffuseLightThat;
-
-            float diffuseThis = brdf_diffuse_orenNayar(dirToThat, viewDirThis, worldNormalThis, roughnessThis);
-
             float giAtt = 1.0;
             float dist2 = dist * dist;
             float attenuation = giAtt / (giAtt + dist2);
 
-            float adj = max(dot(-normalize(gSampleData.worldCoord), worldNormalThat), 0.1);
-            adj = 1.0 / adj * adj;
-
-            vec3 colorSample = adj * sampleWeight * attenuation * incomingLight * diffuseThis;
-            colorSum += colorSample;
-
+//            vec3 colorSample = adj * sampleWeight * attenuation * incomingLight * diffuseThis;
+//
+//            colorSum += colorSample;
             giSample += sampleWeight;
         }
 
@@ -189,7 +169,6 @@ void main() {
     }
 
     sum /= HBAO_DIR_SAMPLES;
-    //    sum.a = min(sum.a * uval_aoStrength.x, 1.0);
     sum.a = 1.0 - sum.a;
     sum.a = pow(sum.a, uval_aoStrength.y);
 
