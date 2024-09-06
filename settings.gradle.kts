@@ -3,8 +3,8 @@ rootProject.name = "gltest"
 pluginManagement {
     repositories {
         mavenLocal()
-        gradlePluginPortal()
         maven("https://maven.luna5ama.dev")
+        gradlePluginPortal()
     }
 
     val kmogusVersion: String by settings

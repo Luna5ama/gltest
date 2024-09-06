@@ -2,7 +2,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
 
 plugins {
-    kotlin("jvm") version "1.9.23"
+    kotlin("jvm") version "2.0.20"
 
     id("dev.luna5ama.jar-optimizer")
     id("dev.luna5ama.ktgen").version("1.0.0") apply false
@@ -19,8 +19,8 @@ allprojects {
 
     repositories {
         mavenLocal()
+        maven("https://maven.luna5ama.dev")
         mavenCentral()
-        maven("https://maven.luna5ama.dev/")
     }
 }
 
