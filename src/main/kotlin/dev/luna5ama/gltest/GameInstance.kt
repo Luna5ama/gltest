@@ -94,15 +94,6 @@ class GameInstance(val window: Long) {
     fun run() {
         glfwMakeContextCurrent(window)
         glfwSwapInterval(SWAP_INTERVAL)
-        val pathResolver = if (System.getProperty("gltest.devenv").toBoolean()) {
-            PathResolverImpl()
-        } else {
-            ShaderSource.PathResolver.Default
-        }
-
-        GLWrapper.init {
-            GLWrapper(it, pathResolver)
-        }
 
         runCatching { GL.create() }
         glCapabilities = GL.createCapabilities()
