@@ -5,7 +5,7 @@ import dev.luna5ama.gltest.AbstractScene
 import dev.luna5ama.gltest.linearClampEdge
 import dev.luna5ama.gltest.readImage
 import dev.luna5ama.glwrapper.ShaderBindingSpecs
-import dev.luna5ama.glwrapper.api.*
+import dev.luna5ama.glwrapper.base.*
 import dev.luna5ama.glwrapper.enums.ImageFormat
 import dev.luna5ama.glwrapper.objects.*
 import dev.luna5ama.kmogus.Arr

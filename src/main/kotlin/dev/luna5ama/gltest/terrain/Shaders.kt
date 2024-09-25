@@ -4,7 +4,7 @@ import dev.fastmc.common.EnumMap
 import dev.fastmc.common.ceilToInt
 import dev.fastmc.common.sq
 import dev.luna5ama.glwrapper.ShaderBindingSpecs
-import dev.luna5ama.glwrapper.api.GL_DYNAMIC_STORAGE_BIT
+import dev.luna5ama.glwrapper.base.GL_DYNAMIC_STORAGE_BIT
 import dev.luna5ama.glwrapper.objects.BufferObject
 import dev.luna5ama.glwrapper.ShaderProgram
 import dev.luna5ama.glwrapper.ShaderSource

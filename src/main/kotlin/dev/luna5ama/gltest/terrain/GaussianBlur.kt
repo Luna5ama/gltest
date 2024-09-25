@@ -1,10 +1,10 @@
 package dev.luna5ama.gltest.terrain
 
 import dev.luna5ama.glwrapper.*
-import dev.luna5ama.glwrapper.api.GL_BLEND
-import dev.luna5ama.glwrapper.api.GL_COLOR_ATTACHMENT0
-import dev.luna5ama.glwrapper.api.glDisable
-import dev.luna5ama.glwrapper.api.glViewport
+import dev.luna5ama.glwrapper.base.GL_BLEND
+import dev.luna5ama.glwrapper.base.GL_COLOR_ATTACHMENT0
+import dev.luna5ama.glwrapper.base.glDisable
+import dev.luna5ama.glwrapper.base.glViewport
 import dev.luna5ama.glwrapper.enums.*
 import dev.luna5ama.glwrapper.objects.*
 import java.math.BigInteger

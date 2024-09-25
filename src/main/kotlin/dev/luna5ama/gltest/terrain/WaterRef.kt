@@ -1,7 +1,7 @@
 package dev.luna5ama.gltest.terrain
 
 import dev.luna5ama.gltest.FboGroup
-import dev.luna5ama.glwrapper.api.*
+import dev.luna5ama.glwrapper.base.*
 import dev.luna5ama.glwrapper.objects.FramebufferObject
 import dev.luna5ama.glwrapper.ShaderProgram
 import dev.luna5ama.glwrapper.ShaderSource

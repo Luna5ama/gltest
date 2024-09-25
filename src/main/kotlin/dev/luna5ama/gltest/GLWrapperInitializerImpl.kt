@@ -1,0 +1,34 @@
+package dev.luna5ama.gltest
+
+import dev.luna5ama.glwrapper.base.GLWrapperInitializer
+import dev.luna5ama.glwrapper.base.GLWrapperInitializerLWJGL3
+import dev.luna5ama.glwrapper.base.ShaderPathResolver
+import java.io.File
+import java.net.URI
+
+class GLWrapperInitializerImpl : GLWrapperInitializer by GLWrapperInitializerLWJGL3() {
+    override val priority: Int = 999
+
+    override fun createPathResolver(): ShaderPathResolver {
+        return if (System.getProperty("gltest.devenv").toBoolean()) {
+            PathResolverImpl()
+        } else {
+            super.createPathResolver()
+        }
+    }
+
+    class PathResolverImpl : ShaderPathResolver {
+        private val root = PathImpl(File("C:\\CodeShit\\gltest\\src\\main\\resources").toURI())
+
+        override fun resolve(path: String): ShaderPathResolver.Path {
+            return PathImpl(root.uri.resolve("./$path"))
+        }
+
+        private inner class PathImpl(val uri: URI) : ShaderPathResolver.Path {
+            override val url = uri.toURL()
+            override fun resolve(path: String): ShaderPathResolver.Path {
+                return PathImpl(uri.resolve(path))
+            }
+        }
+    }
+}

@@ -1,6 +1,6 @@
 package dev.luna5ama.gltest.terrain
 
-import dev.luna5ama.glwrapper.api.*
+import dev.luna5ama.glwrapper.base.*
 import dev.luna5ama.glwrapper.objects.SamplerObject
 import dev.luna5ama.glwrapper.objects.setBorderColor
 import dev.luna5ama.glwrapper.objects.setFilter

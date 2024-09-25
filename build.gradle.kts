@@ -49,6 +49,7 @@ dependencies {
     implementation("dev.fastmc:fastmc-common:1.1-SNAPSHOT")
 
     implementation("dev.luna5ama:gl-wrapper-lwjgl-3:1.1.0")
+    implementation("dev.luna5ama:gl-wrapper-core:1.1.0")
 
     implementation("dev.luna5ama:kmogus-core:$kmogusVersion")
     implementation("dev.luna5ama:kmogus-joml:$kmogusVersion")
@@ -102,11 +103,17 @@ allprojects {
         }
     }
 
+    java {
+        toolchain {
+            languageVersion.set(JavaLanguageVersion.of(21))
+        }
+    }
+
     kotlin {
         compilerOptions {
             freeCompilerArgs = listOf("-Xdebug")
             jvmTarget.set(JvmTarget.JVM_21)
-            languageVersion.set(KotlinVersion.KOTLIN_1_9)
+            languageVersion.set(KotlinVersion.KOTLIN_2_0)
         }
     }
 }

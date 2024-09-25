@@ -6,7 +6,7 @@ import dev.luna5ama.gltest.terrain.TerrainScene
 import dev.luna5ama.gltest.terrain.register
 import dev.luna5ama.glwrapper.ShaderProgram
 import dev.luna5ama.glwrapper.ShaderSource
-import dev.luna5ama.glwrapper.api.*
+import dev.luna5ama.glwrapper.base.*
 
 class Sobel(private val scene: TerrainScene) : IGLObjContainer by IGLObjContainer.Impl() {
     private val shader = register(

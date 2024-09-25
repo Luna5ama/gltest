@@ -9,7 +9,7 @@ import dev.luna5ama.gltest.structs.DrawElementsIndirectCommand
 import dev.luna5ama.gltest.structs.sizeof
 import dev.luna5ama.gltest.terrain.post.*
 import dev.luna5ama.glwrapper.ShaderSource
-import dev.luna5ama.glwrapper.api.*
+import dev.luna5ama.glwrapper.base.*
 import dev.luna5ama.glwrapper.enums.FilterMode
 import dev.luna5ama.glwrapper.enums.ShaderStage
 import dev.luna5ama.glwrapper.enums.WrapMode

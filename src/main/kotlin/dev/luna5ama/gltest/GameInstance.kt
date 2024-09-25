@@ -7,7 +7,7 @@ import dev.luna5ama.gltest.structs.Vec2i32
 import dev.luna5ama.gltest.structs.sizeof
 import dev.luna5ama.gltest.terrain.TerrainScene
 import dev.luna5ama.glwrapper.ShaderSource
-import dev.luna5ama.glwrapper.api.*
+import dev.luna5ama.glwrapper.base.*
 import dev.luna5ama.kmogus.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.asCoroutineDispatcher
@@ -75,21 +75,6 @@ class GameInstance(val window: Long) {
     private val prevSizeY = prevSizeX + 4L
     private val prevPos = Vec2i32(prevPosX)
     private val prevSize = Vec2i32(prevSizeX)
-
-    class PathResolverImpl : ShaderSource.PathResolver {
-        private val root = PathImpl(File("C:\\CodeShit\\gltest\\src\\main\\resources").toURI())
-
-        override fun resolve(path: String): ShaderSource.PathResolver.Path {
-            return PathImpl(root.uri.resolve("./$path"))
-        }
-
-        private inner class PathImpl(val uri: URI) : ShaderSource.PathResolver.Path {
-            override val url = uri.toURL()
-            override fun resolve(path: String): ShaderSource.PathResolver.Path {
-                return PathImpl(uri.resolve(path))
-            }
-        }
-    }
 
     fun run() {
         glfwMakeContextCurrent(window)

@@ -4,7 +4,7 @@ import dev.fastmc.common.MathUtil
 import dev.fastmc.common.TickTimer
 import dev.fastmc.common.toRadians
 import dev.luna5ama.gltest.FboGroup
-import dev.luna5ama.glwrapper.api.*
+import dev.luna5ama.glwrapper.base.*
 import dev.luna5ama.glwrapper.*
 import dev.luna5ama.glwrapper.enums.*
 import dev.luna5ama.glwrapper.objects.*

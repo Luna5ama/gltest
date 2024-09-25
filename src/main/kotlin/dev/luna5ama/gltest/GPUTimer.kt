@@ -2,7 +2,7 @@ package dev.luna5ama.gltest
 
 import dev.fastmc.common.TickTimer
 import dev.luna5ama.gltest.terrain.IGLObjContainer
-import dev.luna5ama.glwrapper.api.*
+import dev.luna5ama.glwrapper.base.*
 import dev.luna5ama.glwrapper.enums.GLObjectType
 import dev.luna5ama.glwrapper.objects.IGLObject
 import it.unimi.dsi.fastutil.ints.IntArrayFIFOQueue

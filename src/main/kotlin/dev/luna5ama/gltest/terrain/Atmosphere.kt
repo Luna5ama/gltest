@@ -4,7 +4,7 @@ import dev.luna5ama.gltest.FboGroup
 import dev.luna5ama.gltest.uniform3f
 import dev.luna5ama.glwrapper.ShaderProgram
 import dev.luna5ama.glwrapper.ShaderSource
-import dev.luna5ama.glwrapper.api.*
+import dev.luna5ama.glwrapper.base.*
 import org.joml.Vector3d
 
 class Atmosphere(private val scene: TerrainScene) : IGLObjContainer by IGLObjContainer.Impl() {

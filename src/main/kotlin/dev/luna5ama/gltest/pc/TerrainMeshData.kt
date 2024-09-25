@@ -6,8 +6,8 @@ import dev.luna5ama.gltest.structs.*
 import dev.luna5ama.gltest.terrain.IGLObjContainer
 import dev.luna5ama.gltest.terrain.register
 import dev.luna5ama.glwrapper.ShaderBindingSpecs
-import dev.luna5ama.glwrapper.api.GL_MAP_INVALIDATE_BUFFER_BIT
-import dev.luna5ama.glwrapper.api.GL_MAP_WRITE_BIT
+import dev.luna5ama.glwrapper.base.GL_MAP_INVALIDATE_BUFFER_BIT
+import dev.luna5ama.glwrapper.base.GL_MAP_WRITE_BIT
 import dev.luna5ama.glwrapper.enums.BufferTarget
 import dev.luna5ama.glwrapper.objects.BufferObject
 import dev.luna5ama.kmogus.Arr

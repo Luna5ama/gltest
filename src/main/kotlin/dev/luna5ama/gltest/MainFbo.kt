@@ -2,8 +2,8 @@ package dev.luna5ama.gltest
 
 import dev.luna5ama.gltest.terrain.IGLObjContainer
 import dev.luna5ama.gltest.terrain.register
-import dev.luna5ama.glwrapper.api.GL_COLOR_ATTACHMENT0
-import dev.luna5ama.glwrapper.api.GL_DEPTH_STENCIL_ATTACHMENT
+import dev.luna5ama.glwrapper.base.GL_COLOR_ATTACHMENT0
+import dev.luna5ama.glwrapper.base.GL_DEPTH_STENCIL_ATTACHMENT
 import dev.luna5ama.glwrapper.enums.ImageFormat
 import dev.luna5ama.glwrapper.objects.FramebufferObject
 import dev.luna5ama.glwrapper.objects.TextureObject

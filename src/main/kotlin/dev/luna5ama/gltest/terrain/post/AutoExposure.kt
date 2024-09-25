@@ -6,7 +6,7 @@ import dev.luna5ama.gltest.terrain.IGLObjContainer
 import dev.luna5ama.gltest.terrain.TerrainScene
 import dev.luna5ama.gltest.terrain.register
 import dev.luna5ama.glwrapper.*
-import dev.luna5ama.glwrapper.api.*
+import dev.luna5ama.glwrapper.base.*
 import dev.luna5ama.glwrapper.enums.*
 import dev.luna5ama.glwrapper.objects.*
 import dev.luna5ama.kmogus.MemoryStack

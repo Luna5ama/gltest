@@ -5,7 +5,7 @@ import dev.luna5ama.gltest.structs.CullTestCommand
 import dev.luna5ama.gltest.structs.sizeof
 import dev.luna5ama.gltest.terrain.IGLObjContainer
 import dev.luna5ama.gltest.terrain.register
-import dev.luna5ama.glwrapper.api.GL_DYNAMIC_STORAGE_BIT
+import dev.luna5ama.glwrapper.base.GL_DYNAMIC_STORAGE_BIT
 import dev.luna5ama.glwrapper.objects.BufferObject
 import dev.luna5ama.kmogus.Arr
 import kotlinx.coroutines.withContext

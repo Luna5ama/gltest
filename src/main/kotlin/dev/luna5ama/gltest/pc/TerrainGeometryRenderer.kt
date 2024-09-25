@@ -11,7 +11,7 @@ import dev.luna5ama.gltest.terrain.register
 import dev.luna5ama.glwrapper.ShaderBindingSpecs
 import dev.luna5ama.glwrapper.ShaderProgram
 import dev.luna5ama.glwrapper.ShaderSource
-import dev.luna5ama.glwrapper.api.*
+import dev.luna5ama.glwrapper.base.*
 import dev.luna5ama.glwrapper.enums.BufferTarget
 import dev.luna5ama.glwrapper.objects.BufferObject
 import dev.luna5ama.kmogus.MemoryStack
@@ -45,7 +45,7 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
     }
 //    val visibilityFlagType = VisibilityFlagType.INT32
 
-    val threadBatchSize = if (GLWrapper.instance.vendor == GpuVendor.NVIDIA) 96 else 12
+    val threadBatchSize = if (GLWrapper.instance.properties.vendor == GpuVendor.NVIDIA) 96 else 12
 
     val debugQuadCount = true
 

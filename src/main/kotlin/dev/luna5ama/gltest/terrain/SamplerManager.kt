@@ -1,6 +1,6 @@
 package dev.luna5ama.gltest.terrain
 
-import dev.luna5ama.glwrapper.api.*
+import dev.luna5ama.glwrapper.base.*
 import dev.luna5ama.glwrapper.enums.CompareFunc
 import dev.luna5ama.glwrapper.enums.CompareMode
 import dev.luna5ama.glwrapper.enums.FilterMode

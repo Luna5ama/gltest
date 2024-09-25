@@ -1,7 +1,7 @@
 package dev.luna5ama.gltest
 
-import dev.luna5ama.glwrapper.api.GL_TRIANGLES
-import dev.luna5ama.glwrapper.api.glDrawArrays
+import dev.luna5ama.glwrapper.base.GL_TRIANGLES
+import dev.luna5ama.glwrapper.base.glDrawArrays
 import dev.luna5ama.kmogus.MemoryStack
 import dev.luna5ama.gltest.terrain.IGLObjContainer
 import dev.luna5ama.gltest.terrain.register

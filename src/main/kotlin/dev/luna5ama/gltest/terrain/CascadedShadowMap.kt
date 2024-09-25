@@ -3,7 +3,7 @@ package dev.luna5ama.gltest.terrain
 /*
 import dev.luna5ama.gltest.Frustum
 import dev.fastmc.common.*
-import dev.luna5ama.glwrapper.api.*
+import dev.luna5ama.glwrapper.base.*
 import dev.luna5ama.glwrapper.*
 import dev.luna5ama.glwrapper.enums.*
 import dev.luna5ama.glwrapper.objects.*

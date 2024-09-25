@@ -3,7 +3,7 @@ package dev.luna5ama.gltest
 import dev.luna5ama.gltest.terrain.IGLObjContainer
 import dev.luna5ama.gltest.terrain.register
 import dev.luna5ama.glwrapper.ShaderBindingSpecs
-import dev.luna5ama.glwrapper.api.*
+import dev.luna5ama.glwrapper.base.*
 import dev.luna5ama.glwrapper.objects.FramebufferObject
 
 class FboGroup(private val scene: AbstractScene) : IGLObjContainer by IGLObjContainer.Impl() {
