@@ -270,8 +270,20 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
                                 val localUpdateData = updateDataList[localThreadIndex]
                                 val filteredChunks = arrayOfNulls<ChunkLayerInfo>(63)
 
+                                val cameraPos = scene.camera.pos
+                                val chunkPosList = scene.terrainMeshData.chunkPos
+                                val originOffsetX = cameraPos.x.floorToInt()
+                                val originOffsetY = cameraPos.y.floorToInt()
+                                val originOffsetZ = cameraPos.z.floorToInt()
+                                val rangeSq = scene.camera.viewDistance * scene.camera.viewDistance
+
                                 for (i1 in start until end) {
                                     val chunkIndex = chunkPosIndices[i1]
+                                    val chunkPos = chunkPosList[chunkIndex]
+                                    val dx = chunkPos.x * 16 + 8 - originOffsetX
+                                    val dy = chunkPos.y * 16 + 8 - originOffsetY
+                                    val dz = chunkPos.z * 16 + 8 - originOffsetZ
+                                    if (dx * dx + dy * dy + dz * dz > rangeSq) continue
                                     if (!frustumCullingFlags[chunkIndex].value) continue
 
                                     val rawList = scene.terrainMeshData.chunk2LayerMap[chunkIndex] ?: continue

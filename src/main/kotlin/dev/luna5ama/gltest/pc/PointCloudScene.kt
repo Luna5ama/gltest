@@ -242,7 +242,6 @@ class PointCloudScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboa
                 lastKey = GLFW_KEY_F7
 
                 camera.fov0 = 90.0f
-                camera.viewDistance = 2048.0f
                 camera.rotation.x = -89.0f
                 camera.rotation.y = 75.0f
                 camera.pos.x = -514.0
@@ -259,7 +258,6 @@ class PointCloudScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboa
                 lastKey = GLFW_KEY_F8
 
                 camera.fov0 = 90.0f
-                camera.viewDistance = 2048.0f
                 camera.rotation.x = -50.0f
                 camera.rotation.y = 77.5f
                 camera.pos.x = -256.0
@@ -276,7 +274,6 @@ class PointCloudScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboa
                 lastKey = GLFW_KEY_F9
 
                 camera.fov0 = 90.0f
-                camera.viewDistance = 2048.0f
                 camera.rotation.x = -315.0f
                 camera.rotation.y = 31.3f
                 camera.pos.x = 508.0
@@ -293,7 +290,6 @@ class PointCloudScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboa
                 lastKey = GLFW_KEY_F10
 
                 camera.fov0 = 90.0f
-                camera.viewDistance = 2048.0f
                 camera.rotation.x = -236.0f
                 camera.rotation.y = 40.0f
                 camera.pos.x = 746.0
