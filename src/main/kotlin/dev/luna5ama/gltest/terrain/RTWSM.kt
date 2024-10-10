@@ -169,7 +169,7 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
     val lightDir = Vector3f(0.5f, 1.0f, 0.5f).normalize()
 
     suspend fun render() {
-        lightDir.set(0.2f, 0.5f, 0.8f).normalize() // HAllway
+//        lightDir.set(0.2f, 0.5f, 0.8f).normalize() // HAllway
 
 //        lightDir.set(0.2f, 1.0f, 0.8f).normalize() // HAllway
 
@@ -203,7 +203,7 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
 
 //        lightDir.set(0.6f, 1.2f, -0.8f).normalize() // Sponza
 //        lightDir.set(0.1f, 1.2f, -0.6f).normalize() // Sponza
-//        lightDir.set(0.2f, 1.2f, -0.85f).normalize() // Sponza
+        lightDir.set(0.2f, 1.2f, -0.85f).normalize() // Sponza
 //        lightDir.set(0.15f, 1.5f, -0.6f).normalize() // Sponza
 //        lightDir.set(0.4f, 1.2f, -0.5f).normalize() // Sponzsa
 //        lightDir.set(0.0f, 1.2f, -0.9f).normalize() // Sponza.

@@ -4,12 +4,15 @@
 
 #include "../utils/Rand.glsl"
 #include "../rtwsm/ShadowParams.glsl"
+#include "../LightParams.glsl"
 #include "../utils/R2Seqs.glsl"
 #include "../utils/Math.glsl"
 #include "../GBuffers.glsl"
 #include "../GenericGBuffer.glsl"
 #include "../GlobalCamera.glsl"
 #include "../utils/FastMath.glsl"
+
+#define PI 3.14159265358979323846
 
 uniform sampler2D usam_lightMap;
 uniform float uval_tangentBias;
@@ -50,6 +53,14 @@ float IGN(vec2 v, uint frame) {
     return fract(52.9829189 * fract(0.06711056 * v.x + 0.00583715 * v.y));
 }
 
+float tangent(vec3 v) {
+    return v.z * inversesqrt(dot(v.xy, v.xy));
+}
+
+float tan2sin(float x) {
+    return x * inversesqrt(x * x + 1.0);
+}
+
 void main() {
     GBufferData gs_data;
     gbuffer_unpack1(texture(usam_gData1, fTexCoord), gs_data);
@@ -58,12 +69,13 @@ void main() {
 
     vec3 gs_viewCoord = (ubo_cameraDefault.modelView * vec4(gs_data.worldCoord, 1.0)).xyz;
     vec3 viewDirThis = normalize(-gs_data.worldCoord);
+    vec3 viewCordDirThis = normalize(-gs_viewCoord);
 
     //            vec3 worldNormalThis = slThis2.rgb;
-    //        vec3 worldNormalThis = gs_data.worldNormal;
-    vec3 worldNormalThis = normalize(gs_data.worldNormal + slThis2.rgb * 0.1);
+//            vec3 worldNormalThis = gs_data.worldNormal;
+    vec3 worldNormalThis = normalize(slThis2.rgb);
 
-    vec3 gs_viewNormal = mat3(ubo_cameraDefault.modelView) * worldNormalThis;
+    vec3 gs_viewNormal = normalize(mat3(ubo_cameraDefault.modelView) * worldNormalThis);
     float roughnessThis = slThis2.a;
     roughnessThis *= roughnessThis;
 
@@ -91,9 +103,6 @@ void main() {
         vec2 sampleDirUVUnit = sampleDir * vec2(uval_projectParams.z, 1.0) * ubo_cameraDefault.screenSize.zw;
         vec2 sampleDirUV = sampleDir * sphereRadius;
 
-        vec2 localSpaceNormal = vec2(dot(gs_viewNormal.xy, sampleDir), dot(gs_viewNormal.xy, sampleDir));
-        float tangentAngle = asinFast4(-dot(sampleDir, gs_viewNormal.xy));
-
         vec3 colorSum = vec3(0.0);
         float giSample = 0.0;
 
@@ -102,17 +111,29 @@ void main() {
         dirStepBaseIdx += i;
         dirStepBaseIdx *= HBAO_STEP_SAMPLES;
 
-        float sinTan = sin(tangentAngle + uval_tangentBias);
         float maxOcclusion = 0.0;
-        float maxSin = sinTan;
         vec2 baseCoord = fTexCoord + sampleDirUVUnit;
+
+        vec3 a = gs_viewNormal;
+        vec3 b = vec3(sampleDir, 0.0);
+
+        vec3 T = normalize(b - dot(b, a) * a);
+
+        float t = acos(dot(vec3(sampleDir, 0.0), gs_viewNormal)) - (0.5 * PI) + uval_tangentBias;
+        float sinT = sin(t);
+        float maxSinH = sinT;
+
+        float lastX = asin(sinT);
+        vec3 lastY = vec3(0.0);
+        vec3 lastNormal = worldNormalThis;
+        bool first = true;
 
         for (int stepIdx = 0; stepIdx < HBAO_STEP_SAMPLES; stepIdx++) {
             float stepIdxF = float(stepIdx);
             float stepX = (stepIdxF + r2Seq1(dirStepBaseIdx + stepIdx)) / HBAO_STEP_SAMPLES;
 //            float stepX = (stepIdxF + 0.5) / HBAO_STEP_SAMPLES;
-//            float stepY = stepX * stepX;
-            float stepY = stepX;
+            float stepY = stepX * stepX;
+//            float stepY = stepX;
 //            float stepY = exp2(stepX) - 1.0;
             vec2 sampleTexCoord = baseCoord + stepY * sampleDirUV;
             vec2 sampleClipCoord = sampleTexCoord * 2.0 - 1.0;
@@ -123,48 +144,71 @@ void main() {
             GBufferData gSampleData;
             gbuffer_unpack1(texture(usam_gData1, sampleTexCoord), gSampleData);
 
-            vec3 diff = gSampleData.worldCoord - gs_data.worldCoord;
+            vec3 viewCoordThat = (ubo_cameraDefault.modelView * vec4(gSampleData.worldCoord, 1.0)).xyz;
+            vec3 diff = viewCoordThat - gs_viewCoord;
             float dist = length(diff);
-            if (dist > uval_radius.y) break;
+            if (dist > uval_radius.y) continue;
 
-            vec3 diffView = mat3(ubo_cameraDefault.modelView) * diff;
-            float xSample = diffView.z * fastRcpSqrtNR0(dot(diffView.xy, diffView.xy));
-            float sinSample = xSample * fastRcpSqrtNR0(1.0 + xSample * xSample);
+//            float tanH = tangent(diff);
+//            float sinH = tan2sin(tanH);
+            float sinH = diff.z / dist;
 
-            float aoAtt = 4.0;
-            float aoAttenuation = aoAtt / (aoAtt + dist);
+            if (sinH >= maxSinH) {
+                maxSinH = sinH;
 
-            float occlusion = min(aoAttenuation * (sinSample - sinTan) * uval_aoStrength.x, 1.0);
+                float aoAtt = 4.0;
+                float aoAttenuation = aoAtt / (aoAtt + dist);
+//                aoAttenuation = 1.0;
+                float occlusionBase = sinH - sinT;
+                float occlusion = min(aoAttenuation * occlusionBase * uval_aoStrength.x, 1.0);
+//                float occlusion = occlusionBase;
 
-            float sampleWeight = 0.5;
-            if (sinSample >= maxSin) {
                 maxOcclusion = max(occlusion, maxOcclusion);
-                maxSin = sinSample;
-                sampleWeight = 1.0;
+
+                vec4 sample1 = texture(usam_solidLighting1, sampleTexCoord);
+                vec4 sample2 = texture(usam_solidLighting2, sampleTexCoord);
+
+                vec3 incomingLight = vec3(0.0);
+                vec3 currNormal = normalize(mix(lastNormal, sample2.rgb, 1.0));
+                incomingLight += max(dot(currNormal, uShadowMap.lightDir), 0.0) * sample1.rgb;
+                incomingLight += sample2.a * sample1.rgb;
+                incomingLight *= sample1.a;
+                incomingLight *= SUN_LIGHT_INTENSITY * SUN_LIGHT_COLOR;
+
+                float giAtt = 16.0;
+                float dist2 = dist * dist;
+                float attenuation = giAtt / (giAtt + dist2);
+//                attenuation = 1.0;
+
+                vec3 thisLightDir = normalize(gSampleData.worldCoord - gs_data.worldCoord);
+                vec3 thatRefDir = normalize(gs_data.worldCoord - gSampleData.worldCoord);
+
+                // Trapzoidal integration
+                float currX = asin(sinH);
+                float refDot = dot(thatRefDir, currNormal);
+                vec3 currY = max(dot(worldNormalThis, thisLightDir), 0.0) * (attenuation * incomingLight);
+                refDot = 1.0 - max(refDot, 0.0);
+                currY *= 1.0 - (refDot * refDot * refDot);
+//                currY *= max(refDot, 0.0);
+//                currY *= (1.0 - step(refDot, 0.0));
+                if (first) {
+                    lastY = currY;
+                    first = false;
+                }
+                vec3 colorSample = (currX - lastX) * 0.5 * (lastY + currY);
+
+                lastX = currX;
+                lastY = currY;
+                lastNormal = (sample2.rgb + lastNormal) / 2.0;
+
+                colorSum += colorSample;
+                giSample++;
             }
-
-            vec4 sample1 = texture(usam_solidLighting1, sampleTexCoord);
-            vec4 sample2 = texture(usam_solidLighting2, sampleTexCoord);
-
-            float roughnessThat = sample2.a;
-            roughnessThat *= roughnessThat;
-
-            vec3 dirToThat = normalize(gSampleData.worldCoord - gs_data.worldCoord);
-            vec3 worldNormalThat = sample2.rgb;
-
-            float giAtt = 1.0;
-            float dist2 = dist * dist;
-            float attenuation = giAtt / (giAtt + dist2);
-
-//            vec3 colorSample = adj * sampleWeight * attenuation * incomingLight * diffuseThis;
-//
-//            colorSum += colorSample;
-            giSample += sampleWeight;
         }
 
         sum.a += maxOcclusion;
         if (giSample > 0.0) {
-            sum.rgb += colorSum / giSample;
+            sum.rgb += colorSum;
         }
     }
 

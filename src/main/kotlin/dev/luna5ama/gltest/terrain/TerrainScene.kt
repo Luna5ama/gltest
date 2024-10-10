@@ -65,15 +65,15 @@ class TerrainScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard)
 //    private val sun = Sun(this)
 
     val solidVelocity = register(VelocityBuffer(this))
-    val combinedVelocity = register(VelocityBuffer(this))
+//    val combinedVelocity = register(VelocityBuffer(this))
 
     //    val voLight = VolumetricLight(this, 64, 8)
     val txaa = register(TXAA(this, 8, 0.5f))
     val autoExposure = register(AutoExposure(this))
     private val toneMapping = register(ToneMapping(this))
-    private val bloom = register(Bloom(this))
+//    private val bloom = register(Bloom(this))
     private val gammaCorrection = register(GammaCorrection(this))
-    private val sobel = register(Sobel(this))
+//    private val sobel = register(Sobel(this))
 
     val gaussianBlur = register(GaussianBlur(this))
 
@@ -444,22 +444,24 @@ class TerrainScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard)
 
         fboGroup.input.fbo.bind()
 
-        glDebugGroup("CombinedVelocity") { combinedVelocity.render(waterGBuffer) }
+//        glDebugGroup("CombinedVelocity") { combinedVelocity.render(waterGBuffer) }
 
 //        glDebugGroup("Bloom") { bloom.render(fboGroup) }
+
         glDebugGroup("ToneMapping") {
             autoExposure.render(fboGroup)
             autoExposure.update(fboGroup)
             toneMapping.render(fboGroup)
         }
-
-        solidLightDebug()
+//        if (!gameInstance.toggle2) {
+            solidLightDebug()
+//        }
 
         glDebugGroup("TXAA") { txaa.render(fboGroup) }
 
 //        rtwsm.renderDebug(fboGroup)
 
-        glDebugGroup("GammaCorrection") { gammaCorrection.render(fboGroup) }
+//        glDebugGroup("GammaCorrection") { gammaCorrection.render(fboGroup) }
 
 //        glDebugGroup("Atmosphere") { atmosphere.postPass(fboGroup) }
 //        glDebugGroup("VolumetricLight") {

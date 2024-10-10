@@ -138,8 +138,8 @@ class GameInstance(val window: Long) {
         val keyboard = Keyboard()
 
 //    val scene = TestScene(this, mouse, keyboard)
-//        val scene = TerrainScene(this, mouse, keyboard)
-        val scene = PointCloudScene(this, mouse, keyboard)
+        val scene = TerrainScene(this, mouse, keyboard)
+//        val scene = PointCloudScene(this, mouse, keyboard)
 
         registerKeyCallbacks(scene, keyboard)
 

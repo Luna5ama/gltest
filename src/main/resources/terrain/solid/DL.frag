@@ -216,9 +216,9 @@ void doStuff() {
     vec3 ambientLight = calcAmbient(usam_lightMap, mappedNormal, mappedNormal, alpha, gs_data.lightCoord, blockLightMul, skyLightMul);
 
     float sssBase = max(-dot(mappedNormal, uShadowMap.lightDir), 0.0);
-    float sssSheen = dot(mappedNormal, viewDir);
-    sssSheen = 1.0 - (sssSheen * sssSheen * sssSheen);
-    float sssValue = sssFactor * (0.2 * sssBase +  sssSheen);
+    float sssSheen = 1.0 - abs(dot(mappedNormal, viewDir));
+    sssSheen = (sssSheen * sssSheen);
+    float sssValue = sssFactor * (0.2 * sssBase + 0.5 * sssSheen);
     // Shadow
     float shadow = calcShadow(fNormalMatrix * gs_data.worldNormal, sssFactor);
 
@@ -237,14 +237,13 @@ void doStuff() {
     rt_tex1.a = shadow;
 
     rt_tex2.rgb = mappedNormal;
-    rt_tex2.a = emissive;
+    rt_tex2.a = sssValue;
 
     vec3 diffuseDL = bsdf_diffuseHammon(nDotL, nDotV, nDotH, lDotV, albedo, a);
     diffuseDL += sssValue * albedo;
     diffuseDL *= shadow;
     diffuseDL *= vec3(1.0) - f;
 
-    vec3 m = h;
     vec3 specularDL = shadow * cts_main(mappedNormal, uShadowMap.lightDir, viewDir, f, alpha);
     specularDL = max(vec3(0.0), specularDL);
 
