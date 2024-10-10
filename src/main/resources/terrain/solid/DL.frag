@@ -48,7 +48,7 @@ float searchBlocker(vec3 shadowCoord, vec2 texelSize) {
 
     #define BLOCKER_SEARCH_N 8
 
-    vec2 blockerSearchRange = texelSize * 8.0;
+    vec2 blockerSearchRange = texelSize * 2.0;
     uint idxB = ubo_cameraDefault.gFrameIndex * BLOCKER_SEARCH_N + worldCoordRand[1];
 
     float blockerDepth = 0.0f;
@@ -92,11 +92,11 @@ float calcShadow(vec3 lightViewNormal, float sssFactor) {
 
     vec2 texelSize;
     shadowCoord.xy = rtwsm_warpTexCoordTexelSize(usam_warpingMap, shadowCoord.xy, texelSize);
-    shadowCoord.z -= 0.00001 / (texelSize.x + texelSize.y);
-    shadowCoord.z -= lightDirOffset;
+    shadowCoord.z -= 0.000003 / (texelSize.x + texelSize.y);
+//    shadowCoord.z -= lightDirOffset;
 
     float blockerDistance = searchBlocker(shadowCoord, texelSize);
-    float penumbraMult = 0.025 * blockerDistance;
+    float penumbraMult = 0.05 * blockerDistance;
 
     #define SAMPLE_N 16
 
@@ -217,8 +217,7 @@ void doStuff() {
 
     float sssBase = max(-dot(mappedNormal, uShadowMap.lightDir), 0.0);
     float sssSheen = 1.0 - abs(dot(mappedNormal, viewDir));
-    sssSheen = (sssSheen * sssSheen);
-    float sssValue = sssFactor * (0.2 * sssBase + 0.5 * sssSheen);
+    float sssValue = sssFactor * (0.5 * sssBase + 0.4 * sssSheen);
     // Shadow
     float shadow = calcShadow(fNormalMatrix * gs_data.worldNormal, sssFactor);
 

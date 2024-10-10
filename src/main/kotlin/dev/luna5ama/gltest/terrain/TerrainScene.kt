@@ -11,7 +11,6 @@ import dev.luna5ama.gltest.terrain.post.*
 import dev.luna5ama.glwrapper.ShaderSource
 import dev.luna5ama.glwrapper.base.*
 import dev.luna5ama.glwrapper.enums.FilterMode
-import dev.luna5ama.glwrapper.enums.ShaderStage
 import dev.luna5ama.glwrapper.enums.WrapMode
 import dev.luna5ama.kmogus.*
 import kotlinx.coroutines.Dispatchers
@@ -29,7 +28,7 @@ import kotlin.math.pow
 
 class TerrainScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard) :
     AbstractScene(gameInstance, mouse, keyboard) {
-//    val terrainMesh = register(TerrainMesh(this, File("dumpMountain")))
+    //    val terrainMesh = register(TerrainMesh(this, File("dumpMountain")))
 //    val terrainMesh = register(TerrainMesh(this, File("dumpMountainV")))
 //    val terrainMesh = register(TerrainMesh(this, File("dumpBadlands")))
 //    val terrainMesh = register(TerrainMesh(this, File("dumpForest")))
@@ -71,7 +70,8 @@ class TerrainScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard)
     val txaa = register(TXAA(this, 8, 0.5f))
     val autoExposure = register(AutoExposure(this))
     private val toneMapping = register(ToneMapping(this))
-//    private val bloom = register(Bloom(this))
+
+    //    private val bloom = register(Bloom(this))
     private val gammaCorrection = register(GammaCorrection(this))
 //    private val sobel = register(Sobel(this))
 
@@ -309,7 +309,13 @@ class TerrainScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard)
         glEnable(GL_DITHER)
 
         glDebugGroup("Solid HI-Z") {
-            hizGen.processDepth(solidGBuffer.depthStencilTex, solidGBuffer.depthStencilTex, HiZBufferGen.KernelType.AVG, HiZBufferGen.DepthType.LOG, camera.planeZ)
+            hizGen.processDepth(
+                solidGBuffer.depthStencilTex,
+                solidGBuffer.depthStencilTex,
+                HiZBufferGen.KernelType.AVG,
+                HiZBufferGen.DepthType.LOG,
+                camera.planeZ
+            )
         }
     }
 
@@ -453,15 +459,14 @@ class TerrainScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard)
             autoExposure.update(fboGroup)
             toneMapping.render(fboGroup)
         }
-//        if (!gameInstance.toggle2) {
+
+        if (!gameInstance.toggle1) {
             solidLightDebug()
-//        }
-
-        glDebugGroup("TXAA") { txaa.render(fboGroup) }
-
-//        rtwsm.renderDebug(fboGroup)
-
-//        glDebugGroup("GammaCorrection") { gammaCorrection.render(fboGroup) }
+            glDebugGroup("TXAA") { txaa.render(fboGroup) }
+        } else {
+            glDebugGroup("TXAA") { txaa.render(fboGroup) }
+            glDebugGroup("GammaCorrection") { gammaCorrection.render(fboGroup) }
+        }
 
 //        glDebugGroup("Atmosphere") { atmosphere.postPass(fboGroup) }
 //        glDebugGroup("VolumetricLight") {
@@ -503,7 +508,7 @@ class TerrainScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard)
         shader.bind()
         shader.applyBinding {
 //            sampler("usam_input", solidLighting.tex1)
-                sampler("usam_input", solidLighting.hbao.finalTex)
+            sampler("usam_input", solidLighting.hbao.finalTex)
             buffer(camera.uboBinding)
         }
         shader.uniform1f("uMul", 1.0f)

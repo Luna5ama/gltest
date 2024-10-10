@@ -28,7 +28,8 @@ class HiZBufferGen(val scene: TerrainScene) : IGLObjContainer by IGLObjContainer
         }
     }
 
-    private val fbo = register(FramebufferObject())
+    private val depthFbo = register(FramebufferObject())
+    private val colorFbo = register(FramebufferObject())
 
     fun processDepth(
         input: TextureObject.Texture2D,
@@ -52,9 +53,10 @@ class HiZBufferGen(val scene: TerrainScene) : IGLObjContainer by IGLObjContainer
         if (input.id != output.id) {
             glViewport(0, 0, inputWidth, inputHeight)
 
-            glNamedFramebufferTexture(fbo.id, GL_DEPTH_ATTACHMENT, output.id, 0)
-            fbo.check()
-            fbo.bind()
+            depthFbo.clearAttachments()
+            depthFbo.attach(output, GL_DEPTH_ATTACHMENT, 0)
+            depthFbo.check()
+            depthFbo.bind()
             val shader = scene.basic.blitShader[Basic.SampleChannel.RRR]
             shader.bind()
             shader.applyBinding {
@@ -69,9 +71,9 @@ class HiZBufferGen(val scene: TerrainScene) : IGLObjContainer by IGLObjContainer
         depthShader.uniform2f("uval_planeZ", planeZ)
 
         for (i in 1 until output.levels) {
-            fbo.clearAttachments()
-            fbo.attach(output, GL_DEPTH_ATTACHMENT, i)
-            fbo.bind()
+            depthFbo.clearAttachments()
+            depthFbo.attach(output, GL_DEPTH_ATTACHMENT, i)
+            depthFbo.bind()
 
             val halfWidth = inputWidth / 2
             val halfHeight = inputHeight / 2
@@ -109,17 +111,16 @@ class HiZBufferGen(val scene: TerrainScene) : IGLObjContainer by IGLObjContainer
         var inputHeight = input.height
 
         glDisable(GL_STENCIL_TEST)
-        glEnable(GL_DEPTH_TEST)
-        glDepthFunc(GL_ALWAYS)
-        glDepthMask(true)
+        glDisable(GL_DEPTH_TEST)
         glDisable(GL_BLEND)
 
         if (input.id != output.id) {
             glViewport(0, 0, inputWidth, inputHeight)
 
-            glNamedFramebufferTexture(fbo.id, GL_COLOR_ATTACHMENT0, output.id, 0)
-            fbo.check()
-            fbo.bind()
+            colorFbo.clearAttachments()
+            colorFbo.attach(output, GL_COLOR_ATTACHMENT0, 0)
+            colorFbo.check()
+            colorFbo.bind()
             val shader = scene.basic.blitShader[Basic.SampleChannel.RGBA]
             shader.bind()
             shader.applyBinding {
@@ -131,8 +132,9 @@ class HiZBufferGen(val scene: TerrainScene) : IGLObjContainer by IGLObjContainer
         output.bindTextureUnit(0)
 
         for (i in 1 until output.levels) {
-            glNamedFramebufferTexture(fbo.id, GL_COLOR_ATTACHMENT0, output.id, i)
-            fbo.bind()
+            colorFbo.clearAttachments()
+            colorFbo.attach(output, GL_COLOR_ATTACHMENT0, i)
+            colorFbo.bind()
 
             val halfWidth = inputWidth / 2
             val halfHeight = inputHeight / 2
@@ -161,8 +163,6 @@ class HiZBufferGen(val scene: TerrainScene) : IGLObjContainer by IGLObjContainer
 
         glViewport(0, 0, scene.camera.screenWidth, scene.camera.screenHeight)
         scene.samplers.clearBinding()
-
-        glDepthFunc(GL_LEQUAL)
     }
 
     private class ShaderKey private constructor(
