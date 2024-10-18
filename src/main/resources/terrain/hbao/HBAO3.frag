@@ -98,7 +98,7 @@ void main() {
 
         float maxLod = float(textureQueryLevels(usam_linearDepth)) - 1.0;
         float baseLod = clamp(radiusToBaseLod(maxDist), 0.0, maxLod);
-        baseLod += IGN(gl_FragCoord.xy, ubo_cameraDefault.gFrameIndex * HBAO_DIR_SAMPLES + dirIndex) - 0.5;
+        baseLod += IGN(gl_FragCoord.yx, ubo_cameraDefault.gFrameIndex * HBAO_DIR_SAMPLES + dirIndex) - 0.5;
 
         float sampleLod = baseLod;
         float sampleTexelDist = 1.41;
@@ -118,16 +118,14 @@ void main() {
         for (int stepIndex = 0; stepIndex < 16; stepIndex++) {
             float fi = float(stepIndex);
 
-            float realSampleLod = round(sampleLod);
-
-            float sampleLodTexelSize = lodTexelSize(realSampleLod) * 2.0;
+            float sampleLodTexelSize = lodTexelSize(sampleLod) * 2.0;
             float sampleLodTexelSizeHalf = sampleLodTexelSize * 0.5;
             sampleTexelDist += sampleLodTexelSizeHalf;
 
             vec2 sampleTexelCoord = texelCoord + sampleDir * sampleTexelDist;
             vec2 sampleUV = sampleTexelCoord * ubo_cameraDefault.screenSize.zw;
 
-            float sampleViewZ = textureLod(usam_linearDepth, sampleUV, realSampleLod).r;
+            float sampleViewZ = textureLod(usam_linearDepth, sampleUV, sampleLod).r;
             vec3 sampleViewXYZ = toViewSpace(sampleUV, sampleViewZ, ubo_cameraDefault.projection, ubo_cameraDefault.invProjection);
 
             vec3 diff = sampleViewXYZ - gs_viewCoord;

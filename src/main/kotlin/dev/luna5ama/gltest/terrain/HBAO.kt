@@ -94,7 +94,7 @@ class HBAO(private val scene: TerrainScene, private val solidLighting: SolidLigh
                 setMipLevels(0, levelsRequired)
                 setMipLod(0.0f, levelsRequired.toFloat())
 //                setFilter(GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR)
-                setFilter(GL_NEAREST_MIPMAP_LINEAR, GL_NEAREST)
+                setFilter(GL_NEAREST_MIPMAP_NEAREST, GL_NEAREST)
                 setWrap(GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE)
                 allocate(levelsRequired, ImageFormat.R32G32B32F, input.width, input.height)
             }
