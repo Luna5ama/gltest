@@ -80,20 +80,14 @@ class PointCloudScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboa
         Runtime.getRuntime().addShutdownHook(Thread {
             saveCameraPos()
         })
-        dumpShaders()
     }
 
     override fun destroy() {
         saveCameraPos()
     }
 
-    override fun reloadShaders() {
-        super.reloadShaders()
-        dumpShaders()
-    }
-
-    private fun dumpShaders() {
-        dumpShaderAsm(terrainGeometryRenderer.swQuadPipeline.drawShader, "SWQuad.txt")
+    override fun shaderAsmDumps(): List<ShaderProgram> {
+        return listOf(terrainGeometryRenderer.swQuadPipeline.drawShader)
     }
 
     private fun saveCameraPos() {
@@ -114,24 +108,6 @@ class PointCloudScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboa
         }
     }
 
-    private fun dumpShaderAsm(program: ShaderProgram, name: String) {
-        val binLen = glGetProgrami(program.id, GL_PROGRAM_BINARY_LENGTH)
-        val file = File("shaderasm/$name")
-        file.parentFile.mkdirs()
-        file.delete()
-        FileChannel.open(
-            file.toPath(),
-            StandardOpenOption.READ,
-            StandardOpenOption.WRITE,
-            StandardOpenOption.CREATE
-        ).use { channel ->
-            val mapped = Arr.wrap(channel.map(FileChannel.MapMode.READ_WRITE, 0, binLen.toLong()))
-            MemoryStack {
-                val binaryFormat = calloc(4)
-                glGetProgramBinary(program.id, binLen, Ptr.NULL, binaryFormat.ptr, mapped.ptr)
-            }
-        }
-    }
     private val shadingTimer = GPUTimer(2000)
 
     override suspend fun renderFrame() {

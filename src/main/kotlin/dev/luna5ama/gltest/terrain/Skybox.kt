@@ -32,39 +32,7 @@ class Skybox(private val scene: TerrainScene) : IGLObjContainer by IGLObjContain
             ShaderSource.Geom("terrain/sky/Skybox.geom.glsl"),
             ShaderSource.Frag("terrain/sky/Skybox.frag.glsl")
         )
-    ).apply {
-        MemoryStack {
-            val projectionMatrix = Matrix4f()
-            projectionMatrix.identity()
-            projectionMatrix.perspective(90.0f.toRadians(), 1.0f, 0.01f, 1.0f)
-
-            val viewMatrix = Matrix4f()
-            val tempCombined = Matrix4f()
-            val buffer = malloc(4 * 4 * 4 * 6).asMutable()
-
-            fun pack() {
-                tempCombined.set(projectionMatrix).mul(viewMatrix)
-                tempCombined.copyToMutableArr(buffer)
-            }
-
-            viewMatrix.setLookAt(0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f)
-            pack()
-            viewMatrix.setLookAt(0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f)
-            pack()
-
-            viewMatrix.setLookAt(0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f)
-            pack()
-            viewMatrix.setLookAt(0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f, 0.0f, -1.0f)
-            pack()
-
-            viewMatrix.setLookAt(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, -1.0f, 0.0f)
-            pack()
-            viewMatrix.setLookAt(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, -1.0f, 0.0f)
-            pack()
-
-            uniformMatrix4fv("uBoxMatries[0]", 6, false, buffer.basePtr)
-        }
-    }
+    )
 
     private val drawShader = register(
         ShaderProgram(
@@ -160,6 +128,39 @@ class Skybox(private val scene: TerrainScene) : IGLObjContainer by IGLObjContain
                 MathUtil.clamp(scene.camera.pos.y - 32.0, 1.0, 512.0) * 16.0,
                 0.0
             )
+
+        MemoryStack {
+            val projectionMatrix = Matrix4f()
+            projectionMatrix.identity()
+            projectionMatrix.perspective(90.0f.toRadians(), 1.0f, 0.01f, 1.0f)
+
+            val viewMatrix = Matrix4f()
+            val tempCombined = Matrix4f()
+            val buffer = malloc(4 * 4 * 4 * 6).asMutable()
+
+            fun pack() {
+                tempCombined.set(projectionMatrix).mul(viewMatrix)
+                tempCombined.copyToMutableArr(buffer)
+            }
+
+            viewMatrix.setLookAt(0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f)
+            pack()
+            viewMatrix.setLookAt(0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f)
+            pack()
+
+            viewMatrix.setLookAt(0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f)
+            pack()
+            viewMatrix.setLookAt(0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f, 0.0f, -1.0f)
+            pack()
+
+            viewMatrix.setLookAt(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, -1.0f, 0.0f)
+            pack()
+            viewMatrix.setLookAt(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, -1.0f, 0.0f)
+            pack()
+
+            skyboxShader.uniformMatrix4fv("uBoxMatries[0]", 6, false, buffer.basePtr)
+        }
+
 //            skyboxShader.uniform1f("uTime", GLFW.glfwGetTime().toFloat())
 
             vao.bind()
@@ -178,8 +179,6 @@ class Skybox(private val scene: TerrainScene) : IGLObjContainer by IGLObjContain
             sampler(textureBinding)
             buffer(scene.camera.uboBinding)
         }
-
-        texture.bindTextureUnit(0)
 
         scene.basic.drawQuad()
     }

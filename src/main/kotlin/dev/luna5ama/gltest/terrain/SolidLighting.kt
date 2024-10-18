@@ -12,7 +12,7 @@ import dev.luna5ama.glwrapper.objects.FramebufferObject
 import dev.luna5ama.glwrapper.objects.TextureObject
 
 class SolidLighting(private val scene: TerrainScene) : IGLObjContainer by IGLObjContainer.Impl() {
-    val hbao = register(HBAO(scene, this))
+    val hbao = register(GTAO(scene, this))
 
     val tex1 = register(TextureObject.Texture2D()).apply {
         label = "SolidLighting.Tex1"

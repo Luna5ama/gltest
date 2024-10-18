@@ -40,7 +40,7 @@ class HBAO(private val scene: TerrainScene, private val solidLighting: SolidLigh
         )
     )
 
-    private val shader = register(
+    val shader = register(
         ShaderProgram(
             ShaderSource.Vert("terrain/Blit.vert.glsl"),
             ShaderSource.Frag("terrain/hbao/HBAO3.frag") {
@@ -93,10 +93,9 @@ class HBAO(private val scene: TerrainScene, private val solidLighting: SolidLigh
                 destroy()
                 setMipLevels(0, levelsRequired)
                 setMipLod(0.0f, levelsRequired.toFloat())
-//                setFilter(GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR)
                 setFilter(GL_NEAREST_MIPMAP_NEAREST, GL_NEAREST)
                 setWrap(GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE)
-                allocate(levelsRequired, ImageFormat.R32G32B32F, input.width, input.height)
+                allocate(levelsRequired, ImageFormat.R32_F, input.width, input.height)
             }
 
             linearDepthFbo.apply {
@@ -122,13 +121,12 @@ class HBAO(private val scene: TerrainScene, private val solidLighting: SolidLigh
         }
         scene.basic.drawQuad()
 
-        scene.hizGen.processColor(linearDepthTex, linearDepthTex, HiZBufferGen.KernelType.MIN)
+        scene.hizGen.processColor(linearDepthTex, linearDepthTex, HiZBufferGen.KernelType.MAX)
     }
 
     private fun sample(input: GBuffer) {
         glDisable(GL_DITHER)
         finalFbo.bind()
-        finalFbo.clearColor(0, 0.0f, 0.0f, 0.0f, 0.0f)
         shader.bind()
         shader.applyBinding {
             sampler(input.genericTexBindings)
@@ -139,8 +137,8 @@ class HBAO(private val scene: TerrainScene, private val solidLighting: SolidLigh
         }
         val tangentAngleBias = 30.0f.toRadians()
         shader.uniform1f("uval_tangentBias", tangentAngleBias)
-        val aoRadius = 1.0f
-        val maxRadius = 8.0f
+        val aoRadius = 3.0f
+        val maxRadius = 4.0f
         shader.uniform2f("uval_radius", aoRadius, maxRadius)
         shader.uniform2f("uval_aoStrength", if (scene.gameInstance.toggle2) 0.0f else 1.0f, 2.0f)
         val aspect = scene.camera.aspectRatio

@@ -98,8 +98,8 @@
 float rcpSqrtIEEEIntApproximation(float inX, const int inRcpSqrtConst)
 {
     int x = asint(inX);
-x = inRcpSqrtConst - (x >> 1);
-return asfloat(x);
+    x = inRcpSqrtConst - (x >> 1);
+    return asfloat(x);
 }
 
 float rcpSqrtNewtonRaphson(float inXHalf, float inRcpX)

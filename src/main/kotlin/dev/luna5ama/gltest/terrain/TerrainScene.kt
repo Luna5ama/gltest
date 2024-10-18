@@ -8,6 +8,7 @@ import dev.luna5ama.gltest.*
 import dev.luna5ama.gltest.structs.DrawElementsIndirectCommand
 import dev.luna5ama.gltest.structs.sizeof
 import dev.luna5ama.gltest.terrain.post.*
+import dev.luna5ama.glwrapper.ShaderProgram
 import dev.luna5ama.glwrapper.ShaderSource
 import dev.luna5ama.glwrapper.base.*
 import dev.luna5ama.glwrapper.enums.FilterMode
@@ -716,4 +717,8 @@ class TerrainScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard)
     }
 
     private fun drawElementsIndirectCommand(src: DrawElementsIndirectCommand) = src
+
+    override fun shaderAsmDumps(): List<ShaderProgram> {
+        return listOf(solidLighting.hbao.shader)
+    }
 }
