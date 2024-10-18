@@ -41,7 +41,7 @@ abstract class OcclusionCullingPipeline(
                 ShaderSource.Comp("pc/geometry/culling/SWDepthBlit.comp")
             )
         ).apply {
-            label("CullVS.DepthBlitSW")
+            label = "CullVS.DepthBlitSW"
         }
 
         private val hwDepthBlitShader = register(
@@ -49,7 +49,7 @@ abstract class OcclusionCullingPipeline(
                 ShaderSource.Comp("pc/geometry/culling/HWDepthBlit.comp")
             )
         ).apply {
-            label("CullVS.DepthBlitHW")
+            label = "CullVS.DepthBlitHW"
         }
 
         private val float2DepthBlitShader = register(
@@ -58,19 +58,19 @@ abstract class OcclusionCullingPipeline(
                 ShaderSource.Frag("pc/geometry/culling/Float2DepthBlit.frag")
             )
         ).apply {
-            label("CullVS.DepthBlitSW")
+            label = "CullVS.DepthBlitSW"
         }
 
         private val cullTempTex = register(TextureObject.Texture2D()).apply {
-            label("CullVS.CullTempTex")
+            label = "CullVS.CullTempTex"
         }
 
         private val cullDepthTex = register(TextureObject.Texture2D()).apply {
-            label("CullVS.CullDepthTex")
+            label = "CullVS.CullDepthTex"
         }
 
         val fbo = register(FramebufferObject()).apply {
-            label("VBuffer.EmptyFBO")
+            label = "VBuffer.EmptyFBO"
             create()
         }
 
@@ -191,7 +191,7 @@ abstract class OcclusionCullingPipeline(
                 }
             )
         ).apply {
-            label("CullMSShader")
+            label = "CullMSShader"
         }
 
         override val ctcBufferBaseOffset: Long
@@ -240,7 +240,7 @@ abstract class OcclusionCullingPipeline(
     class VertexShader(scene: PointCloudScene, renderer: TerrainGeometryRenderer) :
         OcclusionCullingPipeline(scene, renderer) {
         private val vao = register(VertexArrayObject()).apply {
-            label("CullVS.VAO")
+            label = "CullVS.VAO"
         }
 
         private val cullShader = register(
@@ -253,11 +253,11 @@ abstract class OcclusionCullingPipeline(
                 }
             )
         ).apply {
-            label("CullVSShader")
+            label = "CullVSShader"
         }
 
         private val cubeElementBuffer = register(BufferObject.Immutable()).apply {
-            label("CullVS.CubeElementBuffer")
+            label = "CullVS.CubeElementBuffer"
         }
 
         val depthBuffer = register(DownScaleDepthBuffer())
@@ -337,11 +337,11 @@ abstract class OcclusionCullingPipeline(
         val ctqIndirectSetup = register(ShaderProgram(ShaderSource.Comp("pc/geometry/culling/CTQIndirectSetup.comp") {
             define("N_GROUPS", 128 / subgroupSizeOptimal)
         })).apply {
-            label("CullSWRaster.CTQIndirectSetup")
+            label = "CullSWRaster.CTQIndirectSetup"
         }
 
         val setupShader = register(ShaderProgram(ShaderSource.Comp("pc/geometry/culling/CullTestSetup.comp"))).apply {
-            label("CullSWRaster.SetupShader")
+            label = "CullSWRaster.SetupShader"
         }
         val cullTestShader = register(ShaderProgram(
             ShaderSource.Comp("pc/geometry/culling/CullTest.comp") {
@@ -349,11 +349,11 @@ abstract class OcclusionCullingPipeline(
                 define("FLAG_TYPE", renderer.visibilityFlagType.glslTypeName)
             }
         )).apply {
-            label("CullSWRaster.CullTestShader")
+            label = "CullSWRaster.CullTestShader"
         }
 
         private val ctqBuffer = register(BufferObject.Immutable()).apply {
-            label("CullSWRaster.CullTestQuadBuffer")
+            label = "CullSWRaster.CullTestQuadBuffer"
         }
 
         private val ctqBufferBinding =

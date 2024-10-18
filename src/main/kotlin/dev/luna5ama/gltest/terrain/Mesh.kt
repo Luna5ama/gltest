@@ -114,13 +114,13 @@ class TerrainMesh(private val scene: TerrainScene, dir: File) : IGLObjContainer 
 
     inner class Layer(dir: File, val index: Int) : IGLObjContainer by IGLObjContainer.Impl() {
         val vao = register(VertexArrayObject()).apply {
-            label("TerrainMesh.Layer#$index.VAO")
+            label = "TerrainMesh.Layer#$index.VAO"
         }
         val vbo = register(BufferObject.Immutable()).apply {
-            label("TerrainMesh.Layer#$index.VBO")
+            label = "TerrainMesh.Layer#$index.VBO"
         }
         val ebo = register(BufferObject.Immutable()).apply {
-            label("TerrainMesh.Layer#$index.EBO")
+            label = "TerrainMesh.Layer#$index.EBO"
         }
 
         var minChunkX = Int.MAX_VALUE; private set

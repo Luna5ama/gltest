@@ -20,7 +20,7 @@ abstract class TerrainDrawPipeline(
     var quadCount = 0; protected set
 
     protected val ctcBuffer = register(BufferObject.Immutable()).apply {
-        label("$name.CullTestCommandBuffer")
+        label = "$name.CullTestCommandBuffer"
     }
 
     abstract suspend fun update(chunks: List<TerrainMeshData.ChunkLayerInfo>)

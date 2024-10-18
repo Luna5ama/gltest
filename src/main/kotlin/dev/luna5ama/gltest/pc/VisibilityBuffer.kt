@@ -14,18 +14,18 @@ import dev.luna5ama.kmogus.Ptr
 
 class VisibilityBuffer(private val scene: PointCloudScene) : IGLObjContainer by IGLObjContainer.Impl() {
     private val dataTex = register(TextureObject.Texture2D()).apply {
-        label("VBuffer.DataTex1")
+        label = "VBuffer.DataTex1"
     }
     private val depthTex = register(TextureObject.Texture2D()).apply {
-        label("VBuffer.Depth")
+        label = "VBuffer.Depth"
     }
 
     val depthFbo = register(FramebufferObject()).apply {
-        label("VBuffer.DepthFBO")
+        label = "VBuffer.DepthFBO"
     }
 
     val fbo = register(FramebufferObject()).apply {
-        label("VBuffer.FBO")
+        label = "VBuffer.FBO"
     }
 
     val imageBindings = listOf(
@@ -36,7 +36,7 @@ class VisibilityBuffer(private val scene: PointCloudScene) : IGLObjContainer by 
         ShaderBindingSpecs.Sampler("usam_vBufferDepth", depthTex)
     )
     private val buffer = register(BufferObject.Immutable()).apply {
-        label("VBuffer.DepthQuadIndex")
+        label = "VBuffer.DepthQuadIndex"
     }
     val bufferBinding = ShaderBindingSpecs.Buffer("VBufferDepthQuadIndex", buffer, BufferTarget.ShaderStorage)
 

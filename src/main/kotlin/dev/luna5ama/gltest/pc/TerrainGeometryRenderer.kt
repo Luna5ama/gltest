@@ -64,15 +64,15 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
 //    val cullPipeline = register(OcclusionCullingPipeline.SWRaster(scene, this))
 
     private val visibleBuffer = register(BufferObject.Immutable()).apply {
-        label("Terrain.VisibleBuffer")
+        label = "Terrain.VisibleBuffer"
     }
 
     private val chunkPosData = register(BufferObject.Immutable()).apply {
-        label("Terrain.ChunkPosData")
+        label = "Terrain.ChunkPosData"
     }
 
     val tempBuffer = register(BufferObject.Immutable()).apply {
-        label("Terrain.TempBuffer")
+        label = "Terrain.TempBuffer"
         allocate(128L, 0)
     }
 
@@ -122,7 +122,7 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
             ShaderSource.Frag("pc/geometry/SW2HW.frag")
         )
     ).apply {
-        label("VBuffer.SW2HW")
+        label = "VBuffer.SW2HW"
     }
     private val sw2hwDepthShader = register(
         ShaderProgram(
@@ -130,14 +130,14 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
             ShaderSource.Frag("pc/geometry/SW2HWDepth.frag")
         )
     ).apply {
-        label("VBuffer.SW2HW")
+        label = "VBuffer.SW2HW"
     }
     private val hw2swShader = register(
         ShaderProgram(
             ShaderSource.Comp("pc/geometry/HW2SW.comp")
         )
     ).apply {
-        label("VBuffer.HW2SW")
+        label = "VBuffer.HW2SW"
     }
 
     private val visibleBufferUpdateShader = register(
@@ -145,7 +145,7 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
             define("COPY_LEN_SHIFT", (2 - visibilityFlagType.byteSize.countTrailingZeroBits()) + 2)
         })
     ).apply {
-        label("VisibleBufferUpdate")
+        label = "VisibleBufferUpdate"
     }
 
     private var chunkPosIndices = IntArray(scene.terrainMeshData.chunkPos.size) { it }

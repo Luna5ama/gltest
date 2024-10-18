@@ -27,19 +27,19 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
     private val quadsPerWorkGroup = workGroupSize * 4
 
     private val quadBatchInfo = register(BufferObject.Immutable()).apply {
-        label("SWQuad.QuadBatchInfo")
+        label = "SWQuad.QuadBatchInfo"
     }
 
     private val batchIndices = register(BufferObject.Immutable()).apply {
-        label("SWQuad.BatchIndices")
+        label = "SWQuad.BatchIndices"
     }
 
     private val batchFilterFlag = register(BufferObject.Immutable()).apply {
-        label("SWQuad.BatchFilterFlag")
+        label = "SWQuad.BatchFilterFlag"
     }
 
     private val scanBuffer = register(BufferObject.Immutable()).apply {
-        label("SWQuad.ScanBuffer")
+        label = "SWQuad.ScanBuffer"
     }
 
     private val bufferBindings = listOf(
@@ -52,7 +52,7 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
     )
 
     private val clearShader = register(ShaderProgram(ShaderSource.Comp("pc/geometry/swquad/Clear.comp"))).apply {
-        label("SWQuad.ClearShader")
+        label = "SWQuad.ClearShader"
     }
 
     private val filterShader = object : ShaderProgram.Variants<VisibilityState>() {
@@ -63,7 +63,7 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
                     define(key.defineName)
                 }
             )).apply {
-                label("SWQuad.SWQuadBatchFilter-$key")
+                label = "SWQuad.SWQuadBatchFilter-$key"
             }
         }
     }
@@ -78,7 +78,7 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
             })
         }
     )).apply {
-        label("SWQuad.BatchIndicesShader")
+        label = "SWQuad.BatchIndicesShader"
     }
 
     val drawShader = register(ShaderProgram(
@@ -94,7 +94,7 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
             }
         }
     )).apply {
-        label("SWQuad.DrawShader")
+        label = "SWQuad.DrawShader"
     }
 
     override suspend fun update(chunks: List<TerrainMeshData.ChunkLayerInfo>) {

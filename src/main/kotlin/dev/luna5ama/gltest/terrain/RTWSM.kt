@@ -28,13 +28,13 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
     private val backwardCompShader = register(
         ShaderProgram(ShaderSource.Comp("terrain/rtwsm/Backward.comp"))
     ).apply {
-        label("RTWSM.Importance.BackwardComp")
+        label = "RTWSM.Importance.BackwardComp"
     }
 
     private val backwardCopyShader = register(
         ShaderProgram(ShaderSource.Comp("terrain/rtwsm/BackwardCopy.comp"))
     ).apply {
-        label("RTWSM.Importance.BackwardCopy")
+        label = "RTWSM.Importance.BackwardCopy"
     }
 
     private val forwardShader = register(
@@ -46,7 +46,7 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
             ShaderSource.Frag("terrain/rtwsm/Importance.frag.glsl")
         )
     ).apply {
-        label("RTWSM.Importance.Forward")
+        label = "RTWSM.Importance.Forward"
     }
 
     private val collapseShader = register(
@@ -62,7 +62,7 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
             }
         )
     ).apply {
-        label("RTWSM.IMapCollapse")
+        label = "RTWSM.IMapCollapse"
     }
 
     private val warpingShader = register(
@@ -73,7 +73,7 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
             }
         )
     ).apply {
-        label("RTWSM.GetWarp")
+        label = "RTWSM.GetWarp"
     }
 
     private val mapGenSolid = register(
@@ -84,7 +84,7 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
             ShaderSource.Frag("terrain/rtwsm/MapGen.frag.glsl")
         )
     ).apply {
-        label("RTWSM.MapGen")
+        label = "RTWSM.MapGen"
     }
 
     private val mapGenCutout = register(
@@ -97,20 +97,20 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
             }
         )
     ).apply {
-        label("RTWSM.MapGenCutout")
+        label = "RTWSM.MapGenCutout"
     }
 
     private val imap2D = register(TextureObject.Texture2D()).apply {
         allocate(1, ImageFormat.R32_F, imapSize, imapSize)
         linearClampEdge()
-        label("RTWSM.Importance2D")
+        label = "RTWSM.Importance2D"
     }
 
     private val imap2DUIImageBinding =
         ShaderBindingSpecs.Image("uimg_imap2D", register(imap2D.createView(ImageFormat.R32_UI)))
 
     private val imap2DFbo = register(FramebufferObject()).apply {
-        label("RTWSM.Importance2DFBO")
+        label = "RTWSM.Importance2DFBO"
         attach(imap2D, GL_COLOR_ATTACHMENT0)
         apply { check() }
     }
@@ -120,12 +120,12 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
         setFilter(GL_LINEAR, GL_LINEAR)
         setWrap(GL_CLAMP_TO_BORDER, GL_CLAMP_TO_BORDER)
         setBorderColor(0.0f, 0.0f, 0.0f, 0.0f)
-        label("RTWSM.Importance1DArray")
+        label = "RTWSM.Importance1DArray"
     }
 
     private val warpingMap = register(TextureObject.Texture1DArray()).apply {
         allocate(1, ImageFormat.R16_G16_SN, imapSize, 2)
-        label("RTWSM.WarpingMap")
+        label = "RTWSM.WarpingMap"
         parameteri(GL_TEXTURE_MIN_FILTER, GL_LINEAR)
         parameteri(GL_TEXTURE_MAG_FILTER, GL_LINEAR)
         parameteri(GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER)

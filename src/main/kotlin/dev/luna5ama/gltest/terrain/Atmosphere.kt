@@ -14,7 +14,7 @@ class Atmosphere(private val scene: TerrainScene) : IGLObjContainer by IGLObjCon
             ShaderSource.Frag("terrain/atmosphere/Aerial.frag.glsl")
         )
     ).apply {
-        label("AtmoSphere.Aerial")
+        label = "AtmoSphere.Aerial"
     }
 
     fun postPass(fboGroup: FboGroup) {

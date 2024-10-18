@@ -30,7 +30,7 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
             ShaderSource.Comp("pc/geometry/hw/Clear.comp")
         )
     ).apply {
-        label("HWVS.Clear")
+        label = "HWVS.Clear"
     }
     private val indirectSetupShaders = object : ShaderProgram.Variants<VisibilityState>() {
         override fun create(key: VisibilityState): ShaderProgram {
@@ -40,7 +40,7 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
                         define(key.defineName)
                     },
             )).apply {
-                label("HWVS.IndirectSetup-$key")
+                label = "HWVS.IndirectSetup-$key"
             }
         }
     }
@@ -54,18 +54,18 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
             ShaderSource.Frag("pc/geometry/hw/HW.frag")
         )
     ).apply {
-        label("HWVS.Draw")
+        label = "HWVS.Draw"
     }
     private val inputIndirectBuffer = register(BufferObject.Immutable()).apply {
-        label("HWVS.InputIndirectBuffer")
+        label = "HWVS.InputIndirectBuffer"
     }
 
     private val outputIndirectBuffer = register(BufferObject.Immutable()).apply {
-        label("HWVS.OutputIndirectBuffer")
+        label = "HWVS.OutputIndirectBuffer"
     }
 
     private val elementBuffer = register(BufferObject.Immutable()).apply {
-        label("HWVS.ElementBuffer")
+        label = "HWVS.ElementBuffer"
     }
 
     private val indirectBufferBindings = listOf(

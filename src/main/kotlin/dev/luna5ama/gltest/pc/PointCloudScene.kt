@@ -37,7 +37,7 @@ class PointCloudScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboa
     val textures = register(Textures(this, false))
 
     private val taaPrevTex = register(TextureObject.Texture2D()).apply {
-        label("prevTex")
+        label = "prevTex"
     }
 
     private var frameIndex = 0
@@ -48,14 +48,14 @@ class PointCloudScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboa
             ShaderSource.Comp("pc/Shading.comp")
         )
     ).apply {
-        label("shadingShader")
+        label = "shadingShader"
     }
     private val bufferBlit = register(
         ShaderProgram(
             ShaderSource.Comp("pc/BufferBlit.comp")
         )
     ).apply {
-        label("bufferBlit")
+        label = "bufferBlit"
     }
     val overdrawCounterTex = register(TextureObject.Texture2D())
     val basic = register(Basic())

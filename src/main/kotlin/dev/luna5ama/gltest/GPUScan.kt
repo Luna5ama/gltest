@@ -15,7 +15,7 @@ class GPUScan : IGLObjContainer by IGLObjContainer.Impl() {
     val workGroupSize = 1 shl workGroupSizePow
 
     private val indirectBuffer = register(BufferObject.Immutable()).apply {
-        label("GPUScan.IndirectBuffer")
+        label = "GPUScan.IndirectBuffer"
         allocate(16L * 6L, 0)
     }
 
@@ -38,11 +38,11 @@ class GPUScan : IGLObjContainer by IGLObjContainer.Impl() {
             define("WORK_GROUP_SIZE_POW", workGroupSizePow)
         }
     )).apply {
-        label("GPUScan.SetupShader")
+        label = "GPUScan.SetupShader"
     }
 
     private val singleWgShader = register(ShaderProgram(ShaderSource.Comp("scan/SingleWg.comp"))).apply {
-        label("GPUScan.SingleWgShader")
+        label = "GPUScan.SingleWgShader"
     }
 
     private val scanShader = register(ShaderProgram(
@@ -51,7 +51,7 @@ class GPUScan : IGLObjContainer by IGLObjContainer.Impl() {
             define("WORK_GROUP_SIZE_POW", workGroupSizePow)
         }
     )).apply {
-        label("GPUScan.ScanShader")
+        label = "GPUScan.ScanShader"
     }
 
     private val addShader = register(ShaderProgram(
@@ -60,19 +60,19 @@ class GPUScan : IGLObjContainer by IGLObjContainer.Impl() {
             define("WORK_GROUP_SIZE_POW", workGroupSizePow)
         }
     )).apply {
-        label("GPUScan.AddShader")
+        label = "GPUScan.AddShader"
     }
 
     private val auxSumBuffer1 = register(BufferObject.Immutable()).apply {
-        label("GPUScan.AuxSumBuffer1")
+        label = "GPUScan.AuxSumBuffer1"
     }
 
     private val auxSumBuffer2 = register(BufferObject.Immutable()).apply {
-        label("GPUScan.AuxSumBuffer2")
+        label = "GPUScan.AuxSumBuffer2"
     }
 
     private val auxSumBuffer3 = register(BufferObject.Immutable()).apply {
-        label("GPUScan.AuxSumBuffer2")
+        label = "GPUScan.AuxSumBuffer2"
     }
 
     fun process(

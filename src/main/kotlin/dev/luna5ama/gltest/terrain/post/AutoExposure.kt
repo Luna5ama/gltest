@@ -29,7 +29,7 @@ class AutoExposure(private val scene: TerrainScene) : IGLObjContainer by IGLObjC
 
     private val readBuffer = register(BufferObject.Immutable()).apply {
         allocate(8L, GL_MAP_READ_BIT or GL_MAP_PERSISTENT_BIT or GL_MAP_COHERENT_BIT)
-        label("AutoExposureReadBuffer")
+        label = "AutoExposureReadBuffer"
     }
     private val mapped = readBuffer.map(GL_MAP_READ_BIT or GL_MAP_PERSISTENT_BIT or GL_MAP_COHERENT_BIT)
     private val timer = TickTimer()

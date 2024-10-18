@@ -15,13 +15,13 @@ class SolidLighting(private val scene: TerrainScene) : IGLObjContainer by IGLObj
     val hbao = register(HBAO(scene, this))
 
     val tex1 = register(TextureObject.Texture2D()).apply {
-        label("SolidLighting.Tex1")
+        label = "SolidLighting.Tex1"
     }
     val tex2 = register(TextureObject.Texture2D()).apply {
-        label("SolidLighting.Tex2")
+        label = "SolidLighting.Tex2"
     }
     private val fbo = register(FramebufferObject()).apply {
-        label("SolidLighting.FBO")
+        label = "SolidLighting.FBO"
     }
 
     val texBingings = listOf(

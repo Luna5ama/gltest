@@ -15,13 +15,13 @@ import dev.luna5ama.glwrapper.objects.setWrap
 
 class GBuffer(private val scene: TerrainScene, val name: String) : IGLObjContainer by IGLObjContainer.Impl() {
     val tex1 = register(TextureObject.Texture2D()).apply {
-        label("GBuffer.$name.Tex1")
+        label = "GBuffer.$name.Tex1"
     }
     val tex2 = register(TextureObject.Texture2D()).apply {
-        label("GBuffer.$name.Tex2")
+        label = "GBuffer.$name.Tex2"
     }
     val depthStencilTex = register(TextureObject.Texture2D()).apply {
-        label("GBuffer.$name.DepthStencil")
+        label = "GBuffer.$name.DepthStencil"
     }
 
     val genericTexBindings = listOf(

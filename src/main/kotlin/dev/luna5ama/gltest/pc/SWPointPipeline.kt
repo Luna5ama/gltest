@@ -116,7 +116,7 @@ class SWPointPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer)
                 }
             )
         ).apply {
-            label("PointDraw")
+            label = "PointDraw"
         }
     }
 

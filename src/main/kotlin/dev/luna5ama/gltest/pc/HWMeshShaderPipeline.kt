@@ -40,12 +40,12 @@ class HWMeshShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRend
                     define("MESH_SHADER")
                 }
             )).apply {
-                label("HWMS.DrawShader-$key")
+                label = "HWMS.DrawShader-$key"
             }
         }
     }
     private val batchInfoBuffer = register(BufferObject.Immutable()).apply {
-        label("HWMS.BatchInfoBuffer")
+        label = "HWMS.BatchInfoBuffer"
     }
     private val bufferBinding =
         ShaderBindingSpecs.Buffer("BatchInfoBuffer", batchInfoBuffer, BufferTarget.ShaderStorage)

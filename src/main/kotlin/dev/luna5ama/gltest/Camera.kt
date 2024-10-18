@@ -59,19 +59,19 @@ class Camera(val scene: AbstractScene) : IGLObjContainer by IGLObjContainer.Impl
 
     private val ubo = register(BufferObject.Immutable()).apply {
         allocate(UBO_SIZE, GL_DYNAMIC_STORAGE_BIT)
-        label("GlobalCameraUBO")
+        label = "GlobalCameraUBO"
     }
     private val noJitterUbo = register(BufferObject.Immutable()).apply {
         allocate(UBO_SIZE, GL_DYNAMIC_STORAGE_BIT)
-        label("GlobalCameraNoJitterUBO")
+        label = "GlobalCameraNoJitterUBO"
     }
     private val prevUBO = register(BufferObject.Immutable()).apply {
         allocate(UBO_SIZE, 0)
-        label("GlobalCameraPrevUBO")
+        label = "GlobalCameraPrevUBO"
     }
     private val prevNoJitterUBO = register(BufferObject.Immutable()).apply {
         allocate(UBO_SIZE, 0)
-        label("GlobalCameraPrevNoJitterUBO")
+        label = "GlobalCameraPrevNoJitterUBO"
     }
     val noJitterUboBinding = listOf(
         ShaderBindingSpecs.Buffer("GlobalCameraDefault", noJitterUbo, BufferTarget.Uniform),

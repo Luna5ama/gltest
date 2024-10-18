@@ -20,12 +20,12 @@ class MainFbo(private val scene: AbstractScene, private val name: String) : IGLO
             fbo.destroy()
 
             colorTex.apply {
-                label("MainFBO.$name.Color")
+                label = "MainFBO.$name.Color"
                 allocate(1, FORMAT, screenWidth, screenHeight)
                 linearClampEdge()
             }
             depthStencilTex.apply {
-                label("MainFBO.$name.Depth")
+                label = "MainFBO.$name.Depth"
                 allocate(1, ImageFormat.Depth32FStencil8, screenWidth, screenHeight)
                 linearClampEdge()
             }
@@ -35,7 +35,7 @@ class MainFbo(private val scene: AbstractScene, private val name: String) : IGLO
                 attach(colorTex, GL_COLOR_ATTACHMENT0) // Regular color
                 attach(depthStencilTex, GL_DEPTH_STENCIL_ATTACHMENT) // Depth & Stencil
                 check()
-                label("MainFBO.$name.FBO")
+                label = "MainFBO.$name.FBO"
             }
         }
     }
