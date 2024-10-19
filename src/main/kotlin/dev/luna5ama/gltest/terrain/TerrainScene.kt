@@ -461,7 +461,7 @@ class TerrainScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard)
             toneMapping.render(fboGroup)
         }
 
-        if (!gameInstance.toggle1) {
+        if (gameInstance.toggle1) {
             solidLightDebug()
             glDebugGroup("TXAA") { txaa.render(fboGroup) }
         } else {
