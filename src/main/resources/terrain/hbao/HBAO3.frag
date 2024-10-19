@@ -98,10 +98,10 @@ void main() {
 
         float maxLod = float(textureQueryLevels(usam_linearDepth)) - 1.0;
         float baseLod = clamp(radiusToBaseLod(maxDist), 0.0, maxLod);
-        baseLod += IGN(gl_FragCoord.yx, ubo_cameraDefault.gFrameIndex * HBAO_DIR_SAMPLES + dirIndex) - 0.5;
+        baseLod += r2Seq1(ubo_cameraDefault.gFrameIndex + uint(IGN(gl_FragCoord.xy) * 1024.0)) - 0.5;
 
         float sampleLod = baseLod;
-        float sampleTexelDist = 1.41;
+        float sampleTexelDist = 1.5;
 
         vec3 T;
         {
@@ -143,7 +143,7 @@ void main() {
                 }
             }
 
-            sampleLod = min(sampleLod + 0.3, maxLod);
+            sampleLod = min(sampleLod + 0.25, maxLod);
             sampleTexelDist += sampleLodTexelSizeHalf;
         }
 
