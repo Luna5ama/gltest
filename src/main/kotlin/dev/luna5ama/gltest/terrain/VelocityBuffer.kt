@@ -88,11 +88,11 @@ class VelocityBuffer(private val scene: TerrainScene) : IGLObjContainer by IGLOb
             fbo.destroy()
 
             uvDiffTex.apply {
-                allocate(1, ImageFormat.R16_G16_SN, input.width, input.height)
+                allocate(1, ImageFormat.R16G16_SN, input.width, input.height)
                 linearClampEdge()
             }
             worldVelocity.apply {
-                allocate(1, ImageFormat.R16_G16_B16_A16_F, input.width, input.height)
+                allocate(1, ImageFormat.R16G16B16A16_F, input.width, input.height)
                 linearClampEdge()
             }
             fbo.apply {

@@ -84,12 +84,12 @@ class GBuffer(private val scene: TerrainScene, val name: String) : IGLObjContain
         if (fbo.width != screenWidth || fbo.height != screenHeight) {
             fbo.destroy()
             tex1.apply {
-                allocate(1, ImageFormat.R32_G32_B32_A32_UI, screenWidth, screenHeight)
+                allocate(1, ImageFormat.R32G32B32A32_UI, screenWidth, screenHeight)
                 setFilter(GL_NEAREST, GL_NEAREST)
                 setWrap(GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE)
             }
             tex2.apply {
-                allocate(1, ImageFormat.R32_G32_UI, screenWidth, screenHeight)
+                allocate(1, ImageFormat.R32G32_UI, screenWidth, screenHeight)
                 setFilter(GL_NEAREST, GL_NEAREST)
                 setWrap(GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE)
             }

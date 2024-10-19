@@ -50,7 +50,7 @@ class Textures(val scene: AbstractScene, pbr: Boolean) : IGLObjContainer by IGLO
         val image = readImage(File(dir, "lightmap.png"))
         Arr.malloc(0L).use {
             lightMapTex.apply {
-                allocate(1, ImageFormat.R8_G8_B8_UN, image.width, image.height)
+                allocate(1, ImageFormat.R8G8B8_UN, image.width, image.height)
                 upload(0, 0, 0, image.width, image.height, GL_RGB, GL_UNSIGNED_BYTE, image.getRGB(it).ptr)
             }
         }
@@ -62,7 +62,7 @@ class Textures(val scene: AbstractScene, pbr: Boolean) : IGLObjContainer by IGLO
         Arr.malloc(0).use { buffer ->
             val image = readImage(File(dir, "blocks_0.png"))
             val data = image.getRGBA(buffer)
-            blockTex.allocate(5, ImageFormat.R8_G8_B8_A8_UN, image.width, image.height)
+            blockTex.allocate(5, ImageFormat.R8G8B8A8_UN, image.width, image.height)
 
             blockTex.setMipLevels(0, 4)
             blockTex.setMipLod(0.0f, 4.0f)
@@ -146,7 +146,7 @@ class Textures(val scene: AbstractScene, pbr: Boolean) : IGLObjContainer by IGLO
 
     private suspend fun initBlockNormal(dir: File) {
         val image = readImageData(File(dir, "blocks_0_n.png"), 4)
-        blockNormalTex.allocate(9, ImageFormat.R8_G8_B8_A8_UN, image.width, image.height)
+        blockNormalTex.allocate(9, ImageFormat.R8G8B8A8_UN, image.width, image.height)
         blockNormalTex.upload(
             0,
             0,
@@ -168,7 +168,7 @@ class Textures(val scene: AbstractScene, pbr: Boolean) : IGLObjContainer by IGLO
 
     private suspend fun initBlockSpecular(dir: File) {
         val image = readImageData(File(dir, "blocks_0_s.png"), 4, false)
-        blockSpecularTex.allocate(9, ImageFormat.R8_G8_B8_A8_UN, image.width, image.height)
+        blockSpecularTex.allocate(9, ImageFormat.R8G8B8A8_UN, image.width, image.height)
         blockSpecularTex.upload(
             0,
             0,
@@ -190,7 +190,7 @@ class Textures(val scene: AbstractScene, pbr: Boolean) : IGLObjContainer by IGLO
 
     private suspend fun initNoiseTexture() {
 //        val image = readImageData(File("tex/blue_noise_placement_1024_0.png"), 4)
-//        noiseTexture.allocate(8, ImageFormat.R8_G8_B8_A8_UN, image.width, image.height)
+//        noiseTexture.allocate(8, ImageFormat.R8G8B8A8_UN, image.width, image.height)
 //        noiseTexture.upload(
 //            0,
 //            0,
@@ -223,7 +223,7 @@ class Textures(val scene: AbstractScene, pbr: Boolean) : IGLObjContainer by IGLO
             }
         }
 
-        noiseTextureTex.allocate(8, ImageFormat.R16_G16_B16_A16_UN, size, size)
+        noiseTextureTex.allocate(8, ImageFormat.R16G16B16A16_UN, size, size)
         noiseTextureTex.upload(0, 0, 0, size, size, GL_RGBA, GL_UNSIGNED_SHORT, noise.ptr)
 
         noiseTextureTex.setMipLevels(0, 7)

@@ -120,7 +120,7 @@ class TAA(private val scene: TerrainScene, samples: Int, private val radius: Flo
     fun render(fboGroup: FboGroup) {
         if (lastFrameFbo.width != scene.camera.screenWidth || lastFrameFbo.height != scene.camera.screenHeight) {
             lastFrameFbo.destroy()
-            prevFrameTex.allocate(1, ImageFormat.R16_G16_B16_A16_F, scene.camera.screenWidth, scene.camera.screenHeight)
+            prevFrameTex.allocate(1, ImageFormat.R16G16B16A16_F, scene.camera.screenWidth, scene.camera.screenHeight)
             prevFrameTex.linearClampEdge()
 
             lastFrameFbo.attach(prevFrameTex, GL_COLOR_ATTACHMENT0)

@@ -141,12 +141,12 @@ class SolidLighting(private val scene: TerrainScene) : IGLObjContainer by IGLObj
         if (sizeBit != lastUpdateSizeBit) {
             tex1.apply {
                 destroy()
-                allocate(1, ImageFormat.R16_G16_B16_A16_F, tex.width, tex.height)
+                allocate(1, ImageFormat.R16G16B16A16_F, tex.width, tex.height)
                 linearClampEdge()
             }
             tex2.apply {
                 destroy()
-                allocate(1, ImageFormat.R16_G16_B16_A16_F, tex.width, tex.height)
+                allocate(1, ImageFormat.R16G16B16A16_F, tex.width, tex.height)
                 linearClampEdge()
             }
             fbo.apply {

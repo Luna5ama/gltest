@@ -190,7 +190,7 @@ class PointCloudScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboa
 
             taaPrevTex.destroy()
 
-            taaPrevTex.allocate(1, ImageFormat.R16_G16_B16_A16_F, camera.screenSize.x, camera.screenSize.y)
+            taaPrevTex.allocate(1, ImageFormat.R16G16B16A16_F, camera.screenSize.x, camera.screenSize.y)
             if (overdrawDebug) overdrawCounterTex.allocate(
                 1,
                 ImageFormat.R32_UI,

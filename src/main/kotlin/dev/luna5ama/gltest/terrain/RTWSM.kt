@@ -124,7 +124,7 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
     }
 
     private val warpingMap = register(TextureObject.Texture1DArray()).apply {
-        allocate(1, ImageFormat.R16_G16_SN, imapSize, 2)
+        allocate(1, ImageFormat.R16G16_SN, imapSize, 2)
         label = "RTWSM.WarpingMap"
         parameteri(GL_TEXTURE_MIN_FILTER, GL_LINEAR)
         parameteri(GL_TEXTURE_MAG_FILTER, GL_LINEAR)

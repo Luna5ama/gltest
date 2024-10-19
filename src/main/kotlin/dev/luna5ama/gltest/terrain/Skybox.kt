@@ -12,7 +12,6 @@ import dev.luna5ama.kmogus.MemoryStack
 import dev.luna5ama.kmogus.asMutable
 import dev.luna5ama.kmogus.copyToMutableArr
 import org.joml.Matrix4f
-import org.lwjgl.glfw.GLFW
 
 class Skybox(private val scene: TerrainScene) : IGLObjContainer by IGLObjContainer.Impl() {
 //    private val time = 50.0f * 3.14f
@@ -48,7 +47,7 @@ class Skybox(private val scene: TerrainScene) : IGLObjContainer by IGLObjContain
     private val cubeMapFbo = register(FramebufferObject())
 
     init {
-        texture.allocate(1, ImageFormat.R16_G16_B16_F, 4096, 4096)
+        texture.allocate(1, ImageFormat.R16G16B16_F, 4096, 4096)
         cubeMapFbo.attach(texture, GL_COLOR_ATTACHMENT0, 0)
         cubeMapFbo.check()
     }

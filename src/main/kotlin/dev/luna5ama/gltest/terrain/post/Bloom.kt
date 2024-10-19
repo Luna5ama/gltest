@@ -168,7 +168,7 @@ class Bloom(private val scene: TerrainScene) : IGLObjContainer by IGLObjContaine
                     fbos[i].destroyFbo()
 
                     textures[i].apply {
-                        allocate(1, ImageFormat.R16_G16_B16_A16_F, screenWidth shr i, screenHeight shr i)
+                        allocate(1, ImageFormat.R16G16B16A16_F, screenWidth shr i, screenHeight shr i)
                             linearClampEdge()
                     }
                     fbos[i].apply {

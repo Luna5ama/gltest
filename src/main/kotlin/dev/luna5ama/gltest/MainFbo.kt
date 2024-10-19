@@ -41,7 +41,7 @@ class MainFbo(private val scene: AbstractScene, private val name: String) : IGLO
     }
 
     companion object {
-//         val FORMAT = ImageFormat.R32_G32_B32_A32_F
-        val FORMAT = ImageFormat.R16_G16_B16_A16_F
+//         val FORMAT = ImageFormat.R32G32B32A32_F
+        val FORMAT = ImageFormat.R16G16B16A16_F
     }
 }

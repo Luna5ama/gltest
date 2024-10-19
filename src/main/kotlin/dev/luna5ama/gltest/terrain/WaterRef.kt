@@ -33,7 +33,7 @@ class WaterRef(private val scene: TerrainScene) : IGLObjContainer by IGLObjConta
             refUvTex.destroy()
 
             refUvTex.apply {
-                allocate(1, ImageFormat.R16_G16_B16_A16_SN, width, height)
+                allocate(1, ImageFormat.R16G16B16A16_SN, width, height)
                 linearClampEdge()
             }
             fbo.apply {

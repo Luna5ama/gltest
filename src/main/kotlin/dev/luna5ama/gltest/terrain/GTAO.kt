@@ -80,7 +80,7 @@ class GTAO(private val scene: TerrainScene, private val solidLighting: SolidLigh
         if (sizeBit != lastUpdateSizeBit) {
             finalTex.apply {
                 destroy()
-                allocate(1, ImageFormat.R16_G16_B16_A16_F, input.width, input.height)
+                allocate(1, ImageFormat.R16G16B16A16_F, input.width, input.height)
             }
             finalFbo.apply {
                 clearAttachments()
