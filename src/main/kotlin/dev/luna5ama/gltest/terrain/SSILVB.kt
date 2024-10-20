@@ -136,9 +136,9 @@ class SSILVB(private val scene: TerrainScene, private val solidLighting: SolidLi
         }
         val aoRadius = 2.0f
         val maxRadius = aoRadius * 2.0f
-        val angleBias = 15.0f
-        shader.uniform1f("uval_thickness", 0.5f)
-        shader.uniform1f("uval_maxCosH", cos((90.0f - angleBias).toRadians()))
+        val globalDistScale = 0.005f
+        val baseThickness = 0.5f
+        shader.uniform2f("uval_thickness", globalDistScale, baseThickness)
         shader.uniform4f("uval_radius", aoRadius, maxRadius, aoRadius * aoRadius, maxRadius * maxRadius)
         shader.uniform2f("uval_aoStrength", if (scene.gameInstance.toggle2) 0.0f else 1.0f, 1.0f)
 

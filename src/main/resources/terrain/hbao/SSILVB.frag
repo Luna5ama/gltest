@@ -14,7 +14,7 @@
 
 uniform sampler2D usam_linearDepth;
 
-uniform float uval_thickness;
+uniform vec2 uval_thickness;
 uniform float uval_maxCosH;
 uniform vec4 uval_radius;
 uniform vec2 uval_aoStrength;
@@ -71,11 +71,6 @@ vec2 linearStep(vec2 edge0, vec2 edge1, vec2 x) {
     return clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
 }
 
-vec3 gs_viewCoord;
-vec3 gs_viewNormal;
-vec3 viewDir;
-vec2 sphereRadius;
-
 // https://graphics.stanford.edu/%7Eseander/bithacks.html
 uint bitCount(uint value) {
     value = value - ((value >> 1u) & 0x55555555u);
@@ -119,15 +114,18 @@ void main() {
 
     vec3 worldNormalThis = texture(usam_solidLighting2, fTexCoord).rgb;
 
-    gs_viewCoord = (ubo_cameraDefault.modelView * vec4(gs_data.worldCoord, 1.0)).xyz;
-    gs_viewNormal = mat3(ubo_cameraDefault.modelView) * worldNormalThis;
-    viewDir = normalize(-gs_viewCoord);
+    vec3 gs_viewCoord = (ubo_cameraDefault.modelView * vec4(gs_data.worldCoord, 1.0)).xyz;
+    vec3 gs_viewNormal = mat3(ubo_cameraDefault.modelView) * worldNormalThis;
+    vec3 viewDir = normalize(-gs_viewCoord);
 
     float sampleAngleDelta = 2.0 * PI_CONST / GTAO_SAMPLE_SLICES;
     float initialAngle = IGN(gl_FragCoord.xy, ubo_cameraDefault.gFrameIndex) * sampleAngleDelta;
-    sphereRadius = (uval_radius.x / -gs_viewCoord.z) * uval_projectParams.xy * ubo_cameraDefault.screenSize.xy;
+    vec2 sphereRadius = (uval_radius.x / -gs_viewCoord.z) * uval_projectParams.xy * ubo_cameraDefault.screenSize.xy;
 
     outValue = vec4(0.0);
+
+    vec3 frontOffset = viewDir * length(gs_viewCoord) * uval_thickness.x;
+    vec3 backOffset = frontOffset + viewDir * uval_thickness.y;
 
     for (uint sliceIndex = 0; sliceIndex < GTAO_SAMPLE_SLICES; sliceIndex++) {
         float sampleAngle = initialAngle + sampleAngleDelta * float(sliceIndex);
@@ -145,7 +143,6 @@ void main() {
         float maxLod = float(textureQueryLevels(usam_linearDepth)) - 1.0;
         float baseLod = clamp(radiusToBaseLod(maxDist), 0.0, maxLod);
         baseLod += r2Seq1(ubo_cameraDefault.gFrameIndex + uint(IGN(gl_FragCoord.xy) * 1024.0)) - 0.5;
-//        baseLod = 0.0;
 
         float sampleLod = baseLod;
         float sampleTexelDist = 1.5;
@@ -167,25 +164,23 @@ void main() {
             vec3 diff = sampleViewXYZ - gs_viewCoord;
 
             vec2 cosH;
-            cosH.x = dot(normalize(diff), projNormal);
-            cosH.y = dot(normalize(diff - viewDir * uval_thickness), projNormal);
+            cosH.x = dot(normalize(diff - frontOffset), projNormal);
+            cosH.y = dot(normalize(diff - backOffset), projNormal);
 
-            if (cosH.x > uval_maxCosH) {
-                cosH = max(cosH, 0.0);
-                vec2 H = (acos(cosH) / PI_HALF_CONST);
-                H = H.y > H.x ? H : H.yx;
-                uint stepSectorBits = calcSectorBits(H.x, H.y);
-                sampleSectorBits |= stepSectorBits;
-            }
+            cosH = max(cosH, 0.0);
+            vec2 H = (acos(cosH) / PI_HALF_CONST);
+            uint stepSectorBits = calcSectorBits(min(H.x, H.y), max(H.x, H.y));
+            sampleSectorBits |= stepSectorBits;
 
             sampleLod = min(sampleLod + 0.25, maxLod);
             sampleTexelDist += sampleLodTexelSizeHalf;
         }
 
-        outValue.a += float(bitCount(sampleSectorBits)) / SECTOR_COUNT_F;
+        outValue.a += float(bitCount(sampleSectorBits)) / float(SECTOR_COUNT);
     }
 
     outValue.a /= float(GTAO_SAMPLE_SLICES);
-    outValue.a = 1.0 - outValue.a;
     outValue.a *= uval_aoStrength.x;
+    outValue.a = 1.0 - outValue.a;
+    outValue.a = pow(outValue.a, uval_aoStrength.y);
 }
