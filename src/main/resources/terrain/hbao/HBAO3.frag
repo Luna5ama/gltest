@@ -65,6 +65,11 @@ float lodTexelSize(float lod) {
 }
 
 void main() {
+    if (textureLod(usam_gDepth, fTexCoord, 0).r == 1.0) {
+        outValue = vec4(1.0);
+        return;
+    }
+
     GBufferData gs_data;
     gbuffer_unpack1(texture(usam_gData1, fTexCoord), gs_data);
 
@@ -127,23 +132,17 @@ void main() {
             vec3 diff = sampleViewXYZ - gs_viewCoord;
             float dist = length(diff);
 
-            if (dist <= uval_radius.y) {
-                float sinH = diff.z / dist;
-                float aoAttenuation = linearStep(uval_radius.x, uval_radius.y, dist);
-                sinH = mix(sinH, maxSinH, aoAttenuation);
+            float sinH = diff.z / dist;
+            float aoAttenuation = linearStep(uval_radius.x, uval_radius.y, dist);
+            sinH = mix(sinH, maxSinH, aoAttenuation);
 
-                if (sinH >= maxSinH) {
-                    maxSinH = sinH;
-                    float occlusion = sinH - sinT;
-                    maxOcclusion = max(occlusion, maxOcclusion);
-                }
-            }
+            maxSinH = max(sinH, maxSinH);
 
             sampleLod = min(sampleLod + 0.25, maxLod);
             sampleTexelDist += sampleLodTexelSizeHalf;
         }
 
-        outValue.a += maxOcclusion;
+        outValue.a += maxSinH - sinT;
     }
 
     outValue.a /= float(HBAO_DIR_SAMPLES);
