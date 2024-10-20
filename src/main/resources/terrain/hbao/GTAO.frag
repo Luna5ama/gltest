@@ -64,14 +64,6 @@ float lodTexelSize(float lod) {
     return exp2(lod);
 }
 
-float linearStep(float edge0, float edge1, float x) {
-    return clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
-}
-
-vec2 linearStep(vec2 edge0, vec2 edge1, vec2 x) {
-    return clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
-}
-
 vec3 gs_viewCoord;
 vec3 gs_viewNormal;
 vec3 viewDir;

@@ -137,10 +137,10 @@ class HBAO(private val scene: TerrainScene, private val solidLighting: SolidLigh
         }
         val tangentAngleBias = 30.0f.toRadians()
         shader.uniform1f("uval_tangentBias", tangentAngleBias)
-        val aoRadius = 2.0f
-        val maxRadius = 4.0f
+        val aoRadius = 1.0f
+        val maxRadius = 2.0f
         shader.uniform2f("uval_radius", aoRadius, maxRadius)
-        shader.uniform2f("uval_aoStrength", if (scene.gameInstance.toggle2) 0.0f else 1.0f, 1.0f)
+        shader.uniform2f("uval_aoStrength", if (scene.gameInstance.toggle2) 0.0f else 1.0f, 2.0f)
         val aspect = scene.camera.aspectRatio
         val tanHalfFov = tan(scene.camera.fov.toRadians() / 2.0f)
         shader.uniform3f("uval_projectParams", 1.0f / (aspect * tanHalfFov), 1.0f / tanHalfFov, aspect)

@@ -60,7 +60,7 @@ void doStuff() {
 
     float blockLightAo = pow(aoSample.a, uval_aoParams.x);
     float skyLightAo = pow(aoSample.a, uval_aoParams.y);
-    vec3 blockLightMul = 8.0 * gtaoMultiBounce(gs_data.albedo.rgb, blockLightAo);
+    vec3 blockLightMul = 32.0 * gtaoMultiBounce(gs_data.albedo.rgb, blockLightAo);
     vec3 skyLightMul = 16.0 * gtaoMultiBounce(gs_data.albedo.rgb, skyLightAo);
     vec3 ambientLight = materialAo * calcAmbient(usam_lightMap, viewDir, mappedNormal, roughness, gs_data.lightCoord, blockLightMul, skyLightMul);
 

@@ -16,18 +16,14 @@ import dev.luna5ama.glwrapper.objects.*
 import kotlin.math.*
 
 class SSILVB(private val scene: TerrainScene, private val solidLighting: SolidLighting) : IGLObjContainer by IGLObjContainer.Impl() {
-    private val steps = 8
+    private val steps = 64
 
-    private fun stepC(): Double {
-        return 2.0.pow(steps) - 1.0
+    private fun lodToRadius(baseLod: Double): Double {
+        return 1.0 + steps * 2.0.pow(baseLod)
     }
 
-    private fun baseLodToRadius(baseLod: Double): Double {
-        return 1.0 + stepC() * 2.0.pow(baseLod)
-    }
-
-    private fun radiusToBaseLod(radius: Double): Double {
-        return log2((radius - 1.0) / stepC())
+    private fun radiusToLod(radius: Double): Double {
+        return log2((radius - 1.0) / steps.toDouble())
     }
 
     private val linearDepthShader = register(
@@ -86,7 +82,7 @@ class SSILVB(private val scene: TerrainScene, private val solidLighting: SolidLi
                 check()
             }
 
-            val levelsRequired = radiusToBaseLod(max(input.width, input.height).toDouble()).ceilToInt() + steps
+            val levelsRequired = radiusToLod(max(input.width, input.height).toDouble()).ceilToInt()
 
             linearDepthTex.apply {
                 destroy()
@@ -134,13 +130,13 @@ class SSILVB(private val scene: TerrainScene, private val solidLighting: SolidLi
             buffer(scene.camera.uboBinding)
             buffer(scene.rtwsm.uboBinding)
         }
-        val aoRadius = 2.0f
+        val aoRadius = 1.0f
         val maxRadius = aoRadius * 2.0f
         val globalDistScale = 0.005f
-        val baseThickness = 0.5f
+        val baseThickness = 0.25f
         shader.uniform2f("uval_thickness", globalDistScale, baseThickness)
         shader.uniform4f("uval_radius", aoRadius, maxRadius, aoRadius * aoRadius, maxRadius * maxRadius)
-        shader.uniform2f("uval_aoStrength", if (scene.gameInstance.toggle2) 0.0f else 1.0f, 1.0f)
+        shader.uniform2f("uval_aoStrength", if (scene.gameInstance.toggle2) 0.0f else 1.0f, 2.0f)
 
 
         val aspect = scene.camera.aspectRatio

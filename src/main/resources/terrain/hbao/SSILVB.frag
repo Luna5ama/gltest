@@ -47,35 +47,16 @@ vec3 toViewSpace(vec2 texCoord, float viewZ, mat4 proj, mat4 projInv) {
     return vec3(viewXY, viewZ);
 }
 
-float stepC() {
-    return exp2(float(GTAO_SAMPLE_STEPS)) - 1.0;
+float lodToRadius(float baseLod) {
+    return 1.5 + GTAO_SAMPLE_STEPS * exp2(baseLod);
 }
 
-float baseLodToRadius(float baseLod) {
-    return 1.0 + stepC() * exp2(baseLod);
-}
-
-float radiusToBaseLod(float radius) {
-    return log2((radius - 1.0) / stepC());
+float radiusToLod(float radius) {
+    return log2((radius - 1.5) / GTAO_SAMPLE_STEPS);
 }
 
 float lodTexelSize(float lod) {
     return exp2(lod);
-}
-
-float linearStep(float edge0, float edge1, float x) {
-    return clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
-}
-
-vec2 linearStep(vec2 edge0, vec2 edge1, vec2 x) {
-    return clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
-}
-
-// https://graphics.stanford.edu/%7Eseander/bithacks.html
-uint bitCount(uint value) {
-    value = value - ((value >> 1u) & 0x55555555u);
-    value = (value & 0x33333333u) + ((value >> 2u) & 0x33333333u);
-    return ((value + (value >> 4u) & 0xF0F0F0Fu) * 0x1010101u) >> 24u;
 }
 
 // https://cdrinmatane.github.io/posts/ssaovb-code/
@@ -87,20 +68,6 @@ uint calcSectorBits(float minHorizon, float maxHorizon) {
     uint angleBit = horizonAngle > 0u ? uint(0xFFFFFFFFu >> (SECTOR_COUNT - horizonAngle)) : 0u;
     uint currentBitfield = angleBit << startBit;
     return currentBitfield;
-}
-
-vec2 acosF(vec2 inX) {
-    vec2 x1 = abs(inX);
-    vec2 x2 = x1 * x1;
-    vec2 x3 = x2 * x1;
-    vec2 s;
-
-    s = -0.2121144f * x1 + 1.5707288f;
-    s = 0.0742610f * x2 + s;
-    s = -0.0187293f * x3 + s;
-    s = sqrt(1.0f - x1) * s;
-
-    return s;
 }
 
 void main() {
@@ -124,9 +91,6 @@ void main() {
 
     outValue = vec4(0.0);
 
-    vec3 frontOffset = viewDir * length(gs_viewCoord) * uval_thickness.x;
-    vec3 backOffset = frontOffset + viewDir * uval_thickness.y;
-
     for (uint sliceIndex = 0; sliceIndex < GTAO_SAMPLE_SLICES; sliceIndex++) {
         float sampleAngle = initialAngle + sampleAngleDelta * float(sliceIndex);
         vec2 sampleDir = vec2(cos(sampleAngle), sin(sampleAngle));
@@ -140,21 +104,27 @@ void main() {
         float maxDist = min(maxDistX, maxDistY);
         maxDist = min(maxDist, length(sampleDir * sphereRadius));
 
-        float maxLod = float(textureQueryLevels(usam_linearDepth)) - 1.0;
-        float baseLod = clamp(radiusToBaseLod(maxDist), 0.0, maxLod);
-        baseLod += r2Seq1(ubo_cameraDefault.gFrameIndex + uint(IGN(gl_FragCoord.xy) * 1024.0)) - 0.5;
+        vec3 frontOffset = projNormal * length(gs_viewCoord) * uval_thickness.x;
+        vec3 backOffset = frontOffset + viewDir * uval_thickness.y;
 
-        float sampleLod = baseLod;
+        float maxLod = float(textureQueryLevels(usam_linearDepth)) - 1.0;
+//        maxLod = 2.0;
+        float sampleLod = radiusToLod(maxDist);
+        sampleLod += r2Seq1(ubo_cameraDefault.gFrameIndex + uint(IGN(gl_FragCoord.xy) * 1024.0)) * 2.0 - 1.0;
+        sampleLod = clamp(sampleLod, 0.0, maxLod);
+        float sampleLodTexelSize = lodTexelSize(sampleLod) * 1.0;
+        sampleLod = round(sampleLod);
+//        sampleLod = 0.0;
+
+        float stepTexelSize = sampleLodTexelSize * 0.5;
         float sampleTexelDist = 1.5;
 
         uint sampleSectorBits = 0u;
 
-        for (int stepIndex = 0; stepIndex < GTAO_SAMPLE_STEPS * 2; stepIndex++) {
+        for (int stepIndex = 0; stepIndex < GTAO_SAMPLE_STEPS; stepIndex++) {
             float fi = float(stepIndex);
 
-            float sampleLodTexelSize = lodTexelSize(sampleLod) * 1.0;
-            float sampleLodTexelSizeHalf = sampleLodTexelSize * 0.5;
-            sampleTexelDist += sampleLodTexelSizeHalf;
+            sampleTexelDist += stepTexelSize;
 
             vec2 sampleTexelCoord = gl_FragCoord.xy + sampleDir * sampleTexelDist;
             vec2 sampleUV = sampleTexelCoord * ubo_cameraDefault.screenSize.zw;
@@ -163,17 +133,21 @@ void main() {
             vec3 sampleViewXYZ = toViewSpace(sampleUV, sampleViewZ, ubo_cameraDefault.projection, ubo_cameraDefault.invProjection);
             vec3 diff = sampleViewXYZ - gs_viewCoord;
 
-            vec2 cosH;
-            cosH.x = dot(normalize(diff - frontOffset), projNormal);
-            cosH.y = dot(normalize(diff - backOffset), projNormal);
+            if (length(diff) <= uval_radius.y) {
+                vec3 frontPos = diff - frontOffset;
+                vec3 backPos = diff - backOffset;
 
-            cosH = max(cosH, 0.0);
-            vec2 H = (acos(cosH) / PI_HALF_CONST);
-            uint stepSectorBits = calcSectorBits(min(H.x, H.y), max(H.x, H.y));
-            sampleSectorBits |= stepSectorBits;
+                vec2 cosH;
+                cosH.x = dot(frontPos, projNormal) * inversesqrt(dot(frontPos, frontPos));
+                cosH.y = dot(backPos, projNormal) * inversesqrt(dot(backPos, backPos));
 
-            sampleLod = min(sampleLod + 0.25, maxLod);
-            sampleTexelDist += sampleLodTexelSizeHalf;
+                cosH = max(cosH, 0.0);
+                vec2 H = acosFastPositive(cosH) / PI_HALF_CONST;
+                uint stepSectorBits = calcSectorBits(min(H.x, H.y), max(H.x, H.y));
+                sampleSectorBits |= stepSectorBits;
+            }
+
+            sampleTexelDist += stepTexelSize;
         }
 
         outValue.a += float(bitCount(sampleSectorBits)) / float(SECTOR_COUNT);
@@ -181,6 +155,6 @@ void main() {
 
     outValue.a /= float(GTAO_SAMPLE_SLICES);
     outValue.a *= uval_aoStrength.x;
-    outValue.a = 1.0 - outValue.a;
+    outValue.a = max(1.0 - outValue.a, 0.0);
     outValue.a = pow(outValue.a, uval_aoStrength.y);
 }
