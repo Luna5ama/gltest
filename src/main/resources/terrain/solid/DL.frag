@@ -128,7 +128,7 @@ float calcShadow(vec3 lightViewNormal, float sssFactor) {
 
 const float AIR_IOR = 1.0003;
 
-vec3 fresnel(float vDotH, float reflectance) {
+vec3 fresnel(float lDotH, float reflectance) {
     /*
         Metal	    Bit Value	N (R, G, B)	                K (R, G, B)
         Iron	    230	        2.9114,  2.9497,  2.5845	3.0893, 2.9318, 2.7670
@@ -164,14 +164,14 @@ vec3 fresnel(float vDotH, float reflectance) {
 
     vec3 f;
     if (reflectance < 229.5 / 255.0) {
-        f = cts_frenel_cook_torrance(vDotH, vec3(reflectance));
+        f = cts_frenel_cook_torrance(lDotH, reflectance);
     } else if (reflectance < 237.5 / 255.0) {
         uint metalIdx = clamp(uint(reflectance * 255.0) - 230u, 0u, 7u);
         vec3 ior = METAL_IOR[metalIdx];
         vec3 k = METAL_K[metalIdx];
-        f = cts_fresnel_lazanyi(vDotH, ior, vec3(AIR_IOR), k);
+        f = cts_fresnel_lazanyi(lDotH, ior, k);
     } else {
-        f = cts_frenel_schlick_f0(vDotH, gs_data.albedo.rgb);
+        f = cts_frenel_schlick_f0(lDotH, gs_data.albedo.rgb);
     }
 
     return f;
@@ -211,10 +211,6 @@ void doStuff() {
 
     vec3 viewDir = normalize(-gs_data.worldCoord);
 
-    float blockLightMul = 4.0;
-    float skyLightMul = 16.0;
-    vec3 ambientLight = calcAmbient(usam_lightMap, mappedNormal, mappedNormal, alpha, gs_data.lightCoord, blockLightMul, skyLightMul);
-
     float sssBase = max(-dot(mappedNormal, uShadowMap.lightDir), 0.0);
     float sssSheen = 1.0 - abs(dot(mappedNormal, viewDir));
     float sssValue = sssFactor * (0.2 * sssBase + 0.2 * sssSheen);
@@ -226,11 +222,11 @@ void doStuff() {
     vec3 h = normalize(uShadowMap.lightDir + viewDir);
     float nDotH = dot(mappedNormal, h);
     float lDotV = dot(uShadowMap.lightDir, viewDir);
-    float vDotH = dot(viewDir, h);
+    float lDotH = dot(uShadowMap.lightDir, h);
     vec3 albedo = gs_data.albedo.rgb;
     float a = alpha;
 
-    vec3 f = fresnel(vDotH, reflectance);
+    vec3 f = fresnel(lDotH, reflectance);
 
     rt_tex1.rgb = albedo;
     rt_tex1.a = shadow;
@@ -246,10 +242,15 @@ void doStuff() {
     vec3 specularDL = shadow * cts_main(mappedNormal, uShadowMap.lightDir, viewDir, f, alpha);
     specularDL = max(vec3(0.0), specularDL);
 
+    vec3 blockLightMul = vec3(32.0);
+    vec3 skyLightMul = vec3(16.0);
+    vec3 ambientLight = materialAo * calcAmbient(usam_lightMap, viewDir, mappedNormal, roughness, gs_data.lightCoord, blockLightMul, skyLightMul);
+
     rt_mainFboOutput = vec4(0.0, 0.0, 0.0, 1.0);
     rt_mainFboOutput.rgb += diffuseDL * SUN_LIGHT_INTENSITY * SUN_LIGHT_COLOR;
     rt_mainFboOutput.rgb += specularDL * SUN_LIGHT_INTENSITY * SUN_LIGHT_COLOR;
     rt_mainFboOutput.rgb += emissive * EMISSIVE_INTENSITY * gs_data.albedo.rgb;
+    rt_mainFboOutput.rgb += f * ambientLight * gs_data.albedo.rgb;
 }
 
 void main() {

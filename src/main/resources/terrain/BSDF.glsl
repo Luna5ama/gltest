@@ -63,26 +63,31 @@ vec3 cts_f0ToIor(vec3 f0) {
     return (1.0 + f0Sqrt) / (1.0 - f0Sqrt);
 }
 
-vec3 cts_frenel_cook_torrance(float vDotH, vec3 f0) {
-    vec3 ior = cts_f0ToIor(f0);
-    vec3 c = vec3(vDotH);
-    vec3 g = sqrt(ior * ior + c * c - vec3(1.0));
-    return 0.5 * _cts_pow2((g - c) / (g + c)) * (1.0 + _cts_pow2(((g + c) * c - 1.0) / ((g - c) * c + 1.0)));
+float cts_f0ToIor(float f0) {
+    float f0Sqrt = sqrt(f0) * 0.9999;
+    return (1.0 + f0Sqrt) / (1.0 - f0Sqrt);
 }
 
-vec3 cts_frenel_schlick_f0(float vDotH, vec3 f0) {
-    return f0 + (1.0 - f0) * _cts_pow5(1.0 - vDotH);
+vec3 cts_frenel_cook_torrance(float lDotH, float f0) {
+    float ior = cts_f0ToIor(f0);
+    float c = float(lDotH);
+    float g = sqrt(ior * ior + c * c - float(1.0));
+    return vec3(0.5 * _cts_pow2((g - c) / (g + c)) * (1.0 + _cts_pow2(((g + c) * c - 1.0) / ((g - c) * c + 1.0))));
 }
 
-vec3 cts_frenel_schlick(float vDotH, vec3 iorTo, vec3 iorFrom) {
-    vec3 f0 = _cts_pow2((iorTo - 1.0) / (iorTo + 1.0));
-    return f0 + (1.0 - f0) * _cts_pow5(1.0 - vDotH);
+vec3 cts_frenel_schlick_f0(float lDotH, vec3 f0) {
+    return f0 + (1.0 - f0) * _cts_pow5(1.0 - lDotH);
+}
+
+vec3 cts_frenel_schlick(float lDotH, vec3 ior) {
+    vec3 f0 = _cts_pow2((ior - 1.0) / (ior + 1.0));
+    return f0 + (1.0 - f0) * _cts_pow5(1.0 - lDotH);
 }
 
 // Fresnel Term Approximations for Metals by Lazanyi
-vec3 cts_fresnel_lazanyi(float vDotH, vec3 iorTo, vec3 iorFrom, vec3 k) {
+vec3 cts_fresnel_lazanyi(float lDotH, vec3 ior, vec3 k) {
     vec3 k2 = _cts_pow2(k);
-    return (_cts_pow2(iorTo - iorFrom) + 4 * iorTo * _cts_pow5(1.0 - vDotH) + k2) / (_cts_pow2(iorTo + iorFrom) + k2);
+    return (_cts_pow2(ior - 1.0) + 4 * ior * _cts_pow5(1.0 - lDotH) + k2) / (_cts_pow2(ior + 1.0) + k2);
 }
 
 // f: Fresnel term
