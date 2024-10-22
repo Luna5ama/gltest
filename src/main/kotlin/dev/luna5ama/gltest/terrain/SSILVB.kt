@@ -1,5 +1,6 @@
 package dev.luna5ama.gltest.terrain
 
+import dev.fastmc.common.MathUtil
 import dev.fastmc.common.TickTimer
 import dev.fastmc.common.ceilToInt
 import dev.fastmc.common.toRadians
@@ -16,14 +17,19 @@ import dev.luna5ama.glwrapper.objects.*
 import kotlin.math.*
 
 class SSILVB(private val scene: TerrainScene, private val solidLighting: SolidLighting) : IGLObjContainer by IGLObjContainer.Impl() {
-    private val steps = 64
+    private val steps = 16
 
-    private fun lodToRadius(baseLod: Double): Double {
-        return 1.0 + steps * 2.0.pow(baseLod)
+    private fun lodStepToRadius(x: Double): Double {
+        return (0..<steps).sumOf {
+            2.0.pow(x * it)
+        }
     }
 
-    private fun radiusToLod(radius: Double): Double {
-        return log2((radius - 1.0) / steps.toDouble())
+    private fun radiusToLodStep(y: Double): Double {
+        val a0 = 0.0771784
+        val a1 = 0.139577
+        val a2 = -1.34389
+        return MathUtil.clamp(a0 * log2(a1 * y + a2), 0.0, 0.92831)
     }
 
     private val linearDepthShader = register(
@@ -37,8 +43,8 @@ class SSILVB(private val scene: TerrainScene, private val solidLighting: SolidLi
         ShaderProgram(
             ShaderSource.Vert("terrain/Blit.vert.glsl"),
             ShaderSource.Frag("terrain/hbao/SSILVB.frag") {
-                define("GTAO_SAMPLE_SLICES", 2)
-                define("GTAO_SAMPLE_STEPS", steps)
+                define("SSILVB_SAMPLE_SLICES", 2)
+                define("SSILVB_SAMPLE_STEPS", steps)
             }
         )
     ).apply {
@@ -75,6 +81,7 @@ class SSILVB(private val scene: TerrainScene, private val solidLighting: SolidLi
                 destroy()
                 allocate(1, ImageFormat.R16G16B16A16_F, input.width, input.height)
             }
+
             finalFbo.apply {
                 clearAttachments()
                 attach(finalTex, GL_COLOR_ATTACHMENT0)
@@ -82,12 +89,12 @@ class SSILVB(private val scene: TerrainScene, private val solidLighting: SolidLi
                 check()
             }
 
-            val levelsRequired = radiusToLod(max(input.width, input.height).toDouble()).ceilToInt()
+            val levelsRequired = min(log2(max(input.width, input.height).toDouble()).ceilToInt(), 13)
 
             linearDepthTex.apply {
                 destroy()
-                setMipLevels(0, levelsRequired)
-                setMipLod(0.0f, levelsRequired.toFloat())
+                setMipLevels(0, levelsRequired - 1)
+                setMipLod(0.0f, levelsRequired - 1.0f)
                 setFilter(GL_NEAREST_MIPMAP_NEAREST, GL_NEAREST)
                 setWrap(GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE)
                 allocate(levelsRequired, ImageFormat.R32_F, input.width, input.height)
@@ -130,10 +137,10 @@ class SSILVB(private val scene: TerrainScene, private val solidLighting: SolidLi
             buffer(scene.camera.uboBinding)
             buffer(scene.rtwsm.uboBinding)
         }
-        val aoRadius = 1.0f
-        val maxRadius = aoRadius * 2.0f
-        val globalDistScale = 0.005f
-        val baseThickness = 0.25f
+        val aoRadius = 4.0f
+        val maxRadius = aoRadius * 8.0f
+        val globalDistScale = 0.002f
+        val baseThickness = 0.5f
         shader.uniform2f("uval_thickness", globalDistScale, baseThickness)
         shader.uniform4f("uval_radius", aoRadius, maxRadius, aoRadius * aoRadius, maxRadius * maxRadius)
         shader.uniform2f("uval_aoStrength", if (scene.gameInstance.toggle2) 0.0f else 1.0f, 2.0f)
@@ -150,7 +157,7 @@ class SSILVB(private val scene: TerrainScene, private val solidLighting: SolidLi
         gpuTimer.end()
 
         if (timer.tickAndReset(1000)) {
-            println("HBAO: %.2f ms".format(gpuTimer.averageMS()))
+            println("SSILVB: %.2f ms".format(gpuTimer.averageMS()))
         }
 
         glViewport(0, 0, scene.camera.screenWidth, scene.camera.screenHeight)

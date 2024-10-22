@@ -137,7 +137,7 @@ class GTAO(private val scene: TerrainScene, private val solidLighting: SolidLigh
             buffer(scene.camera.uboBinding)
             buffer(scene.rtwsm.uboBinding)
         }
-        val aoRadius = 2.0f
+        val aoRadius = 4.0f
         val maxRadius = aoRadius * 2.0f
         shader.uniform1f("uval_thickness", 0.005f)
         shader.uniform4f("uval_radius", aoRadius, maxRadius, aoRadius * aoRadius, maxRadius * maxRadius)

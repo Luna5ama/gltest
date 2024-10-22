@@ -47,12 +47,12 @@ vec3 toViewSpace(vec2 texCoord, float viewZ, mat4 proj, mat4 projInv) {
     return vec3(viewXY, viewZ);
 }
 
-float lodToRadius(float baseLod) {
-    return 1.5 + GTAO_SAMPLE_STEPS * exp2(baseLod);
-}
-
-float radiusToLod(float radius) {
-    return log2((radius - 1.5) / GTAO_SAMPLE_STEPS);
+float radiusToLodStep(float y) {
+    const float a0 = 0.0771784;
+    const float a1 = 0.139577;
+    const float a2 = -1.34389;
+    y = clamp(y, 16.0, 32768.0);
+    return clamp(a0 * log2(a1 * y + a2), 0.0, 0.92831);
 }
 
 float lodTexelSize(float lod) {
@@ -85,13 +85,13 @@ void main() {
     vec3 gs_viewNormal = mat3(ubo_cameraDefault.modelView) * worldNormalThis;
     vec3 viewDir = normalize(-gs_viewCoord);
 
-    float sampleAngleDelta = 2.0 * PI_CONST / GTAO_SAMPLE_SLICES;
+    float sampleAngleDelta = 2.0 * PI_CONST / SSILVB_SAMPLE_SLICES;
     float initialAngle = IGN(gl_FragCoord.xy, ubo_cameraDefault.gFrameIndex) * sampleAngleDelta;
     vec2 sphereRadius = (uval_radius.x / -gs_viewCoord.z) * uval_projectParams.xy * ubo_cameraDefault.screenSize.xy;
 
     outValue = vec4(0.0);
 
-    for (uint sliceIndex = 0; sliceIndex < GTAO_SAMPLE_SLICES; sliceIndex++) {
+    for (uint sliceIndex = 0; sliceIndex < SSILVB_SAMPLE_SLICES; sliceIndex++) {
         float sampleAngle = initialAngle + sampleAngleDelta * float(sliceIndex);
         vec2 sampleDir = vec2(cos(sampleAngle), sin(sampleAngle));
 
@@ -99,37 +99,29 @@ void main() {
         vec3 sliceTangent = cross(viewDir, planeNormal);
         vec3 projNormal = normalize(gs_viewNormal - planeNormal * dot(gs_viewNormal, planeNormal));
 
-        float maxDistX = sampleDir.x != 0.0 ? (sampleDir.x >= 0.0 ? (ubo_cameraDefault.screenSize.x - gl_FragCoord.x) / sampleDir.x : -gl_FragCoord.x / sampleDir.x) : 1e6;
-        float maxDistY = sampleDir.y != 0.0 ? (sampleDir.y < 0.0 ? (-gl_FragCoord.y / sampleDir.y) : (ubo_cameraDefault.screenSize.y - gl_FragCoord.y) / sampleDir.y) : 1e6;
-        float maxDist = min(maxDistX, maxDistY);
-        maxDist = min(maxDist, length(sampleDir * sphereRadius));
+        float maxDist = length(sampleDir * sphereRadius);
 
         vec3 frontOffset = projNormal * length(gs_viewCoord) * uval_thickness.x;
         vec3 backOffset = frontOffset + viewDir * uval_thickness.y;
 
+        float lodStep = radiusToLodStep(maxDist);
         float maxLod = float(textureQueryLevels(usam_linearDepth)) - 1.0;
-//        maxLod = 2.0;
-        float sampleLod = radiusToLod(maxDist);
-        sampleLod += r2Seq1(ubo_cameraDefault.gFrameIndex + uint(IGN(gl_FragCoord.xy) * 1024.0)) * 2.0 - 1.0;
-        sampleLod = clamp(sampleLod, 0.0, maxLod);
-        float sampleLodTexelSize = lodTexelSize(sampleLod) * 1.0;
-        sampleLod = round(sampleLod);
-//        sampleLod = 0.0;
-
-        float stepTexelSize = sampleLodTexelSize * 0.5;
+        float sampleLod = 0.0;
+        sampleLod += r2Seq1(ubo_cameraDefault.gFrameIndex + uint(IGN(gl_FragCoord.xy) * 1024.0)) - 0.5;
         float sampleTexelDist = 1.5;
-
         uint sampleSectorBits = 0u;
 
-        for (int stepIndex = 0; stepIndex < GTAO_SAMPLE_STEPS; stepIndex++) {
+        for (int stepIndex = 0; stepIndex < SSILVB_SAMPLE_STEPS; stepIndex++) {
             float fi = float(stepIndex);
 
+            float sampleLodTexelSize = lodTexelSize(sampleLod) * 1.0;
+            float stepTexelSize = sampleLodTexelSize * 0.5;
             sampleTexelDist += stepTexelSize;
 
             vec2 sampleTexelCoord = gl_FragCoord.xy + sampleDir * sampleTexelDist;
             vec2 sampleUV = sampleTexelCoord * ubo_cameraDefault.screenSize.zw;
 
-            float sampleViewZ = textureLod(usam_linearDepth, sampleUV, sampleLod).r;
+            float sampleViewZ = textureLod(usam_linearDepth, sampleUV, sampleLod * 0.5).r;
             vec3 sampleViewXYZ = toViewSpace(sampleUV, sampleViewZ, ubo_cameraDefault.projection, ubo_cameraDefault.invProjection);
             vec3 diff = sampleViewXYZ - gs_viewCoord;
 
@@ -147,13 +139,17 @@ void main() {
                 sampleSectorBits |= stepSectorBits;
             }
 
+            sampleLod = min(sampleLod + lodStep, maxLod);
             sampleTexelDist += stepTexelSize;
         }
 
+        outValue.r += maxDist;
         outValue.a += float(bitCount(sampleSectorBits)) / float(SECTOR_COUNT);
     }
 
-    outValue.a /= float(GTAO_SAMPLE_SLICES);
+    outValue.r /= float(SSILVB_SAMPLE_SLICES);
+    outValue.a /= float(SSILVB_SAMPLE_SLICES);
+    outValue.a = linearStep(0.01, 1.0, outValue.a);
     outValue.a *= uval_aoStrength.x;
     outValue.a = max(1.0 - outValue.a, 0.0);
     outValue.a = pow(outValue.a, uval_aoStrength.y);
