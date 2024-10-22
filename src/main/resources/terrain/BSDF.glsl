@@ -119,15 +119,15 @@ vec3 cts_main(vec3 n, vec3 l, vec3 v, vec3 f, float a) {
 //        d = exp(expTerm) / (PI * a2 * nDotH4);
 //    }
     // GGX (Trowbridge-Reitz)
-//    {
-//        float sqTerm = nDotH2 * (a2 - 1.0) + 1.0;
-//        d = a2 / (PI * sqTerm * sqTerm);
-//    }
-    // GGX
     {
         float sqTerm = nDotH2 * (a2 - 1.0) + 1.0;
-        d = max(sign(nDotH), 0.0) * a2 / (PI * sqTerm * sqTerm);
+        d = a2 / max(PI * sqTerm * sqTerm, 0.00001);
     }
+//    // GGX
+//    {
+//        float sqTerm = nDotH2 * (a2 - 1.0) + 1.0;
+//        d = max(sign(nDotH), 0.0) * a2 / max(PI * sqTerm * sqTerm, 0.00001);
+//    }
 
     // Geometric Shadowing Term
     float g;
