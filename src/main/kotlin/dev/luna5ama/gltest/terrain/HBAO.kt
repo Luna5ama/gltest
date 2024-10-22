@@ -48,7 +48,9 @@ class HBAO(private val scene: TerrainScene, private val solidLighting: SolidLigh
                 define("HBAO_STEP_SAMPLES", steps)
             }
         )
-    )
+    ).apply {
+        label = "SSILVB"
+    }
 
     private val linearDepthTex = register(TextureObject.Texture2D()).apply { label = "HBAO.LinearDepth" }
     private val linearDepthTexBinding = ShaderBindingSpecs.Sampler("usam_linearDepth", linearDepthTex)

@@ -48,7 +48,7 @@ class SSILVB(private val scene: TerrainScene, private val solidLighting: SolidLi
             }
         )
     ).apply {
-        label = "GTAO"
+        label = "SSILVB"
     }
 
     private val linearDepthTex = register(TextureObject.Texture2D()).apply { label = "HBAO.LinearDepth" }
