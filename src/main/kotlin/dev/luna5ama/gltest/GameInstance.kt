@@ -45,7 +45,7 @@ class GameInstance(val window: Long) {
     val backgroundTaskScope = CoroutineScope(backgroundTaskContext)
 
     companion object {
-//        private const val SWAP_INTERVAL = 2
+//        private const val SWAP_INTERVAL = 10
         private const val SWAP_INTERVAL = 0
         private const val PRINT_FPS = false
     }
@@ -203,12 +203,14 @@ class GameInstance(val window: Long) {
             val frameTimes = mutableListOf<Pair<Double, Double>>()
             val timer = TickTimer()
             while (!glfwWindowShouldClose(window)) {
+//                Thread.sleep(100)
                 MemoryStack.get().checkEmpty()
                 glfwPollEvents()
                 updateMousePos()
 
                 var now = glfwGetTime()
                 val timeDelta = (now - lastTick) / tickInterval
+//                val timeDelta = 1.0
 
                 handleInput(timeDelta)
                 scene.camera.tick(keyboard, timeDelta)

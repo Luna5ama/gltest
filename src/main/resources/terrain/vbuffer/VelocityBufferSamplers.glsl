@@ -1,4 +1,2 @@
-uniform sampler2D usam_velocity_prevUvVelocity;
-uniform sampler2D usam_velocity_prevWorldVelocity;
 uniform sampler2D usam_velocity_uvVelocity;
 uniform sampler2D usam_velocity_worldVelocity;

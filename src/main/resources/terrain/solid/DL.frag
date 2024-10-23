@@ -100,7 +100,8 @@ float calcShadow(vec3 lightViewNormal, float sssFactor) {
 
     #define SAMPLE_N 16
 
-    vec2 ssRange = texelSize * 2.0 * sssFactor;
+    vec2 ssRange = 0.01 * texelSize;
+    ssRange += texelSize * 2.0 * sssFactor;
     ssRange += texelSize * penumbraMult;
 
     float shadow = 0.0;

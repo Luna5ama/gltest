@@ -8,20 +8,14 @@ import dev.luna5ama.glwrapper.ShaderProgram
 import dev.luna5ama.glwrapper.ShaderSource
 import dev.luna5ama.glwrapper.base.*
 import dev.luna5ama.glwrapper.enums.ImageFormat
-import dev.luna5ama.glwrapper.objects.FramebufferObject
-import dev.luna5ama.glwrapper.objects.TextureObject
+import dev.luna5ama.glwrapper.objects.*
 import org.joml.Vector3d
 
 class VelocityBuffer(private val scene: TerrainScene) : IGLObjContainer by IGLObjContainer.Impl() {
-    private val prevUvVelocityTex = register(TextureObject.Texture2D())
-    private val prevWorldVelocityTex = register(TextureObject.Texture2D())
-
     val uvDiffTex = register(TextureObject.Texture2D())
     val worldVelocity = register(TextureObject.Texture2D())
 
     val samplerBindings = listOf(
-        ShaderBindingSpecs.Sampler("usam_velocity_prevUvVelocity", prevUvVelocityTex),
-        ShaderBindingSpecs.Sampler("usam_velocity_prevWorldVelocity", prevWorldVelocityTex),
         ShaderBindingSpecs.Sampler("usam_velocity_uvVelocity", uvDiffTex),
         ShaderBindingSpecs.Sampler("usam_velocity_worldVelocity", worldVelocity)
     )
@@ -92,8 +86,10 @@ class VelocityBuffer(private val scene: TerrainScene) : IGLObjContainer by IGLOb
                 linearClampEdge()
             }
             worldVelocity.apply {
-                allocate(1, ImageFormat.R16G16B16A16_F, input.width, input.height)
-                linearClampEdge()
+                allocate(1, ImageFormat.R8_UN, input.width, input.height)
+                setFilter(GL_LINEAR, GL_LINEAR)
+                setWrap(GL_CLAMP_TO_BORDER, GL_CLAMP_TO_BORDER)
+                setBorderColor(1.0f, 1.0f, 1.0f, 1.0f)
             }
             fbo.apply {
                 attach(uvDiffTex, GL_COLOR_ATTACHMENT0)
@@ -102,8 +98,5 @@ class VelocityBuffer(private val scene: TerrainScene) : IGLObjContainer by IGLOb
                 check()
             }
         }
-
-        checkSizeAndCopy(uvDiffTex, prevUvVelocityTex)
-        checkSizeAndCopy(worldVelocity, prevWorldVelocityTex)
     }
 }

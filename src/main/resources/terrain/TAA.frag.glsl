@@ -3,6 +3,7 @@
 #include "GBuffers.glsl"
 #include "GenericGBuffer.glsl"
 #include "GlobalCamera.glsl"
+#include "utils/Math.glsl"
 #include "vbuffer/VelocityBufferSamplers.glsl"
 
 uniform sampler2D usam_prevFrame;
@@ -31,16 +32,11 @@ void main() {
     vec3 gWorldCoord = gDepth == 1.0 ? vec3(0.0) : gTemp.worldCoord.xyz;
 
     vec2 uvVelocity = texelFetch(usam_velocity_uvVelocity, intTexCoord, 0).xy;
-    vec4 worldVelocitySample = texelFetch(usam_velocity_worldVelocity, intTexCoord, 0);
-    vec4 prevWorldVelocitySample = texelFetch(usam_velocity_prevWorldVelocity, intTexCoord, 0);
 
     vec2 prevTexCoord = fTexCoord - uvVelocity;
 
     vec4 lastColor = max(texture(usam_prevFrame, prevTexCoord), 0.0);
     vec4 currColor = max(texture(usam_mainFbo_inputColor, fJitterTexCoord), 0.0);
-
-    float vCurr = length(worldVelocitySample.xyz);
-    float vPrev = length(prevWorldVelocitySample.xyz);
 
     vec4 nearCurr0 = textureOffset(usam_mainFbo_inputColor, fJitterTexCoord, ivec2(-1, 0));
     vec4 nearCurr1 = textureOffset(usam_mainFbo_inputColor, fJitterTexCoord, ivec2(1, 0));
@@ -50,33 +46,23 @@ void main() {
     vec4 nearMin = min(nearCurr0, min(nearCurr1, min(nearCurr2, nearCurr3)));
     vec4 nearMax = max(nearCurr0, max(nearCurr1, max(nearCurr2, nearCurr3)));
 
-    float newPixel = smoothstep(0.2, 1.0, worldVelocitySample.w);
-    newPixel = max(newPixel, smoothstep(0.2, 1.0, texelFetchOffset(usam_velocity_worldVelocity, intTexCoord, 0, ivec2(-1, 0)).w));
-    newPixel = max(newPixel, smoothstep(0.2, 1.0, texelFetchOffset(usam_velocity_worldVelocity, intTexCoord, 0, ivec2(1, 0)).w));
-    newPixel = max(newPixel, smoothstep(0.2, 1.0, texelFetchOffset(usam_velocity_worldVelocity, intTexCoord, 0, ivec2(0, -1)).w));
-    newPixel = max(newPixel, smoothstep(0.2, 1.0, texelFetchOffset(usam_velocity_worldVelocity, intTexCoord, 0, ivec2(0, 1)).w));
-    newPixel = max(newPixel, smoothstep(0.2, 1.0, texelFetchOffset(usam_velocity_worldVelocity, intTexCoord, 0, ivec2(-1, -1)).w));
-    newPixel = max(newPixel, smoothstep(0.2, 1.0, texelFetchOffset(usam_velocity_worldVelocity, intTexCoord, 0, ivec2(1, -1)).w));
-    newPixel = max(newPixel, smoothstep(0.2, 1.0, texelFetchOffset(usam_velocity_worldVelocity, intTexCoord, 0, ivec2(-1, 1)).w));
-    newPixel = max(newPixel, smoothstep(0.2, 1.0, texelFetchOffset(usam_velocity_worldVelocity, intTexCoord, 0, ivec2(1, 1)).w));
+    float uvSpeed = length(uvVelocity);
 
-    float vDiffWeight = smoothstep(0.0, 1.0, sqrt(abs(vCurr - vPrev)));
-
-    float clampRatio = 0.0;
-//    clampRatio += vDiffWeight;
-//    clampRatio += newPixel;
-//    clampRatio += smoothstep(0.0, 0.1, vCurr) * 0.5;
-//    clampRatio = clamp(clampRatio, 0.0, 1.0);
-
+    float clampRatio = 0.25;
+    clampRatio += uvSpeed * 100.0;
+    clampRatio = saturate(clampRatio);
     lastColor = mix(lastColor, clamp(lastColor, nearMin, nearMax), clampRatio);
 
-    float mixWeight = uMix.x;
+    float loi = texture(usam_velocity_worldVelocity, fTexCoord).r;
+    loi = max(loi, textureOffset(usam_velocity_worldVelocity, fTexCoord, ivec2(-1, 0)).r);
+    loi = max(loi, textureOffset(usam_velocity_worldVelocity, fTexCoord, ivec2(1, 0)).r);
+    loi = max(loi, textureOffset(usam_velocity_worldVelocity, fTexCoord, ivec2(0, -1)).r);
+    loi = max(loi, textureOffset(usam_velocity_worldVelocity, fTexCoord, ivec2(0, 1)).r);
 
-//    mixWeight *= 1.0 - newPixel;
-//    mixWeight *= 1.0 - (smoothstep(0.0, 0.5, vCurr) / (max(length(gWorldCoord), 1.0) * 0.1)) * 0.4;
-//    mixWeight *= max(1.0 - vDiffWeight, 0.0);
-//    mixWeight = clamp(mixWeight, uMix.y, uMix.z);
+    float lol = 1.0 - float(loi > 0.0);
+    float mixWeight = uMix.x;
+    mixWeight *= lol;
+    mixWeight *= saturate(1.0 - uvSpeed * 100.0);
 
     fragColor = mix(currColor, lastColor, mixWeight);
-//    fragColor.rgb = mixWeight.rrr;
 }

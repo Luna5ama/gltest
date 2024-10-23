@@ -25,7 +25,7 @@ void main() {
 //    float newValue = -centerValue >= planeZ.y ? uWeight.x : uWeight.y;
 
 //    fragColor = vec4(newValue, 0.0, 0.0, uWeight.z);
-    float v = texelFetch(usam_velocity_worldVelocity, intTexCoord, 0).w;
+    float v = texelFetch(usam_velocity_worldVelocity, intTexCoord, 0).r;
     v = smoothstep(0.2, 1.0, v) * uWeight.x;
 
     fragColor = vec4(v, 0.0, 0.0, uWeight.z);
