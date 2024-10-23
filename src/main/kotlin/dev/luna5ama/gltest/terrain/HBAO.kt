@@ -49,7 +49,7 @@ class HBAO(private val scene: TerrainScene, private val solidLighting: SolidLigh
             }
         )
     ).apply {
-        label = "SSILVB"
+        label = "HBAO"
     }
 
     private val linearDepthTex = register(TextureObject.Texture2D()).apply { label = "HBAO.LinearDepth" }
@@ -137,12 +137,12 @@ class HBAO(private val scene: TerrainScene, private val solidLighting: SolidLigh
             buffer(scene.camera.uboBinding)
             buffer(scene.rtwsm.uboBinding)
         }
-        val tangentAngleBias = 30.0f.toRadians()
+        val tangentAngleBias = 0.0f.toRadians()
         shader.uniform1f("uval_tangentBias", tangentAngleBias)
         val aoRadius = 4.0f
         val maxRadius = aoRadius * 2.0f
         shader.uniform2f("uval_radius", aoRadius, maxRadius)
-        shader.uniform2f("uval_aoStrength", if (scene.gameInstance.toggle2) 0.0f else 1.0f, 2.0f)
+        shader.uniform2f("uval_aoStrength", if (scene.gameInstance.toggle2) 0.0f else 1.0f, 1.0f)
         val aspect = scene.camera.aspectRatio
         val tanHalfFov = tan(scene.camera.fov.toRadians() / 2.0f)
         shader.uniform3f("uval_projectParams", 1.0f / (aspect * tanHalfFov), 1.0f / tanHalfFov, aspect)

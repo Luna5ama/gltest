@@ -59,16 +59,6 @@ float lodTexelSize(float lod) {
     return exp2(lod);
 }
 
-vec2 acosF1(vec2 inX) {
-    vec2 s;
-
-    s = vec2(1.58648);
-    s += -1.10912 * inX;
-    s += -0.00000159536 * exp2(18.0454 * inX);
-
-    return s;
-}
-
 // https://cdrinmatane.github.io/posts/ssaovb-code/
 const float SECTOR_COUNT_F = 32.0;
 const uint SECTOR_COUNT = 32u;
@@ -150,11 +140,9 @@ void main() {
                 sampleTexelDist += stepTexelSize;
             }
 
-            outValue.r += maxDist;
             outValue.a += float(bitCount(sampleSectorBits)) / float(SECTOR_COUNT);
         }
 
-        outValue.r /= float(SSILVB_SAMPLE_SLICES);
         outValue.a /= float(SSILVB_SAMPLE_SLICES);
         outValue.a = linearStep(0.01, 1.0, outValue.a);
         outValue.a *= uval_aoStrength.x;

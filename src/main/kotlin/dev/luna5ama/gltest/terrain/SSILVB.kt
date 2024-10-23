@@ -123,7 +123,7 @@ class SSILVB(private val scene: TerrainScene, private val solidLighting: SolidLi
         }
         scene.basic.drawQuad()
 
-        scene.hizGen.processColor(linearDepthTex, linearDepthTex, HiZBufferGen.KernelType.MIN)
+        scene.hizGen.processColor(linearDepthTex, linearDepthTex, HiZBufferGen.KernelType.MAX)
     }
 
     private fun sample(input: GBuffer) {
@@ -138,9 +138,9 @@ class SSILVB(private val scene: TerrainScene, private val solidLighting: SolidLi
             buffer(scene.rtwsm.uboBinding)
         }
         val aoRadius = 4.0f
-        val maxRadius = aoRadius * 8.0f
+        val maxRadius = aoRadius * 2.0f
         val globalDistScale = 0.002f
-        val baseThickness = 0.5f
+        val baseThickness = 0.25f
         shader.uniform2f("uval_thickness", globalDistScale, baseThickness)
         shader.uniform4f("uval_radius", aoRadius, maxRadius, aoRadius * aoRadius, maxRadius * maxRadius)
         shader.uniform2f("uval_aoStrength", if (scene.gameInstance.toggle2) 0.0f else 1.0f, 2.0f)

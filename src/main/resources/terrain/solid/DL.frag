@@ -213,7 +213,7 @@ void doStuff() {
 
     float sssBase = max(-dot(mappedNormal, uShadowMap.lightDir), 0.0);
     float sssSheen = 1.0 - abs(dot(mappedNormal, viewDir));
-    float sssValue = sssFactor * (0.2 * sssBase + 0.2 * sssSheen);
+    float sssValue = sssFactor * (0.4 * sssBase + 0.4 * sssSheen);
     // Shadow
     float shadow = calcShadow(fNormalMatrix * gs_data.worldNormal, sssFactor);
 

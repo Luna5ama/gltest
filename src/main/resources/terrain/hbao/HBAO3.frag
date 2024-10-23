@@ -92,10 +92,11 @@ void main() {
         float sampleAngle = initialAngle + sampleAngleDelta * float(dirIndex);
         vec2 sampleDir = vec2(cos(sampleAngle), sin(sampleAngle));
 
-        float maxDistX = sampleDir.x != 0.0 ? (sampleDir.x >= 0.0 ? (ubo_cameraDefault.screenSize.x - texelCoord.x) / sampleDir.x : -texelCoord.x / sampleDir.x) : 1e6;
-        float maxDistY = sampleDir.y != 0.0 ? (sampleDir.y < 0.0 ? (-texelCoord.y / sampleDir.y) : (ubo_cameraDefault.screenSize.y - texelCoord.y) / sampleDir.y) : 1e6;
-        float maxDist = min(maxDistX, maxDistY);
-        maxDist = min(maxDist, length(sampleDir * sphereRadius));
+//        float maxDistX = sampleDir.x != 0.0 ? (sampleDir.x >= 0.0 ? (ubo_cameraDefault.screenSize.x - texelCoord.x) / sampleDir.x : -texelCoord.x / sampleDir.x) : 1e6;
+//        float maxDistY = sampleDir.y != 0.0 ? (sampleDir.y < 0.0 ? (-texelCoord.y / sampleDir.y) : (ubo_cameraDefault.screenSize.y - texelCoord.y) / sampleDir.y) : 1e6;
+//        float maxDist = min(maxDistX, maxDistY);
+//        maxDist = min(maxDist, length(sampleDir * sphereRadius));
+        float maxDist = length(sampleDir * sphereRadius);
 
         float maxLod = float(textureQueryLevels(usam_linearDepth)) - 1.0;
         float baseLod = clamp(radiusToBaseLod(maxDist), 0.0, maxLod);
