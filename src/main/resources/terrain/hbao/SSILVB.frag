@@ -121,8 +121,9 @@ void main() {
                 float sampleViewZ = textureLod(usam_linearDepth, sampleUV, sampleLod * 0.5).r;
                 vec3 sampleViewXYZ = toViewSpace(sampleUV, sampleViewZ, ubo_cameraDefault.projection, ubo_cameraDefault.invProjection);
                 vec3 diff = sampleViewXYZ - gs_viewCoord;
+                float distSq = dot(diff, diff);
 
-                if (dot(diff, diff) <= uval_radius.w) {
+                if (distSq <= uval_radius.w) {
                     vec3 frontPos = diff - frontOffset;
                     vec3 backPos = diff - backOffset;
 
