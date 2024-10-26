@@ -174,7 +174,7 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
 //        lightDir.set(0.2f, 1.0f, 0.8f).normalize() // HAllway
 
 
-        lightDir.set(0.1f, 0.5f, 0.8f).normalize() // brickhouse
+//        lightDir.set(0.1f, 0.5f, 0.8f).normalize() // brickhouse
 //        lightDir.set(0.5f, 0.6f, 0.5f).normalize() // brickhousse
 
 //        lightDir.set(0.9f, 0.8f, 0.1f).normalize() // woodhouse
@@ -209,6 +209,7 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
 //        lightDir.set(0.4f, 1.2f, -0.5f).normalize() // Sponzsa
 //        lightDir.set(0.0f, 1.2f, -0.9f).normalize() // Sponza.
 //        lightDir.set(0.1f, 1.6f, -0.9f).normalize() // Sponza.
+        lightDir.set(0.8f, 1.0f, -2.9f).normalize() // Sponza.
 
 //        lightDir.set(0.5f, 0.8f, -0.5f).normalize() // Blocks
 

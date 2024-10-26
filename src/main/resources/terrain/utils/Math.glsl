@@ -1,6 +1,9 @@
 const float PI_CONST = 3.14159265358979323846;
 const float PI_2_CONST = 2.0 * PI_CONST;
 const float PI_HALF_CONST = 0.5 * PI_CONST;
+const float RCP_PI_CONST = 1.0 / PI_CONST;
+const float RCP_PI_2_CONST = 1.0 / PI_2_CONST;
+const float RCP_PI_HALF_CONST = 1.0 / PI_HALF_CONST;
 
 float saturate(float x) { return clamp(x, 0.0, 1.0); }
 

@@ -309,13 +309,14 @@ class GameInstance(val window: Long) {
 
         repeat(10) { i ->
             keyboard.register(GLFW_KEY_1 + i) {
-                if (keyboard.pressing(GLFW_KEY_LEFT_CONTROL) && it == GLFW_RELEASE) {
-                    val v = (i + 1).toDouble()
-                    scene.camera.speedMultiplier = v * v
-                }
                 if (it == GLFW_RELEASE) {
-                    toggles[i] = !toggles[i]
-                    println("Toggle $i: ${toggles[i]}")
+                    if (keyboard.pressing(GLFW_KEY_LEFT_CONTROL)) {
+                        val v = (i + 1).toDouble()
+                        scene.camera.speedMultiplier = v * v
+                    } else {
+                        toggles[i] = !toggles[i]
+                        println("Toggle $i: ${toggles[i]}")
+                    }
                 }
             }
         }

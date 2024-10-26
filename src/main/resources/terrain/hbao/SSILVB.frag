@@ -103,10 +103,12 @@ void main() {
             vec3 backOffset = frontOffset + viewDir * uval_thickness.y;
 
             float lodStep = radiusToLodStep(maxDist);
+            lodStep += r2Seq1(ubo_cameraDefault.gFrameIndex + uint(IGN(gl_FragCoord.yx) * 512.0) + sliceIndex) * 0.2 - 0.1;
+
             float maxLod = float(textureQueryLevels(usam_linearDepth)) - 1.0;
-            float giMaxLod = 4.0;
+            float giMaxLod = maxLod * 0.4;
             float sampleLod = 0.0;
-            sampleLod += r2Seq1(ubo_cameraDefault.gFrameIndex + uint(IGN(gl_FragCoord.xy) * 1024.0)) - 0.5;
+            sampleLod += r2Seq1(ubo_cameraDefault.gFrameIndex + uint(IGN(gl_FragCoord.xy) * 1024.0) + sliceIndex) - 0.5;
             float sampleTexelDist = 1.5;
             uint sampleSectorBits = 0u;
 
@@ -132,32 +134,34 @@ void main() {
                     cosH.y = dot(backPos, projNormal) * inversesqrt(dot(backPos, backPos));
 
                     cosH = saturate(cosH);
-                    vec2 H = acosFastPositive(cosH) / PI_HALF_CONST;
-                    H = H - 1.0;
+                    vec2 H = acosFastPositive(cosH) * RCP_PI_HALF_CONST - 1.0;
                     H = H * H;
                     H = H * H;
                     H = 1.0 - H;
                     uint stepSectorBits = calcSectorBits(min(H.x, H.y), max(H.x, H.y));
 
-                    if (sampleUV.x >= 0.0 && sampleUV.y >= 0.0 && sampleUV.x < 1.0 && sampleUV.y < 1.0) {
+                    uint ilBit = bitCount(stepSectorBits & ~sampleSectorBits);
+
+                    uint ilCond = uint(ilBit != 0);
+                    ilCond &= uint(all(greaterThanEqual(sampleUV, vec2(0.0))));
+                    ilCond &= uint(all(lessThanEqual(sampleUV, vec2(1.0))));
+
+                    if (bool(ilCond)) {
                         vec4 sample1 = textureLod(usam_solidLighting1, sampleUV, min(sampleLod, giMaxLod));
                         vec4 sample2 = textureLod(usam_solidLighting2, sampleUV, min(sampleLod, giMaxLod));
                         vec3 sampleNormal = sample2.rgb * 2.0 - 1.0;
+                        vec3 direct = sample1.rgb;
 
-                        //                    vec3 radiance = saturate(dot(sampleNormal, viewLightDir)) * sample1.a * sample1.rgb;
-                        //                    radiance *= SUN_LIGHT_INTENSITY * SUN_LIGHT_COLOR;
-                        vec3 radiance = sample1.rgb;
+                        float ilDiffuse = (float(ilBit) / float(SECTOR_COUNT));
+                        float rcpDist = fastRcpSqrtNR0(distSq);
+                        ilDiffuse *= saturate(dot(gs_viewNormal, diff) * rcpDist);
+                        ilDiffuse *= saturate(dot(sampleNormal, -diff) * rcpDist);
 
-                        float ilBit = (1.0 - float(bitCount(stepSectorBits & ~sampleSectorBits)) / float(SECTOR_COUNT));
-
-                        vec3 normDiff = normalize(diff);
-                        vec3 il = ilBit * saturate(dot(gs_viewNormal, normDiff)) * saturate(dot(sampleNormal, -normDiff)) * radiance;
-                        outValue.rgb += il;
+                        outValue.rgb += ilDiffuse * direct;
                     }
 
                     sampleSectorBits |= stepSectorBits;
                 }
-
                 sampleLod = min(sampleLod + lodStep, maxLod);
                 sampleTexelDist += stepTexelSize;
             }
@@ -166,7 +170,7 @@ void main() {
         }
 
         outValue /= float(SSILVB_SAMPLE_SLICES);
-//        outValue.rgb *= 0.5;
+        outValue.rgb *= 8.0;
         outValue.rgb *= gs_data.albedo.rgb;
 
         outValue.a = linearStep(0.01, 1.0, outValue.a);

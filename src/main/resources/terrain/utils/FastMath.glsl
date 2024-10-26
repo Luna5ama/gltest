@@ -364,6 +364,13 @@ vec2 acosFastPositive(vec2 inX) {
     return res;
 }
 
+vec3 acosFastPositive(vec3 inX) {
+    vec3 x = abs(inX);
+    vec3 res = -0.156583f * x + fsl_HALF_PI;
+    res *= sqrt(1.0f - x);
+    return res;
+}
+
 // 4th order polynomial approximation
 // 4 VGRP, 16 ALU Full Rate
 // 7 * 10^-5 radians precision
