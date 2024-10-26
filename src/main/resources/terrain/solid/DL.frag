@@ -19,8 +19,10 @@ layout(early_fragment_tests) in;
 uniform sampler2D usam_blockNormalAtlas;
 uniform sampler2D usam_blockSpecularAtlas;
 uniform sampler2D usam_lightMap;
+uniform sampler2D usam_hbao;
 
 uniform vec3 originOffset;
+uniform float uval_mb;
 
 in vec2 fClipCoord;
 in vec2 fTexCoord;
@@ -229,11 +231,14 @@ void doStuff() {
 
     vec3 f = fresnel(lDotH, reflectance);
 
-    rt_tex1.rgb = albedo;
-    rt_tex1.a = shadow;
+    vec4 aoSample = texture(usam_hbao, fTexCoord);
+    rt_tex1.rgb = max(dot(gs_data.worldNormal, uShadowMap.lightDir), 0.0) * shadow * SUN_LIGHT_INTENSITY * albedo * SUN_LIGHT_COLOR;
+    rt_tex1.rgb += emissive * EMISSIVE_INTENSITY * 4.0 * gs_data.albedo.rgb;
+    rt_tex1.rgb += sssValue * shadow * SUN_LIGHT_INTENSITY * albedo * SUN_LIGHT_COLOR;
+    rt_tex1.rgb += uval_mb * aoSample.rgb;
 
-    rt_tex2.rgb = mappedNormal;
-    rt_tex2.a = sssValue;
+    vec3 viewNormal = mat3(ubo_cameraDefault.modelView) * mappedNormal;
+    rt_tex2.rgb = viewNormal * 0.5 + 0.5;
 
     vec3 diffuseDL = bsdf_diffuseHammon(nDotL, nDotV, nDotH, lDotV, albedo, a);
     diffuseDL += sssValue * albedo;
@@ -246,6 +251,7 @@ void doStuff() {
     vec3 blockLightMul = vec3(32.0);
     vec3 skyLightMul = vec3(16.0);
     vec3 ambientLight = materialAo * calcAmbient(usam_lightMap, viewDir, mappedNormal, roughness, gs_data.lightCoord, blockLightMul, skyLightMul);
+
 
     rt_mainFboOutput = vec4(0.0, 0.0, 0.0, 1.0);
     rt_mainFboOutput.rgb += diffuseDL * SUN_LIGHT_INTENSITY * SUN_LIGHT_COLOR;

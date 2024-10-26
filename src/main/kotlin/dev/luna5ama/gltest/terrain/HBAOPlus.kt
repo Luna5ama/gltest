@@ -142,7 +142,7 @@ class HBAOPlus(private val scene: TerrainScene, private val solidLighting: Solid
         val aoRadius = 4.0f
         val maxRadius = aoRadius * 2.0f
         shader.uniform3f("uval_radius", aoRadius, maxRadius, -1.0f / (maxRadius * maxRadius))
-        shader.uniform2f("uval_aoStrength", if (scene.gameInstance.toggle2) 0.0f else 1.0f, 2.0f)
+        shader.uniform2f("uval_aoStrength", if (scene.gameInstance.toggles[1]) 0.0f else 1.0f, 2.0f)
         val aspect = scene.camera.aspectRatio
         val tanHalfFov = tan(scene.camera.fov.toRadians() / 2.0f)
         shader.uniform3f("uval_projectParams", 1.0f / (aspect * tanHalfFov), 1.0f / tanHalfFov, aspect)

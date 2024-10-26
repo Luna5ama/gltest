@@ -27,7 +27,6 @@ import org.apache.commons.lang3.mutable.MutableBoolean
 import org.joml.*
 import kotlin.math.max
 import kotlin.math.min
-import kotlin.math.sqrt
 
 class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by IGLObjContainer.Impl() {
     val visibilityFlagType = when {
@@ -180,7 +179,7 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
         hwVsPipeline.preDraw()
         swQuadPipeline.preDraw()
 
-        if (!scene.gameInstance.toggle3) {
+        if (!scene.gameInstance.toggles[2]) {
 //        val chunkCount = scene.terrainMeshData.chunkOffsets.size.toLong()
 //        val visibleFlagLen = chunkCount * visibilityFlagType.byteSize
 //        visibleBuffer.copyTo(visibleBuffer, 4L, 4L + visibleFlagLen, visibleFlagLen)
@@ -461,12 +460,12 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
 
             fun add(chunkInfo: ChunkLayerInfo) {
                 if (sampleCountArray[chunkInfo.chunkIndex] > 8.0f) {
-                    if (!scene.gameInstance.toggle1) {
+                    if (!scene.gameInstance.toggles[0]) {
 //                        hwMs.add(chunkInfo)
                         hwVs.add(chunkInfo)
                     }
                 } else {
-                    if (!scene.gameInstance.toggle2) {
+                    if (!scene.gameInstance.toggles[1]) {
                         swQuad.add(chunkInfo)
                     }
                 }

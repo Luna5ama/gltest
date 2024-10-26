@@ -48,8 +48,9 @@ void main() {
 
     float uvSpeed = length(uvVelocity);
 
-    float clampRatio = 0.25;
-    clampRatio += uvSpeed * 100.0;
+//    float clampRatio = 0.25;
+    float clampRatio = 0.0;
+//    clampRatio += uvSpeed * 100.0;
     clampRatio = saturate(clampRatio);
     lastColor = mix(lastColor, clamp(lastColor, nearMin, nearMax), clampRatio);
 
@@ -62,7 +63,7 @@ void main() {
     float lol = 1.0 - float(loi > 0.0);
     float mixWeight = uMix.x;
     mixWeight *= lol;
-    mixWeight *= saturate(1.0 - uvSpeed * 100.0);
+//    mixWeight *= saturate(1.0 - uvSpeed * 100.0);
 
     fragColor = mix(currColor, lastColor, mixWeight);
 }

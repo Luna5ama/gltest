@@ -461,8 +461,9 @@ class TerrainScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard)
             toneMapping.render(fboGroup)
         }
 
-        if (!gameInstance.toggle1) {
+        if (gameInstance.toggles[8]) {
             solidLightDebug()
+            glDebugGroup("GammaCorrection") { gammaCorrection.render(fboGroup) }
             glDebugGroup("TXAA") { txaa.render(fboGroup) }
         } else {
             glDebugGroup("TXAA") { txaa.render(fboGroup) }
@@ -505,7 +506,8 @@ class TerrainScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard)
     private fun solidLightDebug() {
         samplers.clearBinding()
         glViewport(0, 0, camera.screenWidth, camera.screenHeight)
-        val shader = basic.blitShader[Basic.SampleChannel.AAA]
+//        val shader = basic.blitShader[Basic.SampleChannel.AAA]
+        val shader = basic.blitShader[Basic.SampleChannel.RGB]
         shader.bind()
         shader.applyBinding {
 //            sampler("usam_input", solidLighting.tex1)

@@ -6,7 +6,6 @@ import dev.luna5ama.gltest.VisibilityState
 import dev.luna5ama.gltest.glDebugGroup
 import dev.luna5ama.gltest.structs.MeshShaderBatchInfo
 import dev.luna5ama.gltest.structs.sizeof
-import dev.luna5ama.gltest.terrain.TerrainMesh
 import dev.luna5ama.gltest.terrain.register
 import dev.luna5ama.glwrapper.ShaderBindingSpecs
 import dev.luna5ama.glwrapper.ShaderProgram
@@ -103,7 +102,7 @@ class HWMeshShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRend
     override fun draw() {
         if (batchCount == 0) return
 
-        if (!scene.gameInstance.toggle3) {
+        if (!scene.gameInstance.toggles[2]) {
             drawPass(VisibilityState.LAST_VISIBLE)
 
             renderer.cullPipeline.depthBuffer.hwDepthBlit()

@@ -54,9 +54,7 @@ class GameInstance(val window: Long) {
     var fullScreen = false
 
     var rerun = false; private set
-    var toggle1 = false; private set
-    var toggle2 = false; private set
-    var toggle3 = false; private set
+    val toggles = BooleanArray(9)
 
     lateinit var mainContext: CoroutineContext
     lateinit var glCapabilities: GLCapabilities
@@ -289,27 +287,6 @@ class GameInstance(val window: Long) {
             }
         }
 
-        keyboard.register(GLFW_KEY_F2) {
-            if (it == GLFW_RELEASE) {
-                toggle1 = !toggle1
-                println("Toggle 1: $toggle1")
-            }
-        }
-
-        keyboard.register(GLFW_KEY_F3) {
-            if (it == GLFW_RELEASE) {
-                toggle2 = !toggle2
-                println("Toggle 2: $toggle2")
-            }
-        }
-
-        keyboard.register(GLFW_KEY_F4) {
-            if (it == GLFW_RELEASE) {
-                toggle3 = !toggle3
-                println("Toggle 3: $toggle3")
-            }
-        }
-
         keyboard.register(GLFW_KEY_F5) {
             if (it == GLFW_RELEASE) {
                 glfwSetWindowShouldClose(window, true)
@@ -332,9 +309,13 @@ class GameInstance(val window: Long) {
 
         repeat(10) { i ->
             keyboard.register(GLFW_KEY_1 + i) {
-                if (it == GLFW_RELEASE) {
+                if (keyboard.pressing(GLFW_KEY_LEFT_CONTROL) && it == GLFW_RELEASE) {
                     val v = (i + 1).toDouble()
                     scene.camera.speedMultiplier = v * v
+                }
+                if (it == GLFW_RELEASE) {
+                    toggles[i] = !toggles[i]
+                    println("Toggle $i: ${toggles[i]}")
                 }
             }
         }

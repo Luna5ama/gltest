@@ -74,14 +74,13 @@ uint calcSectorBits(float minHorizon, float maxHorizon) {
 void main() {
     outValue = vec4(1.0);
     if (textureLod(usam_gDepth, fTexCoord, 0).r != 1.0) {
-
         GBufferData gs_data;
         gbuffer_unpack1(texture(usam_gData1, fTexCoord), gs_data);
 
-        vec3 worldNormalThis = texture(usam_solidLighting2, fTexCoord).rgb;
-
         vec3 gs_viewCoord = (ubo_cameraDefault.modelView * vec4(gs_data.worldCoord, 1.0)).xyz;
-        vec3 gs_viewNormal = mat3(ubo_cameraDefault.modelView) * worldNormalThis;
+        vec3 gs_viewNormal = textureLod(usam_solidLighting2, fTexCoord, 0.0).rgb * 2.0 - 1.0;
+
+        vec3 viewLightDir = mat3(ubo_cameraDefault.modelView) * uShadowMap.lightDir;
         vec3 viewDir = normalize(-gs_viewCoord);
 
         float sampleAngleDelta = 2.0 * PI_CONST / SSILVB_SAMPLE_SLICES;
@@ -105,6 +104,7 @@ void main() {
 
             float lodStep = radiusToLodStep(maxDist);
             float maxLod = float(textureQueryLevels(usam_linearDepth)) - 1.0;
+            float giMaxLod = 4.0;
             float sampleLod = 0.0;
             sampleLod += r2Seq1(ubo_cameraDefault.gFrameIndex + uint(IGN(gl_FragCoord.xy) * 1024.0)) - 0.5;
             float sampleTexelDist = 1.5;
@@ -133,7 +133,28 @@ void main() {
 
                     cosH = saturate(cosH);
                     vec2 H = acosFastPositive(cosH) / PI_HALF_CONST;
+                    H = H - 1.0;
+                    H = H * H;
+                    H = H * H;
+                    H = 1.0 - H;
                     uint stepSectorBits = calcSectorBits(min(H.x, H.y), max(H.x, H.y));
+
+                    if (sampleUV.x >= 0.0 && sampleUV.y >= 0.0 && sampleUV.x < 1.0 && sampleUV.y < 1.0) {
+                        vec4 sample1 = textureLod(usam_solidLighting1, sampleUV, min(sampleLod, giMaxLod));
+                        vec4 sample2 = textureLod(usam_solidLighting2, sampleUV, min(sampleLod, giMaxLod));
+                        vec3 sampleNormal = sample2.rgb * 2.0 - 1.0;
+
+                        //                    vec3 radiance = saturate(dot(sampleNormal, viewLightDir)) * sample1.a * sample1.rgb;
+                        //                    radiance *= SUN_LIGHT_INTENSITY * SUN_LIGHT_COLOR;
+                        vec3 radiance = sample1.rgb;
+
+                        float ilBit = (1.0 - float(bitCount(stepSectorBits & ~sampleSectorBits)) / float(SECTOR_COUNT));
+
+                        vec3 normDiff = normalize(diff);
+                        vec3 il = ilBit * saturate(dot(gs_viewNormal, normDiff)) * saturate(dot(sampleNormal, -normDiff)) * radiance;
+                        outValue.rgb += il;
+                    }
+
                     sampleSectorBits |= stepSectorBits;
                 }
 
@@ -144,7 +165,10 @@ void main() {
             outValue.a += float(bitCount(sampleSectorBits)) / float(SECTOR_COUNT);
         }
 
-        outValue.a /= float(SSILVB_SAMPLE_SLICES);
+        outValue /= float(SSILVB_SAMPLE_SLICES);
+//        outValue.rgb *= 0.5;
+        outValue.rgb *= gs_data.albedo.rgb;
+
         outValue.a = linearStep(0.01, 1.0, outValue.a);
         outValue.a *= uval_aoStrength.x;
         outValue.a = saturate(1.0 - outValue.a);

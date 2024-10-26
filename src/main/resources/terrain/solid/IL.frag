@@ -51,7 +51,7 @@ void doStuff() {
     float roughness = sl2.a;
     roughness *= roughness;
 
-    vec3 mappedNormal = sl2.rgb;
+    vec3 mappedNormal = sl2.rgb * 2.0 - 1.0;
 
     vec4 normalMap = textureLod(usam_blockNormalAtlas, gs_data.texCoord, 0.0);
     float materialAo = normalMap.b;
@@ -60,15 +60,15 @@ void doStuff() {
 
     float blockLightAo = pow(aoSample.a, uval_aoParams.x);
     float skyLightAo = pow(aoSample.a, uval_aoParams.y);
-    vec3 blockLightMul = 32.0 * gtaoMultiBounce(gs_data.albedo.rgb, blockLightAo);
-    vec3 skyLightMul = 16.0 * gtaoMultiBounce(gs_data.albedo.rgb, skyLightAo);
-    vec3 ambientLight = materialAo * calcAmbient(usam_lightMap, viewDir, mappedNormal, roughness, gs_data.lightCoord, blockLightMul, skyLightMul);
+    vec3 blockLightMul = 16.0 * gtaoMultiBounce(gs_data.albedo.rgb, blockLightAo);
+    vec3 skyLightMul = 4.0 * gtaoMultiBounce(gs_data.albedo.rgb, skyLightAo);
+    vec3 ambientLight = materialAo * calcAmbient(usam_lightMap, viewDir, mappedNormal, 0.5, gs_data.lightCoord, blockLightMul, skyLightMul);
 
     vec3 v = vec3(0.0);
 
     v += ambientLight;
-//    v += aoSample.rgb * uval_giParams;
     v *= gs_data.albedo.rgb;
+    v += aoSample.rgb * uval_giParams;
 
     out1.rgb = v;
 //    out1.a = pow(aoSample.a, uval_aoParams.w);

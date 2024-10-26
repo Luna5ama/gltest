@@ -141,7 +141,7 @@ class GTAO(private val scene: TerrainScene, private val solidLighting: SolidLigh
         val maxRadius = aoRadius * 2.0f
         shader.uniform1f("uval_thickness", 0.005f)
         shader.uniform4f("uval_radius", aoRadius, maxRadius, aoRadius * aoRadius, maxRadius * maxRadius)
-        shader.uniform2f("uval_aoStrength", if (scene.gameInstance.toggle2) 0.0f else 1.0f, 1.0f)
+        shader.uniform2f("uval_aoStrength", if (scene.gameInstance.toggles[1]) 0.0f else 1.0f, 1.0f)
 
 
         val aspect = scene.camera.aspectRatio

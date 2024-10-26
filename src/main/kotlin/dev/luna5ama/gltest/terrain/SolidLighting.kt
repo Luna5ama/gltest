@@ -1,15 +1,17 @@
 package dev.luna5ama.gltest.terrain
 
+import dev.fastmc.common.ceilToInt
 import dev.luna5ama.gltest.FboGroup
 import dev.luna5ama.gltest.glDebugGroup
-import dev.luna5ama.gltest.linearClampEdge
 import dev.luna5ama.glwrapper.ShaderBindingSpecs
 import dev.luna5ama.glwrapper.ShaderProgram
 import dev.luna5ama.glwrapper.ShaderSource
 import dev.luna5ama.glwrapper.base.*
 import dev.luna5ama.glwrapper.enums.ImageFormat
-import dev.luna5ama.glwrapper.objects.FramebufferObject
-import dev.luna5ama.glwrapper.objects.TextureObject
+import dev.luna5ama.glwrapper.objects.*
+import kotlin.math.log2
+import kotlin.math.max
+import kotlin.math.min
 
 class SolidLighting(private val scene: TerrainScene) : IGLObjContainer by IGLObjContainer.Impl() {
     val hbao = register(SSILVB(scene, this))
@@ -91,15 +93,20 @@ class SolidLighting(private val scene: TerrainScene) : IGLObjContainer by IGLObj
                 sampler(scene.textures.blockSpecular)
                 sampler(scene.textures.lightMap)
                 sampler(scene.rtwsm.shadowMapSamplerBindings)
+                sampler(hbao.texBinding)
 
                 buffer(scene.camera.uboBinding)
                 buffer(scene.rtwsm.uboBinding)
             }
+            directShader.uniform1f("uval_mb", if (scene.gameInstance.toggles[3]) 0.0f else 1.0f)
 
             fbo.bind()
 
             scene.basic.drawQuad()
         }
+
+        tex1.generateMipmap()
+        tex2.generateMipmap()
 
         glBlendFuncSeparate(GL_ONE, GL_ONE, GL_ZERO, GL_ONE)
         glDebugGroup("HBAO") {
@@ -112,7 +119,7 @@ class SolidLighting(private val scene: TerrainScene) : IGLObjContainer by IGLObj
         glDebugGroup("Composite") {
             indirectShader.bind()
             indirectShader.uniform4f("uval_aoParams", 1.0f, 2.0f, 0.5f, 0.25f)
-            indirectShader.uniform1f("uval_giParams", if (scene.gameInstance.toggle1) 0.0f else 1.0f)
+            indirectShader.uniform1f("uval_giParams", if (scene.gameInstance.toggles[0]) 0.0f else 1.0f)
             indirectShader.applyBinding {
                 sampler(texBingings)
                 sampler(hbao.texBinding)
@@ -139,15 +146,22 @@ class SolidLighting(private val scene: TerrainScene) : IGLObjContainer by IGLObj
         val tex = scene.solidGBuffer.tex1
         val sizeBit = tex.sizeBit
         if (sizeBit != lastUpdateSizeBit) {
+            val levels = min(log2(max(fboGroup.input.fbo.width, fboGroup.output.fbo.height).toDouble()).ceilToInt(), 13)
             tex1.apply {
                 destroy()
-                allocate(1, ImageFormat.R16G16B16A16_F, tex.width, tex.height)
-                linearClampEdge()
+                allocate(levels, ImageFormat.R11G11B10_F, tex.width, tex.height)
+                setMipLevels(0, levels - 1)
+                setMipLod(0.0f, levels - 1.0f)
+                setFilter(GL_NEAREST_MIPMAP_NEAREST, GL_NEAREST)
+                setWrap(GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE)
             }
             tex2.apply {
                 destroy()
-                allocate(1, ImageFormat.R16G16B16A16_F, tex.width, tex.height)
-                linearClampEdge()
+                allocate(levels, ImageFormat.R10G10B10A2_UN, tex.width, tex.height)
+                setMipLevels(0, levels - 1)
+                setMipLod(0.0f, levels - 1.0f)
+                setFilter(GL_NEAREST_MIPMAP_NEAREST, GL_NEAREST)
+                setWrap(GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE)
             }
             fbo.apply {
                 clearAttachments()

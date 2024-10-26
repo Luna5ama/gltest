@@ -186,7 +186,7 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
     override fun draw() {
         if (batchCount == 0) return
 
-        if (!scene.gameInstance.toggle3) {
+        if (!scene.gameInstance.toggles[2]) {
             drawPass(VisibilityState.LAST_VISIBLE)
 
             renderer.cullPipeline.depthBuffer.hwDepthBlit()
