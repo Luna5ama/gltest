@@ -27,6 +27,9 @@ class GLWrapperInitializerImpl : GLWrapperInitializer by GLWrapperInitializerLWJ
         private inner class PathImpl(val uri: URI) : ShaderPathResolver.Path {
             override val url = uri.toURL()
             override fun resolve(path: String): ShaderPathResolver.Path {
+                if (path.startsWith('/')) {
+                    return this@PathResolverImpl.resolve(path)
+                }
                 return PathImpl(uri.resolve(path))
             }
         }
