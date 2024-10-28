@@ -507,21 +507,35 @@ class TerrainScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard)
     }
 
     private fun solidLightDebug() {
-        samplers.clearBinding()
-        glViewport(0, 0, camera.screenWidth, camera.screenHeight)
-//        val shader = basic.blitShader[Basic.SampleChannel.AAA]
-        val shader = basic.blitShader[Basic.SampleChannel.RGB]
-        shader.bind()
-        shader.applyBinding {
-//            sampler("usam_input", solidLighting.tex1)
-            sampler("usam_input", solidLighting.hbao.finalTex)
-            buffer(camera.uboBinding)
+        if (gameInstance.toggles[7]) {
+            samplers.clearBinding()
+            glViewport(0, 0, camera.screenWidth, camera.screenHeight)
+            val shader = basic.blitShader[Basic.SampleChannel.RGB]
+            shader.bind()
+            shader.applyBinding {
+                sampler("usam_input", solidLighting.hbao.finalTex)
+                buffer(camera.uboBinding)
+            }
+            shader.uniform1f("uMul", 0.05f)
+            shader.uniform1f("uAdd", 0.0f)
+            shader.uniform1f("uPower", 1.0f)
+            shader.uniform1f("uLod", 0.0f)
+            basic.drawQuad()
+        } else {
+            samplers.clearBinding()
+            glViewport(0, 0, camera.screenWidth, camera.screenHeight)
+            val shader = basic.blitShader[Basic.SampleChannel.AAA]
+            shader.bind()
+            shader.applyBinding {
+                sampler("usam_input", solidLighting.hbao.finalTex)
+                buffer(camera.uboBinding)
+            }
+            shader.uniform1f("uMul", 1.0f)
+            shader.uniform1f("uAdd", 0.0f)
+            shader.uniform1f("uPower", 1.0f)
+            shader.uniform1f("uLod", 0.0f)
+            basic.drawQuad()
         }
-        shader.uniform1f("uMul", 0.05f)
-        shader.uniform1f("uAdd", 0.0f)
-        shader.uniform1f("uPower", 1.0f)
-        shader.uniform1f("uLod", 0.0f)
-        basic.drawQuad()
     }
 
     private suspend fun preDraw(): Boolean {

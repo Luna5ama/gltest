@@ -14,7 +14,7 @@
 
 uniform sampler2D usam_linearDepth;
 
-uniform vec2 uval_thickness;
+uniform float uval_thickness;
 uniform float uval_maxCosH;
 uniform vec4 uval_radius;
 uniform vec2 uval_aoStrength;
@@ -99,8 +99,7 @@ void main() {
 
             float maxDist = length(sampleDir * sphereRadius);
 
-            vec3 frontOffset = projNormal * length(gs_viewCoord) * uval_thickness.x;
-            vec3 backOffset = frontOffset + viewDir * uval_thickness.y;
+            vec3 backOffset = viewDir * uval_thickness;
 
             float lodStep = radiusToLodStep(maxDist);
             lodStep += r2Seq1(ubo_cameraDefault.gFrameIndex + uint(IGN(gl_FragCoord.yx) * 512.0) + sliceIndex) * 0.2 - 0.1;
@@ -126,7 +125,7 @@ void main() {
                 float distSq = dot(diff, diff);
 
                 if (distSq <= uval_radius.w) {
-                    vec3 frontPos = diff - frontOffset;
+                    vec3 frontPos = diff;
                     vec3 backPos = diff - backOffset;
 
                     vec2 cosH;
