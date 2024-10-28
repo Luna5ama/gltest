@@ -165,8 +165,8 @@ class Camera(val scene: AbstractScene) : IGLObjContainer by IGLObjContainer.Impl
     }
 
     fun Matrix4f.setupPerspective(fovY: Float, aspectRatio: Float, zNear: Float, zFar: Float) {
-        perspective(fovY, aspectRatio, zNear, zFar)
-//        infRevZPerspective(fovY, aspectRatio, zNear)
+//        perspective(fovY, aspectRatio, zNear, zFar)
+        infRevZPerspective(fovY, aspectRatio, zNear)
     }
 
     /**

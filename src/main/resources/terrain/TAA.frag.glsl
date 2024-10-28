@@ -25,11 +25,8 @@ out vec4 fragColor;
 void main() {
     ivec2 intTexCoord = ivec2(fTexCoordI);
 
-    float gDepth = texelFetch(usam_gDepth, intTexCoord, 0).r;
-
     GBufferData gTemp;
     gbuffer_unpack1(texelFetch(usam_gData1, intTexCoord, 0), gTemp);
-    vec3 gWorldCoord = gDepth == 1.0 ? vec3(0.0) : gTemp.worldCoord.xyz;
 
     vec2 uvVelocity = texelFetch(usam_velocity_uvVelocity, intTexCoord, 0).xy;
 
@@ -37,6 +34,8 @@ void main() {
 
     vec4 lastColor = max(texture(usam_prevFrame, prevTexCoord), 0.0);
     vec4 currColor = max(texture(usam_mainFbo_inputColor, fJitterTexCoord), 0.0);
+    lastColor = clamp(lastColor, 0.0, 1024.0);
+    currColor = clamp(currColor, 0.0, 1024.0);
 
     vec4 nearCurr0 = textureOffset(usam_mainFbo_inputColor, fJitterTexCoord, ivec2(-1, 0));
     vec4 nearCurr1 = textureOffset(usam_mainFbo_inputColor, fJitterTexCoord, ivec2(1, 0));
@@ -65,5 +64,5 @@ void main() {
     mixWeight *= lol;
 //    mixWeight *= saturate(1.0 - uvSpeed * 100.0);
 
-    fragColor = mix(currColor, lastColor, mixWeight);
+    fragColor = mix(currColor, lastColor, 0.9);
 }

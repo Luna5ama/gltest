@@ -8,7 +8,8 @@ in vec2 fTexCoord;
 layout(location = 0) out float rt_linearDepth;
 
 vec3 depthToView(vec2 texCoord, float depth, mat4 projInv) {
-    vec4 ndc = vec4(texCoord, depth, 1) * 2 - 1;
+    vec4 ndc = vec4(texCoord, depth, 1);
+    ndc.xy = ndc.xy * 2.0 - 1.0;
     vec4 viewPos = projInv * ndc;
     return viewPos.xyz / viewPos.w;
 }

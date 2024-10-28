@@ -8,24 +8,24 @@ import dev.luna5ama.glwrapper.ShaderProgram
 import dev.luna5ama.glwrapper.ShaderSource
 import dev.luna5ama.glwrapper.base.*
 import dev.luna5ama.glwrapper.enums.ImageFormat
-import dev.luna5ama.glwrapper.objects.*
+import dev.luna5ama.glwrapper.objects.FramebufferObject
+import dev.luna5ama.glwrapper.objects.TextureObject
 import org.joml.Vector3d
 
 class VelocityBuffer(private val scene: TerrainScene) : IGLObjContainer by IGLObjContainer.Impl() {
     val uvDiffTex = register(TextureObject.Texture2D())
     val worldVelocity = register(TextureObject.Texture2D())
+    val ndTex = register(TextureObject.Texture2D())
+    val prevNDTex = register(TextureObject.Texture2D()).apply { create() }
 
     val samplerBindings = listOf(
         ShaderBindingSpecs.Sampler("usam_velocity_uvVelocity", uvDiffTex),
-        ShaderBindingSpecs.Sampler("usam_velocity_worldVelocity", worldVelocity)
+        ShaderBindingSpecs.Sampler("usam_velocity_worldVelocity", worldVelocity),
+        ShaderBindingSpecs.Sampler("usam_velocity_ndTex", ndTex, scene.samplers.nearestClampEdge),
+        ShaderBindingSpecs.Sampler("usam_velocity_prevNDTex", prevNDTex, scene.samplers.nearestClampEdge)
     )
 
     private val fbo = register(FramebufferObject())
-
-    private val prevDepth = register(TextureObject.Texture2D()).apply {
-        create()
-    }
-
     private val prevCameraPos = Vector3d()
 
     private val velocityBufferShader = register(
@@ -34,9 +34,6 @@ class VelocityBuffer(private val scene: TerrainScene) : IGLObjContainer by IGLOb
             ShaderSource.Frag("terrain/vbuffer/VelocityBuffer.frag.glsl")
         )
     )
-
-    private val prevTexBinding = ShaderBindingSpecs.Sampler("usam_prevDepthTex", prevDepth, scene.samplers.linearClampEdge)
-
 
     fun render(input: GBuffer) {
         glDebugGroup("update") {
@@ -48,6 +45,9 @@ class VelocityBuffer(private val scene: TerrainScene) : IGLObjContainer by IGLOb
     }
 
     private fun velocityBuffer(input: GBuffer) {
+        checkSizeAndCopy(ndTex, prevNDTex)
+        scene.normalDepthPacking.render(input, ndTex)
+
         fbo.bind()
 
         glDisable(GL_STENCIL_TEST)
@@ -57,7 +57,7 @@ class VelocityBuffer(private val scene: TerrainScene) : IGLObjContainer by IGLOb
         velocityBufferShader.bind()
         velocityBufferShader.applyBinding {
             sampler(input.genericTexBindings)
-            sampler(prevTexBinding)
+            sampler(samplerBindings)
 
             buffer(scene.camera.noJitterUboBinding)
         }
@@ -71,10 +71,6 @@ class VelocityBuffer(private val scene: TerrainScene) : IGLObjContainer by IGLOb
         scene.basic.drawQuad()
 
         prevCameraPos.set(scene.camera.pos)
-
-        glDebugGroup("copy") {
-            checkSizeAndCopy(input.depthStencilTex, prevDepth)
-        }
     }
 
     private fun update(input: GBuffer) {
@@ -87,9 +83,10 @@ class VelocityBuffer(private val scene: TerrainScene) : IGLObjContainer by IGLOb
             }
             worldVelocity.apply {
                 allocate(1, ImageFormat.R8_UN, input.width, input.height)
-                setFilter(GL_LINEAR, GL_LINEAR)
-                setWrap(GL_CLAMP_TO_BORDER, GL_CLAMP_TO_BORDER)
-                setBorderColor(1.0f, 1.0f, 1.0f, 1.0f)
+                linearClampEdge()
+            }
+            ndTex.apply {
+                allocate(1, ImageFormat.R32G32_UI, input.width, input.height)
             }
             fbo.apply {
                 attach(uvDiffTex, GL_COLOR_ATTACHMENT0)

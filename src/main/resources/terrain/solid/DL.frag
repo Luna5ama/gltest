@@ -258,6 +258,7 @@ void doStuff() {
     rt_mainFboOutput.rgb += specularDL * SUN_LIGHT_INTENSITY * SUN_LIGHT_COLOR;
     rt_mainFboOutput.rgb += emissive * EMISSIVE_INTENSITY * gs_data.albedo.rgb;
     rt_mainFboOutput.rgb += f * ambientLight * gs_data.albedo.rgb;
+    rt_mainFboOutput.rgb = clamp(rt_mainFboOutput.rgb, 0.0, 1024.0);
 }
 
 void main() {

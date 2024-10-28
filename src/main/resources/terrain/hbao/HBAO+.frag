@@ -65,7 +65,7 @@ float lodTexelSize(float lod) {
 }
 
 void main() {
-    if (textureLod(usam_gDepth, fTexCoord, 0).r == 1.0) {
+    if (textureLod(usam_gDepth, fTexCoord, 0).r == 0.0) {
         outValue = vec4(1.0);
         return;
     }

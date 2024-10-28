@@ -14,6 +14,7 @@ import dev.luna5ama.glwrapper.ShaderSource
 import dev.luna5ama.glwrapper.enums.ImageFormat
 import dev.luna5ama.glwrapper.objects.TextureObject
 import org.joml.Vector2f
+import org.joml.Vector3d
 
 class TAA(private val scene: TerrainScene, samples: Int, private val radius: Float) :
     IGLObjContainer by IGLObjContainer.Impl() {
@@ -33,6 +34,8 @@ class TAA(private val scene: TerrainScene, samples: Int, private val radius: Flo
     private val prevFrameTex = register(TextureObject.Texture2D())
     private val lastFrameFbo = register(FramebufferObject())
     private val prevFrameTexBinding = ShaderBindingSpecs.Sampler("usam_prevFrame", prevFrameTex)
+
+    private val prevCameraPos = Vector3d()
 
     private fun genJitters(samples: Int): Array<Vector2f> {
         val randomX = HaltonSequence(2)
@@ -110,6 +113,13 @@ class TAA(private val scene: TerrainScene, samples: Int, private val radius: Flo
             "uJitter",
             currentJitter.x, currentJitter.y
         )
+        shader.uniform3f(
+            "uCameraDelta",
+            (prevCameraPos.x - scene.camera.pos.x).toFloat(),
+            (prevCameraPos.y - scene.camera.pos.y).toFloat(),
+            (prevCameraPos.z - scene.camera.pos.z).toFloat()
+        )
+        prevCameraPos.set(scene.camera.pos)
     }
 
     private val hx = HaltonSequence(2)

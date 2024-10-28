@@ -77,6 +77,7 @@ class TerrainScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard)
 //    private val sobel = register(Sobel(this))
 
     val gaussianBlur = register(GaussianBlur(this))
+    val normalDepthPacking = register(NormalDepthPacking(this))
 
     val skyColor = Vector4f()
 
@@ -157,6 +158,7 @@ class TerrainScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard)
     }
 
     override suspend fun renderFrame() {
+        camera.viewDistance = 512.0f
 //        println(camera.pos)
         val mul = 3.0f
         skyColor.set((0.42f * mul).pow(2.2f), (0.56f * mul).pow(2.2f), (0.85f * mul).pow(2.2f), 2.0f)
@@ -164,6 +166,7 @@ class TerrainScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard)
         if (!preDraw()) return
 
         glEnable(GL_DEPTH_CLAMP)
+        glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE)
 
         glDebugGroup("Early pass") {
             earlyPass()
@@ -247,7 +250,7 @@ class TerrainScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard)
         glDisable(GL_BLEND)
 
         glEnable(GL_DEPTH_TEST)
-        glDepthFunc(GL_LEQUAL)
+        glDepthFunc(GL_GEQUAL)
         glDepthMask(true)
 
         // Indirect compute last visible
@@ -276,7 +279,7 @@ class TerrainScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard)
         drawView1.setupCullBox()
 
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
-        glDepthFunc(GL_LEQUAL)
+        glDepthFunc(GL_GEQUAL)
         glDisable(GL_DEPTH_CLAMP)
         glDisable(GL_STENCIL_TEST)
         glDepthMask(false)
@@ -348,7 +351,7 @@ class TerrainScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard)
         glBlendEquationi(1, GL_MAX)
 
         glEnable(GL_DEPTH_TEST)
-        glDepthFunc(GL_LEQUAL)
+        glDepthFunc(GL_GEQUAL)
         glDepthMask(true)
 
         glBlitNamedFramebuffer(

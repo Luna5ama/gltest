@@ -12,9 +12,6 @@ in mat3 fNormalMatrix;
 
 out vec4 fragColor;
 
-#define EDGE_THRESHOLD_MIN 0.1
-#define EDGE_THRESHOLD_MAX 0.5
-
 void main() {
     GBufferData gDataC;
     GBufferData gData1;
@@ -27,8 +24,6 @@ void main() {
     gbuffer_unpack1(texture(usam_gData1, fTexCoordNear[1]), gData2);
     gbuffer_unpack1(texture(usam_gData1, fTexCoordNear[2]), gData3);
     gbuffer_unpack1(texture(usam_gData1, fTexCoordNear[3]), gData4);
-
-    fragColor = texture(usam_mainFbo_inputColor, fTexCoord);
 
     vec3 coordC = gDataC.worldCoord * gDataC.worldNormal;
     vec3 coord1 = gData1.worldCoord * gData1.worldNormal;

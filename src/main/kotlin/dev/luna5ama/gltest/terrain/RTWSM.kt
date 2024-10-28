@@ -425,6 +425,9 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
     )
 
     private fun shadowMapRender() {
+        glDepthFunc(GL_LEQUAL)
+        glClipControl(GL_LOWER_LEFT, GL_NEGATIVE_ONE_TO_ONE)
+
         val drawView0 = scene.terrainMesh.layers[0].getDrawViewOC("RTWSM")
         val drawView1 = scene.terrainMesh.layers[1].getDrawViewOC("RTWSM")
         renderFbo.bind()
@@ -438,7 +441,6 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
 
         // Indirect draw last visible
         glEnable(GL_DEPTH_TEST)
-        glDepthFunc(GL_LEQUAL)
         glDepthMask(true)
         glViewport(0, 0, texSize, texSize)
         glDisable(GL_BLEND)
@@ -502,6 +504,9 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
             HiZBufferGen.DepthType.LINEAR,
             projection.planeZ
         )
+
+        glDepthFunc(GL_GEQUAL)
+        glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE)
     }
 
     private fun bindSolid() {

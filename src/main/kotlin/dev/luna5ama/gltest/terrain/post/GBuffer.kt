@@ -61,7 +61,7 @@ class GBuffer(private val scene: TerrainScene, val name: String) : IGLObjContain
         glDisable(GL_DITHER)
         bindFbo()
         glClearStencil(0)
-        glClearDepth(1.0)
+        glClearDepth(0.0)
         glClearColor(0.0f, 0.0f, 0.0f, 0.0f)
         glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT or GL_STENCIL_BUFFER_BIT)
 

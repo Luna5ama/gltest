@@ -1,10 +1,10 @@
 #version 460 core
 
 #include "../GlobalCamera.glsl"
-#include "../GBuffers.glsl"
-#include "../GenericGBuffer.glsl"
+#include "../NDPacking.glsl"
 
-uniform sampler2D usam_prevDepthTex;
+uniform usampler2D usam_velocity_ndTex;
+uniform usampler2D usam_velocity_prevNDTex;
 
 uniform vec3 uCameraDelta;
 
@@ -14,9 +14,8 @@ in vec2 fTexCoord;
 layout(location = 0) out vec2 outUvDiff;
 layout(location = 1) out float outWorldVelocity;
 
-vec4 projPrevToCurr(Camera currentCamera, Camera prevCamera, vec3 prevTexCoord) {
-    vec4 prevClipCoord = vec4(prevTexCoord * 2.0 - 1.0, 1.0);
-    vec4 prevWorldCoord = prevCamera.invCombined * prevClipCoord;
+vec4 projPrevToCurr(Camera currentCamera, Camera prevCamera, vec3 prevClipCoord) {
+    vec4 prevWorldCoord = prevCamera.invCombined * vec4(prevClipCoord, 1.0);
     prevWorldCoord /= prevWorldCoord.w;
     vec4 currWorldCoord = prevWorldCoord;
     currWorldCoord.xyz += uCameraDelta;
@@ -26,13 +25,14 @@ vec4 projPrevToCurr(Camera currentCamera, Camera prevCamera, vec3 prevTexCoord) 
 
 void main() {
     ivec2 intTexCoord = ivec2(gl_FragCoord.xy);
-    float currDepth = texelFetch(usam_gDepth, intTexCoord, 0).x;
-    float currDepthN = currDepth * 2.0 - 1.0;
-    vec4 currentViewCoord = ubo_cameraDefault.invProjection * vec4(fClipCoord, currDepthN, 1.0);
-    currentViewCoord /= currentViewCoord.w;
+    float currDepth;
+    vec3 currNormal;
+    ndpacking_unpack(texelFetch(usam_velocity_ndTex, intTexCoord, 0).xy, currNormal, currDepth);
+    currDepth = max(currDepth, 0.0000001);
 
-    vec4 currentWorldCoord = ubo_cameraDefault.invModelView * currentViewCoord;
-    vec4 prevWorldCoord = currentWorldCoord;
+    vec4 currWorldCoord = ubo_cameraDefault.invCombined * vec4(fClipCoord, currDepth, 1.0);
+    currWorldCoord /= currWorldCoord.w;
+    vec4 prevWorldCoord = currWorldCoord;
     prevWorldCoord.xyz -= uCameraDelta;
 
     vec4 prevClipCoord = ubo_prevCameraDefault.combined * prevWorldCoord;
@@ -44,12 +44,15 @@ void main() {
 
     outUvDiff = clamp(texCoordDelta, -1.0, 1.0);
 
-    float prevDepth = texelFetch(usam_prevDepthTex, intTexCoord, 0).x;
-    vec4 prevProjCoord = projPrevToCurr(ubo_cameraDefault, ubo_prevCameraDefault, vec3(fTexCoord, prevDepth));
+    float prevDepth;
+    vec3 prevNormal;
+    ndpacking_unpack(texelFetch(usam_velocity_prevNDTex, intTexCoord, 0).xy, prevNormal, prevDepth);
+
+    vec4 prevProjCoord = projPrevToCurr(ubo_cameraDefault, ubo_prevCameraDefault, vec3(fClipCoord, prevDepth));
 
     uint flag = 0u;
-    flag |= uint(currDepth != 1.0) & uint(any(greaterThan(abs(prevClipCoord.xyz), vec3(prevClipCoord.w))));
-    flag |= uint(prevDepth != 1.0) & uint(any(greaterThan(abs(prevProjCoord.xyz), vec3(prevProjCoord.w))));
+    flag |= uint(currDepth != 0.0) & uint(any(greaterThan(abs(prevClipCoord.xyz), vec3(prevClipCoord.w))));
+    flag |= uint(prevDepth != 0.0) & uint(any(greaterThan(abs(prevProjCoord.xyz), vec3(prevProjCoord.w))));
 
     outWorldVelocity = float(flag);
 }

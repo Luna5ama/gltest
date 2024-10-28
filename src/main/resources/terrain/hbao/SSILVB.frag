@@ -73,7 +73,7 @@ uint calcSectorBits(float minHorizon, float maxHorizon) {
 
 void main() {
     outValue = vec4(1.0);
-    if (textureLod(usam_gDepth, fTexCoord, 0).r != 1.0) {
+    if (textureLod(usam_gDepth, fTexCoord, 0).r != 0.0) {
         GBufferData gs_data;
         gbuffer_unpack1(texture(usam_gData1, fTexCoord), gs_data);
 
