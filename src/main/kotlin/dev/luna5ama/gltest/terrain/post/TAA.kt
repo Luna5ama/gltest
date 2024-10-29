@@ -57,7 +57,7 @@ class TAA(private val scene: TerrainScene, samples: Int, private val radius: Flo
         val clampWorldMin = 0.0f
         val clampWorldMax = 0.97f
 
-        val baseMix = if (scene.gameInstance.toggles[2]) 0.99f else 0.9f
+        val baseMix = if (scene.gameInstance.toggles[2]) 0.95f else 0.9f
         val minMax = 0.5f
         val maxMix = 0.99f
 
@@ -115,9 +115,9 @@ class TAA(private val scene: TerrainScene, samples: Int, private val radius: Flo
         )
         shader.uniform3f(
             "uCameraDelta",
-            (prevCameraPos.x - scene.camera.pos.x).toFloat(),
-            (prevCameraPos.y - scene.camera.pos.y).toFloat(),
-            (prevCameraPos.z - scene.camera.pos.z).toFloat()
+            (scene.camera.pos.x - prevCameraPos.x).toFloat(),
+            (scene.camera.pos.y - prevCameraPos.y).toFloat(),
+            (scene.camera.pos.z - prevCameraPos.z).toFloat()
         )
         prevCameraPos.set(scene.camera.pos)
     }
@@ -200,6 +200,8 @@ class TAA(private val scene: TerrainScene, samples: Int, private val radius: Flo
         }
 
         frameIndex++
+//        val x = 0.0
+//        val y = 0.0
 
         baseJitter.set(x.toFloat(), y.toFloat())
         currentJitter.set(x.toFloat(), y.toFloat()).mul(radius)

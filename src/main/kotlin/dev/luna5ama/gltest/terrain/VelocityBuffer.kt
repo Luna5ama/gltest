@@ -14,13 +14,13 @@ import org.joml.Vector3d
 
 class VelocityBuffer(private val scene: TerrainScene) : IGLObjContainer by IGLObjContainer.Impl() {
     val uvDiffTex = register(TextureObject.Texture2D())
-    val worldVelocity = register(TextureObject.Texture2D())
+    val projFlags = register(TextureObject.Texture2D())
     val ndTex = register(TextureObject.Texture2D())
     val prevNDTex = register(TextureObject.Texture2D()).apply { create() }
 
     val samplerBindings = listOf(
         ShaderBindingSpecs.Sampler("usam_velocity_uvVelocity", uvDiffTex),
-        ShaderBindingSpecs.Sampler("usam_velocity_worldVelocity", worldVelocity),
+        ShaderBindingSpecs.Sampler("usam_velocity_projFlags", projFlags),
         ShaderBindingSpecs.Sampler("usam_velocity_ndTex", ndTex, scene.samplers.nearestClampEdge),
         ShaderBindingSpecs.Sampler("usam_velocity_prevNDTex", prevNDTex, scene.samplers.nearestClampEdge)
     )
@@ -81,8 +81,8 @@ class VelocityBuffer(private val scene: TerrainScene) : IGLObjContainer by IGLOb
                 allocate(1, ImageFormat.R16G16_SN, input.width, input.height)
                 linearClampEdge()
             }
-            worldVelocity.apply {
-                allocate(1, ImageFormat.R8_UN, input.width, input.height)
+            projFlags.apply {
+                allocate(1, ImageFormat.R8G8_UN, input.width, input.height)
                 linearClampEdge()
             }
             ndTex.apply {
@@ -90,7 +90,7 @@ class VelocityBuffer(private val scene: TerrainScene) : IGLObjContainer by IGLOb
             }
             fbo.apply {
                 attach(uvDiffTex, GL_COLOR_ATTACHMENT0)
-                attach(worldVelocity, GL_COLOR_ATTACHMENT1)
+                attach(projFlags, GL_COLOR_ATTACHMENT1)
                 setDrawBufferAll()
                 check()
             }

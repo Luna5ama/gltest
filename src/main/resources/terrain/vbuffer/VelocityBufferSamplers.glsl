@@ -1,4 +1,4 @@
 uniform sampler2D usam_velocity_uvVelocity;
-uniform sampler2D usam_velocity_worldVelocity;
+uniform sampler2D usam_velocity_projFlags;
 uniform usampler2D usam_velocity_ndTex;
 uniform usampler2D usam_velocity_prevNDTex;
