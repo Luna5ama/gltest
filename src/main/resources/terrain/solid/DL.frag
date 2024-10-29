@@ -10,6 +10,7 @@ layout(early_fragment_tests) in;
 #include "../LightParams.glsl"
 #include "../utils/R2Seqs.glsl"
 #include "../utils/Rand.glsl"
+#include "../utils/Math.glsl"
 #include "../BSDF.glsl"
 
 #include "../rtwsm/ShadowSamplers.glsl"
@@ -243,7 +244,7 @@ void doStuff() {
     vec3 diffuseDL = bsdf_diffuseHammon(nDotL, nDotV, nDotH, lDotV, albedo, a);
     diffuseDL += sssValue * albedo;
     diffuseDL *= shadow;
-    diffuseDL *= vec3(1.0) - f;
+//    diffuseDL *= vec3(1.0) - f;
 
     vec3 specularDL = shadow * cts_main(mappedNormal, uShadowMap.lightDir, viewDir, f, alpha);
     specularDL = max(vec3(0.0), specularDL);
@@ -257,7 +258,6 @@ void doStuff() {
     rt_mainFboOutput.rgb += diffuseDL * SUN_LIGHT_INTENSITY * SUN_LIGHT_COLOR;
     rt_mainFboOutput.rgb += specularDL * SUN_LIGHT_INTENSITY * SUN_LIGHT_COLOR;
     rt_mainFboOutput.rgb += emissive * EMISSIVE_INTENSITY * gs_data.albedo.rgb;
-    rt_mainFboOutput.rgb += f * ambientLight * gs_data.albedo.rgb;
     rt_mainFboOutput.rgb = clamp(rt_mainFboOutput.rgb, 0.0, 1024.0);
 }
 

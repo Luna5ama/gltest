@@ -13,8 +13,8 @@ float brdf_diffuseN_lambertian(vec3 L, vec3 V, vec3 N, float roughness) {
 float brdf_diffuse_orenNayar(vec3 L, vec3 V, vec3 N, float roughness) {
     float LdotV = dot(L, V);
 
-    float cosTheta_i = max(dot(N, L), 0.0);
-    float cosTheta_r = max(dot(N, V), 0.0);
+    float cosTheta_i = clamp(dot(N, L), 0.0, 1.0);
+    float cosTheta_r = clamp(dot(N, V), 0.0, 1.0);
 
     float s = LdotV - cosTheta_i * cosTheta_r;
     float t = mix(1.0, max(cosTheta_i, cosTheta_r), step(0.0, s));
