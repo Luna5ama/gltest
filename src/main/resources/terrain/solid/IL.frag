@@ -67,8 +67,8 @@ void doStuff() {
     vec3 v = vec3(0.0);
 
     v += ambientLight;
-    v *= gs_data.albedo.rgb;
     v += aoSample.rgb * uval_giParams;
+    v *= gs_data.albedo.rgb;
 
     out1.rgb = v;
 //    out1.a = pow(aoSample.a, uval_aoParams.w);

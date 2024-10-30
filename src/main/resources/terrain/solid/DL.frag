@@ -233,10 +233,16 @@ void doStuff() {
     vec3 f = fresnel(lDotH, reflectance);
 
     vec4 aoSample = texture(usam_hbao, fTexCoord);
+    vec3 blockLightMul = 16.0 * gtaoMultiBounce(gs_data.albedo.rgb, aoSample.a);
+    vec3 skyLightMul = 4.0 * gtaoMultiBounce(gs_data.albedo.rgb, aoSample.a);
+    vec3 ambientLight = materialAo * calcAmbient(usam_lightMap, viewDir, mappedNormal, 0.5, gs_data.lightCoord, blockLightMul, skyLightMul);
+
+
     rt_tex1.rgb = max(dot(gs_data.worldNormal, uShadowMap.lightDir), 0.0) * shadow * SUN_LIGHT_INTENSITY * albedo * SUN_LIGHT_COLOR;
     rt_tex1.rgb += emissive * EMISSIVE_INTENSITY * 4.0 * gs_data.albedo.rgb;
     rt_tex1.rgb += sssValue * shadow * SUN_LIGHT_INTENSITY * albedo * SUN_LIGHT_COLOR;
-    rt_tex1.rgb += uval_mb * aoSample.rgb;
+    rt_tex1.rgb += uval_mb * aoSample.rgb * albedo;
+    rt_tex1.rgb += ambientLight * albedo;
 
     vec3 viewNormal = mat3(ubo_cameraDefault.modelView) * mappedNormal;
     rt_tex2.rgb = viewNormal * 0.5 + 0.5;
@@ -248,11 +254,6 @@ void doStuff() {
 
     vec3 specularDL = shadow * cts_main(mappedNormal, uShadowMap.lightDir, viewDir, f, alpha);
     specularDL = max(vec3(0.0), specularDL);
-
-    vec3 blockLightMul = vec3(32.0);
-    vec3 skyLightMul = vec3(16.0);
-    vec3 ambientLight = materialAo * calcAmbient(usam_lightMap, viewDir, mappedNormal, roughness, gs_data.lightCoord, blockLightMul, skyLightMul);
-
 
     rt_mainFboOutput = vec4(0.0, 0.0, 0.0, 1.0);
     rt_mainFboOutput.rgb += diffuseDL * SUN_LIGHT_INTENSITY * SUN_LIGHT_COLOR;

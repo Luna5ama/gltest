@@ -209,7 +209,7 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
 //        lightDir.set(0.4f, 1.2f, -0.5f).normalize() // Sponzsa
 //        lightDir.set(0.0f, 1.2f, -0.9f).normalize() // Sponza.
 //        lightDir.set(0.1f, 1.6f, -0.9f).normalize() // Sponza.
-        lightDir.set(0.8f, 1.0f, -2.9f).normalize() // Sponza.
+//        lightDir.set(0.8f, 1.0f, -2.9f).normalize() // Sponza.
 
 //        lightDir.set(0.5f, 0.8f, -0.5f).normalize() // Blocks
 
@@ -220,7 +220,7 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
 //        lightDir.set(0.8f, 0.8f, -0.8f).normalize() // Glass dome
 
 
-//        lightDir.set(1.0f, 1.0f, 1.0f).normalize()
+        lightDir.set(0.1f, 1.0f, 0.2f).normalize()
 
         val time = (maxOf(glfwGetTime() - 3.0, 0.0) * 0.01f + 0.5f) % PI
 //        val time = 0.4 * PI

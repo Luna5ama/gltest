@@ -107,12 +107,10 @@ void main() {
     float clampRatio = 1.0;
     clampRatio = newPixel;
     clampRatio = saturate(clampRatio);
-    lastColor = mix(lastColor, clamp(lastColor, nearMin2, nearMax2), 0.5);
-    lastColor = mix(lastColor, clamp(lastColor, nearMin1, nearMax1), clampRatio);
+//    lastColor = mix(lastColor, clamp(lastColor, nearMin2, nearMax2), 0.5);
+//    lastColor = mix(lastColor, clamp(lastColor, nearMin1, nearMax1), clampRatio);
 
     float mixWeight = uMix.x;
     mixWeight *= frustumTest;
     fragColor = mix(currColor, lastColor, mixWeight);
-
-//    fragColor.rgb = vec3(newPixel);
 }

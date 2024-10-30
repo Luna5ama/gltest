@@ -74,10 +74,12 @@ class TerrainScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard)
 
     //    private val bloom = register(Bloom(this))
     private val gammaCorrection = register(GammaCorrection(this))
-//    private val sobel = register(Sobel(this))
+    private val sobel = register(Sobel(this))
 
     val gaussianBlur = register(GaussianBlur(this))
     val normalDepthPacking = register(NormalDepthPacking(this))
+
+    val denoiser = register(Denoiser(this))
 
     val skyColor = Vector4f()
 
@@ -466,11 +468,10 @@ class TerrainScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard)
 
         if (gameInstance.toggles[8]) {
             solidLightDebug()
-            glDebugGroup("GammaCorrection") { gammaCorrection.render(fboGroup) }
             glDebugGroup("TXAA") { txaa.render(fboGroup) }
         } else {
-            glDebugGroup("TXAA") { txaa.render(fboGroup) }
             glDebugGroup("GammaCorrection") { gammaCorrection.render(fboGroup) }
+            glDebugGroup("TXAA") { txaa.render(fboGroup) }
         }
 
 //        glDebugGroup("Atmosphere") { atmosphere.postPass(fboGroup) }
@@ -516,11 +517,12 @@ class TerrainScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard)
                 sampler("usam_input", solidLighting.hbao.finalTex)
                 buffer(camera.uboBinding)
             }
-            shader.uniform1f("uMul", 0.05f)
+            shader.uniform1f("uMul", 0.01f)
             shader.uniform1f("uAdd", 0.0f)
             shader.uniform1f("uPower", 1.0f)
             shader.uniform1f("uLod", 0.0f)
             basic.drawQuad()
+            glDebugGroup("GammaCorrection") { gammaCorrection.render(fboGroup) }
         } else {
             samplers.clearBinding()
             glViewport(0, 0, camera.screenWidth, camera.screenHeight)
@@ -738,6 +740,6 @@ class TerrainScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard)
     private fun drawElementsIndirectCommand(src: DrawElementsIndirectCommand) = src
 
     override fun shaderAsmDumps(): List<ShaderProgram> {
-        return listOf(solidLighting.hbao.shader)
+        return listOf(denoiser.shaders[Denoiser.Direction.VERTICAL])
     }
 }

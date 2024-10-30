@@ -3,14 +3,16 @@
 #include "../ColorUtils.glsl"
 #include "../GBuffers.glsl"
 #include "../GenericGBuffer.glsl"
-
-uniform sampler2D usam_mainFbo_inputColor;
+#include "../utils/Math.glsl"
 
 in vec2 fTexCoord;
 in vec2 fTexCoordNear[4];
 in mat3 fNormalMatrix;
 
 out vec4 fragColor;
+
+#define EDGE_THRESHOLD_MIN 0.1
+#define EDGE_THRESHOLD_MAX 0.5
 
 void main() {
     GBufferData gDataC;
@@ -25,27 +27,21 @@ void main() {
     gbuffer_unpack1(texture(usam_gData1, fTexCoordNear[2]), gData3);
     gbuffer_unpack1(texture(usam_gData1, fTexCoordNear[3]), gData4);
 
-    vec3 coordC = gDataC.worldCoord * gDataC.worldNormal;
-    vec3 coord1 = gData1.worldCoord * gData1.worldNormal;
-    vec3 coord2 = gData2.worldCoord * gData2.worldNormal;
-    vec3 coord3 = gData3.worldCoord * gData3.worldNormal;
-    vec3 coord4 = gData4.worldCoord * gData4.worldNormal;
+    vec3 diff1 = gData1.worldCoord - gDataC.worldCoord;
+    vec3 diff2 = gData2.worldCoord - gDataC.worldCoord;
+    vec3 diff3 = gData3.worldCoord - gDataC.worldCoord;
+    vec3 diff4 = gData4.worldCoord - gDataC.worldCoord;
 
-    float bd = max(length(gDataC.worldCoord), 0.001);
-    vec4 ef = vec4(
-        distance(coordC, coord1),
-        distance(coordC, coord2),
-        distance(coordC, coord3),
-        distance(coordC, coord4)
-    ) / sqrt(bd);
+    float dotV = 0.0;
+    dotV += dot(gDataC.worldNormal, diff1);
+    dotV += dot(gDataC.worldNormal, diff2);
+    dotV += dot(gDataC.worldNormal, diff3);
+    dotV += dot(gDataC.worldNormal, diff4);
+    dotV = abs(dotV);
+    dotV = step(dotV, 0.0);
 
-    ef = smoothstep(EDGE_THRESHOLD_MIN, EDGE_THRESHOLD_MAX, ef);
+    float avg = 1.0 - dotV;
 
-    float avg = (ef.x + ef.y + ef.z + ef.w) / 4.0;
-    avg = smoothstep(0.0, 0.5, clamp(avg, 0.0, 1.0));
-
-    //    fragColor = mix(fragColor, vec4(1.0, 1.0, 1.0, 1.0), avg);
     fragColor = vec4(avg, avg, avg, 1.0);
     fragColor.rgb *= vec3(0.0, 1.0, 0.0);
-    //    fragColor.rgb = normalC;
 }

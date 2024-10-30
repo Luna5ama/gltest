@@ -69,7 +69,7 @@ class SSILVB(private val scene: TerrainScene, private val solidLighting: SolidLi
         glDebugGroup("linearDepth") {
             buildLinearDepth(input)
         }
-        glDebugGroup("sample") {
+        glDebugGroup("evaluate") {
             sample(input)
         }
     }
@@ -111,7 +111,8 @@ class SSILVB(private val scene: TerrainScene, private val solidLighting: SolidLi
         }
     }
 
-    private val gpuTimer = GPUTimer(100)
+    private val gpuTimer1 = GPUTimer(100)
+    private val gpuTimer2 = GPUTimer(100)
     private val timer = TickTimer()
 
     private fun buildLinearDepth(input: GBuffer) {
@@ -151,12 +152,21 @@ class SSILVB(private val scene: TerrainScene, private val solidLighting: SolidLi
 
         glViewport(0, 0, finalTex.width, finalTex.height)
 
-        gpuTimer.begin()
-        scene.basic.drawQuad()
-        gpuTimer.end()
+        gpuTimer1.begin()
+        glDebugGroup("Sample") {
+            scene.basic.drawQuad()
+        }
+        gpuTimer1.end()
+
+        gpuTimer2.begin()
+        glDebugGroup("Denoise") {
+            scene.denoiser.process(finalTex, scene.solidVelocity.ndpTex, 2)
+        }
+        gpuTimer2.end()
 
         if (timer.tickAndReset(1000)) {
-            println("SSILVB: %.2f ms".format(gpuTimer.averageMS()))
+            println("SSILVB: %.2f ms".format(gpuTimer1.averageMS()))
+            println("Denoiser: %.2f ms".format(gpuTimer2.averageMS()))
         }
 
         glViewport(0, 0, scene.camera.screenWidth, scene.camera.screenHeight)

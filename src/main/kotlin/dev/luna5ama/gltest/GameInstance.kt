@@ -138,7 +138,7 @@ class GameInstance(val window: Long) {
 //    val scene = TestScene(this, mouse, keyboard)
         val scene = TerrainScene(this, mouse, keyboard)
 //        val scene = PointCloudScene(this, mouse, keyboard)
-        scene.reloadShaders()
+//        scene.reloadShaders()
 
         registerKeyCallbacks(scene, keyboard)
 
@@ -201,7 +201,7 @@ class GameInstance(val window: Long) {
             val frameTimes = mutableListOf<Pair<Double, Double>>()
             val timer = TickTimer()
             while (!glfwWindowShouldClose(window)) {
-//                Thread.sleep(100)
+//                Thread.sleep(1000)
                 MemoryStack.get().checkEmpty()
                 glfwPollEvents()
                 updateMousePos()

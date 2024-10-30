@@ -20,12 +20,10 @@ class Sobel(private val scene: TerrainScene) : IGLObjContainer by IGLObjContaine
         shader.bind()
         shader.applyBinding {
             buffer(scene.camera.uboBinding)
-        }
-        shader.uniform2f("uJitter", scene.camera.jitter.x, scene.camera.jitter.y)
-        shader.applyBinding {
             sampler(scene.solidGBuffer.genericTexBindings)
             sampler(fboGroup.inputBindings)
         }
+        shader.uniform2f("uJitter", scene.camera.jitter.x, scene.camera.jitter.y)
 
         fboGroup.output.fbo.bind()
         glEnable(GL_BLEND)

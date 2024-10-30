@@ -2,6 +2,7 @@ package dev.luna5ama.gltest.terrain
 
 import dev.luna5ama.gltest.glDebugGroup
 import dev.luna5ama.gltest.linearClampEdge
+import dev.luna5ama.gltest.nearestClampEdge
 import dev.luna5ama.gltest.terrain.post.GBuffer
 import dev.luna5ama.glwrapper.ShaderBindingSpecs
 import dev.luna5ama.glwrapper.ShaderProgram
@@ -15,13 +16,13 @@ import org.joml.Vector3d
 class VelocityBuffer(private val scene: TerrainScene) : IGLObjContainer by IGLObjContainer.Impl() {
     val uvDiffTex = register(TextureObject.Texture2D())
     val projFlags = register(TextureObject.Texture2D())
-    val ndTex = register(TextureObject.Texture2D())
+    val ndpTex = register(TextureObject.Texture2D())
     val prevNDTex = register(TextureObject.Texture2D()).apply { create() }
 
     val samplerBindings = listOf(
         ShaderBindingSpecs.Sampler("usam_velocity_uvVelocity", uvDiffTex),
         ShaderBindingSpecs.Sampler("usam_velocity_projFlags", projFlags),
-        ShaderBindingSpecs.Sampler("usam_velocity_ndTex", ndTex, scene.samplers.nearestClampEdge),
+        ShaderBindingSpecs.Sampler("usam_velocity_ndTex", ndpTex, scene.samplers.nearestClampEdge),
         ShaderBindingSpecs.Sampler("usam_velocity_prevNDTex", prevNDTex, scene.samplers.nearestClampEdge)
     )
 
@@ -45,8 +46,8 @@ class VelocityBuffer(private val scene: TerrainScene) : IGLObjContainer by IGLOb
     }
 
     private fun velocityBuffer(input: GBuffer) {
-        checkSizeAndCopy(ndTex, prevNDTex)
-        scene.normalDepthPacking.render(input, ndTex)
+        checkSizeAndCopy(ndpTex, prevNDTex)
+        scene.normalDepthPacking.render(input, ndpTex)
 
         fbo.bind()
 
@@ -85,8 +86,10 @@ class VelocityBuffer(private val scene: TerrainScene) : IGLObjContainer by IGLOb
                 allocate(1, ImageFormat.R8G8_UN, input.width, input.height)
                 linearClampEdge()
             }
-            ndTex.apply {
+            ndpTex.apply {
+                destroy()
                 allocate(1, ImageFormat.R32G32_UI, input.width, input.height)
+                nearestClampEdge()
             }
             fbo.apply {
                 attach(uvDiffTex, GL_COLOR_ATTACHMENT0)

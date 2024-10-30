@@ -102,12 +102,11 @@ void main() {
             vec3 backOffset = viewDir * uval_thickness;
 
             float lodStep = radiusToLodStep(maxDist);
-            lodStep += r2Seq1(ubo_cameraDefault.gFrameIndex + uint(IGN(gl_FragCoord.yx) * 512.0) + sliceIndex) * 0.2 - 0.1;
 
             float maxLod = float(textureQueryLevels(usam_linearDepth)) - 1.0;
             float giMaxLod = maxLod * 0.4;
             float sampleLod = 0.0;
-            sampleLod += r2Seq1(ubo_cameraDefault.gFrameIndex + uint(IGN(gl_FragCoord.xy) * 1024.0) + sliceIndex) - 0.5;
+            sampleLod += r2Seq1(ubo_cameraDefault.gFrameIndex + uint(IGN(gl_FragCoord.xy) * 1024.0) + sliceIndex);
             float sampleTexelDist = 1.5;
             uint sampleSectorBits = 0u;
 
@@ -146,8 +145,8 @@ void main() {
                     ilCond &= uint(all(lessThanEqual(sampleUV, vec2(1.0))));
 
                     if (bool(ilCond)) {
-                        vec4 sample1 = textureLod(usam_solidLighting1, sampleUV, min(sampleLod, giMaxLod));
-                        vec4 sample2 = textureLod(usam_solidLighting2, sampleUV, min(sampleLod, giMaxLod));
+                        vec4 sample1 = textureLod(usam_solidLighting1, sampleUV, min(sampleLod * 0.5, giMaxLod));
+                        vec4 sample2 = textureLod(usam_solidLighting2, sampleUV, min(sampleLod * 0.5, giMaxLod));
                         vec3 sampleNormal = sample2.rgb * 2.0 - 1.0;
                         vec3 direct = sample1.rgb;
 
@@ -170,7 +169,6 @@ void main() {
 
         outValue /= float(SSILVB_SAMPLE_SLICES);
         outValue.rgb *= 8.0;
-        outValue.rgb *= gs_data.albedo.rgb;
 
         outValue.a = linearStep(0.01, 1.0, outValue.a);
         outValue.a *= uval_aoStrength.x;
