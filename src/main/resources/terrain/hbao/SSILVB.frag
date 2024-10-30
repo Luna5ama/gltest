@@ -3,6 +3,7 @@
 #define NO_NORMALS
 
 #include "../utils/Rand.glsl"
+#include "../utils/Hash.glsl"
 #include "../rtwsm/ShadowParams.glsl"
 #include "../LightParams.glsl"
 #include "../utils/R2Seqs.glsl"
@@ -71,6 +72,9 @@ uint calcSectorBits(float minHorizon, float maxHorizon) {
     return currentBitfield;
 }
 
+#define NOISE_FRAME ubo_cameraDefault.gFrameIndex
+//#define NOISE_FRAME 0u
+
 void main() {
     outValue = vec4(1.0);
     if (textureLod(usam_gDepth, fTexCoord, 0).r != 0.0) {
@@ -84,7 +88,8 @@ void main() {
         vec3 viewDir = normalize(-gs_viewCoord);
 
         float sampleAngleDelta = 2.0 * PI_CONST / SSILVB_SAMPLE_SLICES;
-        float initialAngle = IGN(gl_FragCoord.xy, ubo_cameraDefault.gFrameIndex) * sampleAngleDelta;
+        float baseIGN = IGN(gl_FragCoord.xy, NOISE_FRAME);
+        float initialAngle = baseIGN * sampleAngleDelta;
         vec2 sphereRadius = (uval_radius.x / -gs_viewCoord.z) * uval_projectParams.xy * ubo_cameraDefault.screenSize.xy;
 
         outValue = vec4(0.0);
@@ -102,12 +107,11 @@ void main() {
             vec3 backOffset = viewDir * uval_thickness;
 
             float lodStep = radiusToLodStep(maxDist);
-            lodStep += r2Seq1(ubo_cameraDefault.gFrameIndex + uint(IGN(gl_FragCoord.xy) * 2048.0) + sliceIndex * 4) * 0.2 - 0.1;
 
             float maxLod = float(textureQueryLevels(usam_linearDepth)) - 1.0;
             float giMaxLod = maxLod * 0.4;
             float sampleLod = 0.0;
-            sampleLod += r2Seq1(ubo_cameraDefault.gFrameIndex + uint(IGN(gl_FragCoord.xy) * 1024.0) + sliceIndex);
+            sampleLod += r2Seq1(uint(baseIGN * 4444.0) * SSILVB_SAMPLE_SLICES + sliceIndex);
             float sampleTexelDist = 1.5;
             uint sampleSectorBits = 0u;
 
