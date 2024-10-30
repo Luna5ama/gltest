@@ -152,6 +152,7 @@ class HBAO(private val scene: TerrainScene, private val solidLighting: SolidLigh
         gpuTimer.begin()
         scene.basic.drawQuad()
         gpuTimer.end()
+        scene.denoiser.process(finalTex, scene.solidVelocity.ndpTex, 2)
 
         if (timer.tickAndReset(1000)) {
             println("HBAO: %.2f ms".format(gpuTimer.averageMS()))

@@ -18,9 +18,7 @@ uniform sampler2D usam_lightMap;
 uniform float uval_tangentBias;
 uniform vec2 uval_radius;
 uniform vec2 uval_aoStrength;
-uniform vec2 uval_giStrength;
 uniform vec3 uval_projectParams;
-uniform int uval_randR;
 
 #include "../solid/Texs.glsl"
 #include "../solid/Utils.glsl"
@@ -158,51 +156,37 @@ void main() {
 
                 float aoAtt = 4.0;
                 float aoAttenuation = aoAtt / (aoAtt + dist);
-//                aoAttenuation = 1.0;
                 float occlusionBase = sinH - sinT;
                 float occlusion = min(aoAttenuation * occlusionBase * uval_aoStrength.x, 1.0);
-//                float occlusion = occlusionBase;
 
                 maxOcclusion = max(occlusion, maxOcclusion);
 
                 vec4 sample1 = texture(usam_solidLighting1, sampleTexCoord);
                 vec4 sample2 = texture(usam_solidLighting2, sampleTexCoord);
 
-                vec3 incomingLight = vec3(0.0);
-                vec3 currNormal = normalize(mix(lastNormal, sample2.rgb, 1.0));
-                incomingLight += max(dot(currNormal, uShadowMap.lightDir), 0.0) * sample1.rgb;
-                incomingLight += sample2.a * sample1.rgb;
-                incomingLight *= sample1.a;
-                incomingLight *= SUN_LIGHT_INTENSITY * SUN_LIGHT_COLOR;
+                vec3 irradiance = sample1.rgb;
+                vec3 currNormal = normalize(mix(lastNormal, sample2.rgb * 2.0 - 1.0, 1.0));
 
-                float giAtt = 16.0;
-                float dist2 = dist * dist;
-                float attenuation = giAtt / (giAtt + dist2);
-//                attenuation = 1.0;
-
-                vec3 thisLightDir = normalize(gSampleData.worldCoord - gs_data.worldCoord);
-                vec3 thatRefDir = normalize(gs_data.worldCoord - gSampleData.worldCoord);
+                vec3 thisToThat = normalize(gSampleData.worldCoord - gs_data.worldCoord);
+                vec3 thatToThis = normalize(gs_data.worldCoord - gSampleData.worldCoord);
 
                 // Trapzoidal integration
                 float currX = asin(sinH);
-                float refDot = dot(thatRefDir, currNormal);
-                vec3 currY = max(dot(worldNormalThis, thisLightDir), 0.0) * (attenuation * incomingLight);
+                float refDot = dot(thatToThis, currNormal);
+                vec3 currY = max(dot(worldNormalThis, thisToThat), 0.0) * irradiance;
                 refDot = 1.0 - max(refDot, 0.0);
                 currY *= 1.0 - (refDot * refDot * refDot);
-//                currY *= max(refDot, 0.0);
-//                currY *= (1.0 - step(refDot, 0.0));
                 if (first) {
                     lastY = currY;
                     first = false;
                 }
-                vec3 colorSample = (currX - lastX) * 0.5 * (lastY + currY);
+
+                colorSum += (currX - lastX) * 0.5 * (lastY + currY);
+                giSample++;
 
                 lastX = currX;
                 lastY = currY;
                 lastNormal = (sample2.rgb + lastNormal) / 2.0;
-
-                colorSum += colorSample;
-                giSample++;
             }
         }
 
@@ -211,7 +195,7 @@ void main() {
             sum.rgb += colorSum;
         }
     }
-
+    sum.rgb *= 2.0;
     sum /= HBAO_DIR_SAMPLES;
     sum.a = 1.0 - sum.a;
     sum.a = pow(sum.a, uval_aoStrength.y);
