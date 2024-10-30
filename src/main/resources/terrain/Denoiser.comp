@@ -12,7 +12,30 @@ uniform sampler2D usam_input;
 uniform usampler2D usam_ndpTex;
 uniform restrict writeonly image2D uimg_output;
 
-shared vec4 shared_data[gl_WorkGroupSize.x + KERNEL_RADIUS * 2];
+
+#ifdef DATA_32
+shared vec4 shared_data_32[gl_WorkGroupSize.x + KERNEL_RADIUS * 2];
+
+vec4 readSharedData(uint idx) {
+    return shared_data_32[idx];
+}
+
+void writeSharedData(uint idx, vec4 value) {
+    shared_data_32[idx] = value;
+}
+#else
+shared uvec2 shared_data_16[gl_WorkGroupSize.x + KERNEL_RADIUS * 2];
+
+vec4 readSharedData(uint idx) {
+    uvec2 data = shared_data_16[idx];
+    return vec4(unpackHalf2x16(data.x), unpackHalf2x16(data.y));
+}
+
+void writeSharedData(uint idx, vec4 value) {
+    shared_data_16[idx] = uvec2(packHalf2x16(value.xy), packHalf2x16(value.zw));
+}
+#endif
+
 shared vec4 shared_worldCoord[gl_WorkGroupSize.x + KERNEL_RADIUS * 2];
 
 #if KERNEL_RADIUS == 64
@@ -39,27 +62,23 @@ vec3 projClipToWorld(vec3 clipCoord) {
     return worldCoord.xyz;
 }
 
-void readData(uint writeIndex, ivec2 coord, out vec3 normalC, out vec3 worldCoordC) {
+void readData(uint writeIndex, ivec2 coord, out vec3 normal, out vec3 worldCoord) {
     coord = clamp(coord, ivec2(0), imgSize - 1);
-    shared_data[writeIndex] = texelFetch(usam_input, coord, 0);
+    writeSharedData(writeIndex, texelFetch(usam_input, coord, 0));
 
     float depth;
-    vec3 normal;
     ndpacking_unpack(texelFetch(usam_ndpTex, coord, 0).xy, normal, depth);
 
     vec2 texCoord = (vec2(coord) + 0.5) / vec2(imgSize);
     vec2 clipCoord = texCoord * 2.0 - 1.0;
-    vec3 worldCoord = projClipToWorld(vec3(clipCoord, depth));
+    worldCoord = projClipToWorld(vec3(clipCoord, depth));
 
     shared_worldCoord[writeIndex] = vec4(worldCoord, 0.0);
-
-    normalC = normal;
-    worldCoordC = worldCoord;
 }
 
 void readData(uint writeIndex, ivec2 coord) {
     coord = clamp(coord, ivec2(0), imgSize - 1);
-    shared_data[writeIndex] = texelFetch(usam_input, coord, 0);
+    writeSharedData(writeIndex, texelFetch(usam_input, coord, 0));
 
     float depth = uintBitsToFloat(texelFetch(usam_ndpTex, coord, 0).y);
 
@@ -116,7 +135,6 @@ void setup(out ivec2 icoord, out vec3 normalC, out vec3 worldCoordC) {
 #endif
 
 float normalDepthWeight(vec3 normalC, vec3 worldCoordC, vec3 worldCoord) {
-//    return 1.0;
     vec3 diff = worldCoord - worldCoordC;
     float dotV = dot(normalC, diff);
     dotV = abs(dotV);
@@ -140,21 +158,19 @@ void main() {
     uint centerIdx = gl_LocalInvocationID.x + KERNEL_RADIUS;
 
     float weight0 = baseWeight(0);
-    sum += shared_data[centerIdx] * weight0;
+    sum += readSharedData(centerIdx) * weight0;
     float weightSum = weight0;
 
-    {
-        for (int i = 1; i <= KERNEL_RADIUS; i++) {
-            vec3 worldCoord = shared_worldCoord[centerIdx - i].xyz;
-            float weight = baseWeight(i) * normalDepthWeight(normalC, worldCoordC, worldCoord);
-            sum += shared_data[centerIdx - i] * weight;
-            weightSum += weight;
-        }
+    for (uint i = 1; i <= KERNEL_RADIUS; i++) {
+        vec3 worldCoord = shared_worldCoord[centerIdx - i].xyz;
+        float weight = baseWeight(i) * normalDepthWeight(normalC, worldCoordC, worldCoord);
+        sum += readSharedData(centerIdx - i) * weight;
+        weightSum += weight;
     }
-    for (int i = 1; i <= KERNEL_RADIUS; i++) {
+    for (uint i = 1; i <= KERNEL_RADIUS; i++) {
         vec3 worldCoord = shared_worldCoord[centerIdx + i].xyz;
         float weight = baseWeight(i) * normalDepthWeight(normalC, worldCoordC, worldCoord);
-        sum += shared_data[centerIdx + i] * weight;
+        sum += readSharedData(centerIdx + i) * weight;
         weightSum += weight;
     }
 
