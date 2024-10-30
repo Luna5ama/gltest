@@ -24,6 +24,7 @@ uniform sampler2D usam_hbao;
 
 uniform vec3 originOffset;
 uniform float uval_mb;
+uniform vec4 uval_aoParams;
 
 in vec2 fClipCoord;
 in vec2 fTexCoord;
@@ -233,13 +234,15 @@ void doStuff() {
     vec3 f = fresnel(lDotH, reflectance);
 
     vec4 aoSample = texture(usam_hbao, fTexCoord);
-    vec3 blockLightMul = 16.0 * gtaoMultiBounce(gs_data.albedo.rgb, aoSample.a);
-    vec3 skyLightMul = 4.0 * gtaoMultiBounce(gs_data.albedo.rgb, aoSample.a);
+    float blockLightAo = pow(aoSample.a, uval_aoParams.x);
+    float skyLightAo = pow(aoSample.a, uval_aoParams.y);
+    vec3 blockLightMul = 8.0 * gtaoMultiBounce(gs_data.albedo.rgb, blockLightAo);
+    vec3 skyLightMul = 4.0 * gtaoMultiBounce(gs_data.albedo.rgb, skyLightAo);
     vec3 ambientLight = materialAo * calcAmbient(usam_lightMap, viewDir, mappedNormal, 0.5, gs_data.lightCoord, blockLightMul, skyLightMul);
 
 
     rt_tex1.rgb = max(dot(gs_data.worldNormal, uShadowMap.lightDir), 0.0) * shadow * SUN_LIGHT_INTENSITY * albedo * SUN_LIGHT_COLOR;
-    rt_tex1.rgb += emissive * EMISSIVE_INTENSITY * 4.0 * gs_data.albedo.rgb;
+    rt_tex1.rgb += emissive * EMISSIVE_INTENSITY * 8.0 * gs_data.albedo.rgb;
     rt_tex1.rgb += sssValue * shadow * SUN_LIGHT_INTENSITY * albedo * SUN_LIGHT_COLOR;
     rt_tex1.rgb += uval_mb * aoSample.rgb * albedo;
     rt_tex1.rgb += ambientLight * albedo;

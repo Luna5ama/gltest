@@ -102,6 +102,7 @@ void main() {
             vec3 backOffset = viewDir * uval_thickness;
 
             float lodStep = radiusToLodStep(maxDist);
+            lodStep += r2Seq1(ubo_cameraDefault.gFrameIndex + uint(IGN(gl_FragCoord.xy) * 2048.0) + sliceIndex * 4) * 0.2 - 0.1;
 
             float maxLod = float(textureQueryLevels(usam_linearDepth)) - 1.0;
             float giMaxLod = maxLod * 0.4;
@@ -168,7 +169,7 @@ void main() {
         }
 
         outValue /= float(SSILVB_SAMPLE_SLICES);
-        outValue.rgb *= 8.0;
+        outValue.rgb *= 4.0;
 
         outValue.a = linearStep(0.01, 1.0, outValue.a);
         outValue.a *= uval_aoStrength.x;

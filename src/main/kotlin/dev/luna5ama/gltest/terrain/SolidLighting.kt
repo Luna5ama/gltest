@@ -98,7 +98,8 @@ class SolidLighting(private val scene: TerrainScene) : IGLObjContainer by IGLObj
                 buffer(scene.camera.uboBinding)
                 buffer(scene.rtwsm.uboBinding)
             }
-            directShader.uniform1f("uval_mb", if (scene.gameInstance.toggles[3]) 0.0f else 2.0f)
+            directShader.uniform4f("uval_aoParams", 1.0f, 2.0f, 0.5f, 0.25f)
+            directShader.uniform1f("uval_mb", if (scene.gameInstance.toggles[3]) 0.0f else 1.0f)
 
             fbo.bind()
 

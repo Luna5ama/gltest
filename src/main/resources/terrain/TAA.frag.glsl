@@ -106,6 +106,7 @@ void main() {
 
     float clampRatio = 1.0;
     clampRatio = newPixel;
+    clampRatio += length(uCameraDelta) * 10.0;
     clampRatio = saturate(clampRatio);
 //    lastColor = mix(lastColor, clamp(lastColor, nearMin2, nearMax2), 0.5);
 //    lastColor = mix(lastColor, clamp(lastColor, nearMin1, nearMax1), clampRatio);

@@ -182,12 +182,12 @@ class TerrainScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard)
         glDebugGroup("Solid lighting pass") {
             solidLighting.render(fboGroup)
         }
-        glDebugGroup("Water geometry pass") {
-            waterDeferredPass()
-        }
-        glDebugGroup("Water lighting pass") {
-            waterLightingPass()
-        }
+//        glDebugGroup("Water geometry pass") {
+//            waterDeferredPass()
+//        }
+//        glDebugGroup("Water lighting pass") {
+//            waterLightingPass()
+//        }
         glDebugGroup("Post pass") {
             postPass()
         }
