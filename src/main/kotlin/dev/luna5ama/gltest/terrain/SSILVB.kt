@@ -17,19 +17,28 @@ import dev.luna5ama.glwrapper.objects.*
 import kotlin.math.*
 
 class SSILVB(private val scene: TerrainScene, private val solidLighting: SolidLighting) : IGLObjContainer by IGLObjContainer.Impl() {
-    private val steps = 16
+//    private val steps = 16
+//    private fun radiusToLodStep(y: Double): Double {
+//        val a0 = 0.0771784
+//        val a1 = 0.139577
+//        val a2 = -1.34389
+//        val yClamped = MathUtil.clamp(y, 16.0, 32768.0)
+//        return a0 * log2(a1 * yClamped + a2)
+//    }
+
+    private val steps = 32
+    private fun radiusToLodStep(y: Double): Double {
+        val a0 = 0.0382693
+        val a1 = 0.0663488
+        val a2 = -1.20751
+        val yClamped = MathUtil.clamp(y, 16.0, 32768.0)
+        return a0 * log2(a1 * yClamped + a2)
+    }
 
     private fun lodStepToRadius(x: Double): Double {
         return (0..<steps).sumOf {
             2.0.pow(x * it)
         }
-    }
-
-    private fun radiusToLodStep(y: Double): Double {
-        val a0 = 0.0771784
-        val a1 = 0.139577
-        val a2 = -1.34389
-        return MathUtil.clamp(a0 * log2(a1 * y + a2), 0.0, 0.92831)
     }
 
     private val linearDepthShader = register(
@@ -44,7 +53,7 @@ class SSILVB(private val scene: TerrainScene, private val solidLighting: SolidLi
             ShaderSource.Vert("terrain/Blit.vert.glsl"),
             ShaderSource.Frag("terrain/hbao/SSILVB.frag") {
                 define("SSILVB_SAMPLE_SLICES", 2)
-                define("SSILVB_SAMPLE_STEPS", steps)
+//                define("SSILVB_SAMPLE_STEPS", steps)
             }
         )
     ).apply {
@@ -140,7 +149,7 @@ class SSILVB(private val scene: TerrainScene, private val solidLighting: SolidLi
         }
         val aoRadius = 8.0f
         val maxRadius = aoRadius * 4.0f
-        val baseThickness = 16.0f
+        val baseThickness = 64.0f
         shader.uniform1f("uval_thickness", baseThickness)
         shader.uniform4f("uval_radius", aoRadius, maxRadius, aoRadius * aoRadius, maxRadius * maxRadius)
         shader.uniform2f("uval_aoStrength", if (scene.gameInstance.toggles[1]) 0.0f else 1.0f, 4.0f)
@@ -160,7 +169,7 @@ class SSILVB(private val scene: TerrainScene, private val solidLighting: SolidLi
 
         gpuTimer2.begin()
         glDebugGroup("Denoise") {
-            scene.denoiser.process(finalTex, scene.solidVelocity.ndpTex, 2)
+            scene.denoiser.process(finalTex, scene.solidVelocity.ndpTex, 1)
         }
         gpuTimer2.end()
 

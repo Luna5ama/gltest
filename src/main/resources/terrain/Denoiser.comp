@@ -1,5 +1,5 @@
 #version 460 core
-#define KERNEL_RADIUS 8
+#define KERNEL_RADIUS 16
 #define BOX
 
 #include "GlobalCamera.glsl"
@@ -137,9 +137,7 @@ void setup(out ivec2 icoord, out vec3 normalC, out vec3 worldCoordC) {
 float normalDepthWeight(vec3 normalC, vec3 worldCoordC, vec3 worldCoord) {
     vec3 diff = worldCoord - worldCoordC;
     float dotV = dot(normalC, diff);
-    dotV = abs(dotV);
-    dotV = step(dotV, 0.001);
-    return dotV;
+    return step(-0.001, dotV) * linearStep(0.02, 0.01, dotV);
 }
 
 void main() {

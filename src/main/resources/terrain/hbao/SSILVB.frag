@@ -48,10 +48,18 @@ vec3 toViewSpace(vec2 texCoord, float viewZ, mat4 proj, mat4 projInv) {
     return vec3(viewXY, viewZ);
 }
 
+#define SSILVB_SAMPLE_STEPS 16
+
 float radiusToLodStep(float y) {
+    #if SSILVB_SAMPLE_STEPS == 16
     const float a0 = 0.0771784;
     const float a1 = 0.139577;
     const float a2 = -1.34389;
+    #elif SSILVB_SAMPLE_STEPS == 32
+    const float a0 = 0.0382693;
+    const float a1 = 0.0663488;
+    const float a2 = -1.20751;
+    #endif
     y = clamp(y, 16.0, 32768.0);
     return saturate(a0 * log2(a1 * y + a2));
 }
@@ -88,11 +96,13 @@ void main() {
         vec3 viewDir = normalize(-gs_viewCoord);
 
         float sampleAngleDelta = 2.0 * PI_CONST / SSILVB_SAMPLE_SLICES;
-        float baseIGN = IGN(gl_FragCoord.xy, NOISE_FRAME);
-        float initialAngle = baseIGN * sampleAngleDelta;
+        float initialAngle = IGN(gl_FragCoord.xy, NOISE_FRAME) * sampleAngleDelta;
         vec2 sphereRadius = (uval_radius.x / -gs_viewCoord.z) * uval_projectParams.xy * ubo_cameraDefault.screenSize.xy;
 
         outValue = vec4(0.0);
+
+        uint r2Index = (hash21(uvec2(gl_FragCoord.xy)) & 1023u) + NOISE_FRAME;
+        float baseSampleLod = r2Seq1(r2Index) * 0.5 - 0.25;
 
         for (uint sliceIndex = 0; sliceIndex < SSILVB_SAMPLE_SLICES; sliceIndex++) {
             float sampleAngle = initialAngle + sampleAngleDelta * float(sliceIndex);
@@ -107,11 +117,9 @@ void main() {
             vec3 backOffset = viewDir * uval_thickness;
 
             float lodStep = radiusToLodStep(maxDist);
-
             float maxLod = float(textureQueryLevels(usam_linearDepth)) - 1.0;
-            float giMaxLod = maxLod * 0.4;
-            float sampleLod = 0.0;
-            sampleLod += r2Seq1(uint(baseIGN * 4444.0) * SSILVB_SAMPLE_SLICES + sliceIndex);
+            float sampleLod = baseSampleLod;
+
             float sampleTexelDist = 1.5;
             uint sampleSectorBits = 0u;
 
@@ -150,8 +158,8 @@ void main() {
                     ilCond &= uint(all(lessThanEqual(sampleUV, vec2(1.0))));
 
                     if (bool(ilCond)) {
-                        vec4 sample1 = textureLod(usam_solidLighting1, sampleUV, min(sampleLod * 0.5, giMaxLod));
-                        vec4 sample2 = textureLod(usam_solidLighting2, sampleUV, min(sampleLod * 0.5, giMaxLod));
+                        vec4 sample1 = textureLod(usam_solidLighting1, sampleUV, sampleLod * 0.5);
+                        vec4 sample2 = textureLod(usam_solidLighting2, sampleUV, sampleLod * 0.5);
                         vec3 sampleNormal = sample2.rgb * 2.0 - 1.0;
                         vec3 direct = sample1.rgb;
 

@@ -468,9 +468,10 @@ class TerrainScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard)
 
         if (gameInstance.toggles[8]) {
             solidLightDebug()
-            glDebugGroup("TXAA") { txaa.render(fboGroup) }
         } else {
             glDebugGroup("GammaCorrection") { gammaCorrection.render(fboGroup) }
+        }
+        if (!gameInstance.toggles[4]) {
             glDebugGroup("TXAA") { txaa.render(fboGroup) }
         }
 
