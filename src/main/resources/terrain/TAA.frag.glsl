@@ -106,7 +106,8 @@ void main() {
     float frustumTest = float(projFlags.x > 0.0);
     float newPixel = float(projFlags.y > 0.0);
 
-    float clampRatio1 = newPixel * 0.5;
+    float clampRatio1 = 0.1;
+    clampRatio1 += newPixel * 0.5;
     clampRatio1 += length(uCameraDelta) * 1.0;
     clampRatio1 += frustumTest * 0.5;
     clampRatio1 = saturate(clampRatio1);

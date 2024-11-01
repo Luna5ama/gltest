@@ -37,7 +37,5 @@ layout(std140) uniform PrevGlobalCameraDefault {
 };
 
 float global_linearizeDepth(Camera camera, float depth) {
-    float near = camera.planeZ.x;
-    float far = camera.planeZ.y;
-    return (near * far) / (depth * (near - far) + far);
+    return camera.invProjection[3][2] / (depth * camera.invProjection[2][3]);
 }

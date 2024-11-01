@@ -7,8 +7,6 @@
 #include "../LightParams.glsl"
 #include "../utils/R2Seqs.glsl"
 #include "../utils/Math.glsl"
-#include "../GBuffers.glsl"
-#include "../GenericGBuffer.glsl"
 #include "../GlobalCamera.glsl"
 #include "../utils/FastMath.glsl"
 
@@ -126,19 +124,16 @@ void main() {
     rt_outGI = vec3(0.0);
     rt_outAO = 1.0;
 
-    if (textureLod(usam_gDepth, fTexCoord, 0).r != 0.0) {
-        GBufferData gs_data;
-        gbuffer_unpack1(texture(usam_gData1, fTexCoord), gs_data);
+    float centerDepth = texture(usam_linearDepth, fTexCoord).r;
 
-        vec3 gs_viewCoord = (ubo_cameraDefault.modelView * vec4(gs_data.worldCoord, 1.0)).xyz;
-        vec3 gs_viewNormal = textureLod(usam_solidLighting2, fTexCoord, 0.0).rgb * 2.0 - 1.0;
-
-        vec3 viewLightDir = mat3(ubo_cameraDefault.modelView) * uShadowMap.lightDir;
-        vec3 viewDir = normalize(-gs_viewCoord);
+    if (centerDepth != 0.0) {
+        vec3 centerViewCoord = toViewSpace(fTexCoord, centerDepth, ubo_cameraDefault.projection, ubo_cameraDefault.invProjection);
+        vec3 centerViewNormal = textureLod(usam_solidLighting2, fTexCoord, 0.0).rgb * 2.0 - 1.0;
+        vec3 centerViewDir = normalize(-centerViewCoord);
 
         float sampleAngleDelta = 2.0 * PI_CONST / SSILVB_SAMPLE_SLICES;
         float initialAngle = IGN(gl_FragCoord.xy, NOISE_FRAME) * sampleAngleDelta;
-        vec2 sphereRadius = (uval_radius.x / -gs_viewCoord.z) * uval_projectParams.xy * ubo_cameraDefault.screenSize.xy;
+        vec2 sphereRadius = (uval_radius.x / -centerViewCoord.z) * uval_projectParams.xy * ubo_cameraDefault.screenSize.xy;
 
         uint r2Index = (hash21(uvec2(gl_FragCoord.xy)) & 1023u) + NOISE_FRAME;
         float baseSampleLod = r2Seq1(r2Index) * 0.5 - 0.25;
@@ -149,9 +144,9 @@ void main() {
             float sampleAngle = initialAngle + sampleAngleDelta * float(sliceIndex);
             vec2 sampleDir = vec2(cos(sampleAngle), sin(sampleAngle));
 
-            vec3 planeNormal = normalize(cross(vec3(sampleDir, 0.0), viewDir));
-            vec3 sliceTangent = cross(viewDir, planeNormal);
-            vec3 projNormal = normalize(gs_viewNormal - planeNormal * dot(gs_viewNormal, planeNormal));
+            vec3 planeNormal = normalize(cross(vec3(sampleDir, 0.0), centerViewDir));
+            vec3 sliceTangent = cross(centerViewDir, planeNormal);
+            vec3 projNormal = normalize(centerViewNormal - planeNormal * dot(centerViewNormal, planeNormal));
 
             float maxDist = length(sampleDir * sphereRadius);
 
@@ -168,12 +163,12 @@ void main() {
                 float stepTexelSize = sampleLodTexelSize * 0.5;
                 sampleTexelDist += stepTexelSize;
 
-                vec2 sampleTexelCoord = gl_FragCoord.xy + sampleDir * sampleTexelDist;
+                vec2 sampleTexelCoord = sampleDir * sampleTexelDist + gl_FragCoord.xy;
                 vec2 sampleUV = sampleTexelCoord * ubo_cameraDefault.screenSize.zw;
 
                 float sampleViewZ = textureLod(usam_linearDepth, sampleUV, sampleLod * 0.5).r;
                 vec3 sampleViewXYZ = toViewSpace(sampleUV, sampleViewZ, ubo_cameraDefault.projection, ubo_cameraDefault.invProjection);
-                vec3 diff = sampleViewXYZ - gs_viewCoord;
+                vec3 diff = sampleViewXYZ - centerViewCoord;
                 float distSq = dot(diff, diff);
 
                 if (distSq <= uval_radius.w) {
@@ -182,22 +177,22 @@ void main() {
 
                     uint aoStepSectorBits;
                     {
-                        vec3 backOffset = viewDir * uval_thickness.x;
+                        vec3 backOffset = centerViewDir * uval_thickness.x;
                         vec3 backPos = diff - backOffset;
                         float backH = calcHorizonAngles(projNormal, backPos);
                         aoStepSectorBits = calcSectorBits(min(frontH, backH), max(frontH, backH));
                     }
+                    aoSectionBits |= aoStepSectorBits;
 
                     uint giStepSectorBits;
                     {
-                        vec3 backOffset = viewDir * uval_thickness.y * float(stepIndex);
+                        vec3 backOffset = centerViewDir * uval_thickness.y * float(stepIndex);
                         vec3 backPos = diff - backOffset;
                         float backH = calcHorizonAngles(projNormal, backPos);
                         giStepSectorBits = calcSectorBits(min(frontH, backH), max(frontH, backH));
                     }
 
                     uint ilBit = bitCount(giStepSectorBits & ~giSectionBits);
-                    aoSectionBits |= aoStepSectorBits;
                     giSectionBits |= giStepSectorBits;
 
                     uint ilCond = uint(ilBit != 0);
@@ -210,12 +205,12 @@ void main() {
                         vec3 sampleNormal = sample2.rgb * 2.0 - 1.0;
                         vec3 direct = sample1.rgb;
 
-                        float ilBitCoeff = (float(ilBit) / 32.0);
+                        float ilBitCoeff = float(ilBit) * (1.0 / 32.0);
                         float rcpDist = fastRcpSqrtNR0(distSq);
                         float emitterCos = dot(sampleNormal, -diff) * rcpDist;
                         emitterCos = mix(0.5 + linearStep(-0.6, 0.0, emitterCos), emitterCos, step(sample2.a, 0.0));
                         emitterCos = saturate(emitterCos);
-                        float receiverCos = saturate(dot(gs_viewNormal, diff) * rcpDist);
+                        float receiverCos = saturate(dot(centerViewNormal, diff) * rcpDist);
 
                         rt_outGI += ilBitCoeff * emitterCos * receiverCos * direct;
                     }
@@ -235,6 +230,7 @@ void main() {
         rt_outGI = min(rt_outGI, 128.0);
 
         rt_outAO /= float(SSILVB_SAMPLE_SLICES);
+        rt_outAO = linearStep(0.1, 1.0, rt_outAO);
         rt_outAO *= uval_aoStrength.x;
         rt_outAO = saturate(1.0 - rt_outAO);
         rt_outAO = pow(rt_outAO, uval_aoStrength.y);
