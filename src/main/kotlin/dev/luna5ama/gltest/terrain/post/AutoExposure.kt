@@ -50,12 +50,12 @@ class AutoExposure(private val scene: TerrainScene) : IGLObjContainer by IGLObjC
     fun update(fboGroup: FboGroup){
         val pRangePower = 1.0f
         val pLumRange = 1.0f
-        val timeCoeff = 0.1f
-//        val minInc = 0.02f
-//        val maxInc = 0.02f
-        val inc = 0.05f
-        val minInc = inc
-        val maxInc = inc
+        val timeCoeff = 0.01f
+        val minInc = 0.02f
+        val maxInc = 0.1f
+//        val inc = 0.05f
+//        val minInc = inc
+//        val maxInc = inc
         val pixelTotal = (fboGroup.input.fbo.width * fboGroup.input.fbo.height).toFloat()
 
         buffer.clear(GL_R32UI, GL_RED_INTEGER, GL_UNSIGNED_INT, Ptr.NULL)

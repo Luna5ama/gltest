@@ -53,7 +53,7 @@ class SSILVB(private val scene: TerrainScene, private val solidLighting: SolidLi
             ShaderSource.Vert("terrain/Blit.vert.glsl"),
             ShaderSource.Frag("terrain/hbao/SSILVB.frag") {
                 define("SSILVB_SAMPLE_SLICES", 2)
-//                define("SSILVB_SAMPLE_STEPS", steps)
+                define("SSILVB_SAMPLE_STEPS", steps)
             }
         )
     ).apply {

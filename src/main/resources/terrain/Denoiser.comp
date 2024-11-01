@@ -137,7 +137,7 @@ void setup(out ivec2 icoord, out vec3 normalC, out vec3 worldCoordC) {
 float normalDepthWeight(vec3 normalC, vec3 worldCoordC, vec3 worldCoord) {
     vec3 diff = worldCoord - worldCoordC;
     float dotV = dot(normalC, diff);
-    return step(-0.001, dotV) * linearStep(0.03, 0.02, dotV);
+    return step(-0.001, dotV) * linearStep(0.005, 0.001, dotV);
 }
 
 void main() {

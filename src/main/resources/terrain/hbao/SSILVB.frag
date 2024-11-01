@@ -48,8 +48,6 @@ vec3 toViewSpace(vec2 texCoord, float viewZ, mat4 proj, mat4 projInv) {
     return vec3(viewXY, viewZ);
 }
 
-#define SSILVB_SAMPLE_STEPS 16
-
 float radiusToLodStep(float y) {
     #if SSILVB_SAMPLE_STEPS == 16
     const float a0 = 0.0771784;
@@ -197,12 +195,13 @@ void main() {
                         vec3 sampleNormal = sample2.rgb * 2.0 - 1.0;
                         vec3 direct = sample1.rgb;
 
-                        float ilDiffuse = (float(ilBit) / float(SECTOR_COUNT));
+                        float ilBitCoeff = 1.0;
                         float rcpDist = fastRcpSqrtNR0(distSq);
-                        ilDiffuse *= saturate(dot(gs_viewNormal, diff) * rcpDist);
-                        ilDiffuse *= saturate(dot(sampleNormal, -diff) * rcpDist);
+                        float emitterCos = dot(sampleNormal, -diff) * rcpDist;
+                        emitterCos = mix(1.0, saturate(emitterCos), step(sample2.a, 0.0));
+                        float receiverCos = saturate(dot(gs_viewNormal, diff) * rcpDist);
 
-                        outValue.rgb += ilDiffuse * direct;
+                        outValue.rgb += ilBitCoeff * emitterCos * receiverCos * direct;
                     }
 
                     sampleSectorBits |= stepSectorBits;
@@ -218,7 +217,6 @@ void main() {
         }
 
         outValue /= float(SSILVB_SAMPLE_SLICES);
-        outValue.rgb *= 2.0;
 
         outValue.a = linearStep(0.01, 1.0, outValue.a);
         outValue.a *= uval_aoStrength.x;
