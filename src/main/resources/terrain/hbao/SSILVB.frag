@@ -126,8 +126,8 @@ void main() {
 
         outValue = vec4(0.0);
 
-        uint r2Index = (hash21(uvec2(gl_FragCoord.xy)) & 1023u) + NOISE_FRAME;
-        float baseSampleLod = r2Seq1(r2Index) * 0.5 - 0.25;
+        uint r2Index = (hash21(uvec2(gl_FragCoord.yx)) & 511u) + NOISE_FRAME;
+        float baseSampleLod = r2Seq1(r2Index) * 0.6 - 0.3;
 
         for (uint sliceIndex = 0; sliceIndex < SSILVB_SAMPLE_SLICES; sliceIndex++) {
             float sampleAngle = initialAngle + sampleAngleDelta * float(sliceIndex);
@@ -167,7 +167,7 @@ void main() {
 
                     if (distSq <= uval_radius.w) {
                         vec3 frontPos = diff;
-                        vec3 backOffset = viewDir * uval_thickness * float(stepIndex * stepIndex);
+                        vec3 backOffset = viewDir * uval_thickness * float(stepIndex);
                         vec3 backPos = diff - backOffset;
 
                         vec2 cosH;
