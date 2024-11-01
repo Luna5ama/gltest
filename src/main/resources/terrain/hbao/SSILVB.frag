@@ -83,6 +83,41 @@ uint calcSectorBits(float minHorizon, float maxHorizon) {
 #define NOISE_FRAME ubo_cameraDefault.gFrameIndex
 //#define NOISE_FRAME 0u
 
+const float WEIGHTS[32] = float[](
+    0.049067674,
+    0.048949466,
+    0.048713334,
+    0.048359848,
+    0.047889858,
+    0.047304497,
+    0.046605176,
+    0.045793579,
+    0.044871661,
+    0.043841643,
+    0.042706007,
+    0.041467489,
+    0.040129071,
+    0.03869398,
+    0.037165671,
+    0.035547826,
+    0.033844344,
+    0.032059328,
+    0.030197078,
+    0.028262081,
+    0.026258998,
+    0.024192654,
+    0.022068029,
+    0.019890239,
+    0.017664533,
+    0.015396271,
+    0.013090917,
+    0.010754027,
+    0.0083912296,
+    0.0060082167,
+    0.0036107295,
+    0.001204543
+);
+
 void main() {
     outValue = vec4(1.0);
     if (textureLod(usam_gDepth, fTexCoord, 0).r != 0.0) {
@@ -145,10 +180,9 @@ void main() {
                     cosH.y = dot(backPos, projNormal) * inversesqrt(dot(backPos, backPos));
 
                     cosH = saturate(cosH);
-                    vec2 H = acosFastPositive(cosH) * RCP_PI_HALF_CONST - 1.0;
-                    H = H * H;
-                    H = H * H;
-                    H = 1.0 - H;
+
+                    vec2 H = acosFastPositive(cosH) * RCP_PI_HALF_CONST;
+
                     uint stepSectorBits = calcSectorBits(min(H.x, H.y), max(H.x, H.y));
 
                     uint ilBit = bitCount(stepSectorBits & ~sampleSectorBits);
@@ -177,7 +211,10 @@ void main() {
                 sampleTexelDist += stepTexelSize;
             }
 
-            outValue.a += float(bitCount(sampleSectorBits)) / float(SECTOR_COUNT);
+            // Blute force cosine weighted hemisphere LOL
+            for (uint bitIndex = 0u; bitIndex < 32; bitIndex++) {
+                outValue.a += float((sampleSectorBits >> bitIndex) & 1u) * WEIGHTS[bitIndex];
+            }
         }
 
         outValue /= float(SSILVB_SAMPLE_SLICES);
