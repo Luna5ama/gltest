@@ -52,7 +52,7 @@ class SSILVB(private val scene: TerrainScene, private val solidLighting: SolidLi
         ShaderProgram(
             ShaderSource.Vert("terrain/Blit.vert.glsl"),
             ShaderSource.Frag("terrain/hbao/SSILVB.frag") {
-                define("SSILVB_SAMPLE_SLICES", 2)
+                define("SSILVB_SAMPLE_SLICES", 1)
                 define("SSILVB_SAMPLE_STEPS", steps)
             }
         )
@@ -149,10 +149,10 @@ class SSILVB(private val scene: TerrainScene, private val solidLighting: SolidLi
         }
         val aoRadius = 8.0f
         val maxRadius = aoRadius * 4.0f
-        val baseThickness = 0.2f
+        val baseThickness = 0.05f
         shader.uniform1f("uval_thickness", baseThickness)
         shader.uniform4f("uval_radius", aoRadius, maxRadius, aoRadius * aoRadius, maxRadius * maxRadius)
-        shader.uniform2f("uval_aoStrength", if (scene.gameInstance.toggles[1]) 0.0f else 1.0f, 4.0f)
+        shader.uniform2f("uval_aoStrength", if (scene.gameInstance.toggles[1]) 0.0f else 1.0f, 2.0f)
 
 
         val aspect = scene.camera.aspectRatio
@@ -169,7 +169,7 @@ class SSILVB(private val scene: TerrainScene, private val solidLighting: SolidLi
 
         gpuTimer2.begin()
         glDebugGroup("Denoise") {
-            scene.denoiser.process(finalTex, scene.solidVelocity.ndpTex, 1)
+            scene.denoiser.process(finalTex, scene.solidVelocity.ndpTex, 2)
         }
         gpuTimer2.end()
 

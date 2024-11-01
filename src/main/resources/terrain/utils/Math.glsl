@@ -16,3 +16,15 @@ vec4 saturate(vec4 x) { return clamp(x, 0.0, 1.0); }
 float linearStep(float edge0, float edge1, float x) {
     return saturate((x - edge0) / (edge1 - edge0));
 }
+
+vec2 linearStep(float edge0, float edge1, vec2 x) {
+    return saturate((x - edge0) / (edge1 - edge0));
+}
+
+vec3 linearStep(float edge0, float edge1, vec3 x) {
+    return saturate((x - edge0) / (edge1 - edge0));
+}
+
+vec4 linearStep(float edge0, float edge1, vec4 x) {
+    return saturate((x - edge0) / (edge1 - edge0));
+}
