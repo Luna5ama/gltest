@@ -93,13 +93,7 @@ class AutoExposure(private val scene: TerrainScene) : IGLObjContainer by IGLObjC
     }
 
     fun render(fboGroup: FboGroup) {
-//        val targetLuma = 0.1f
-//        val minInc = 0.05f
-//        val maxInc = 8.0f
-//        val exposureMul = 1.0f
-
         autoExposureShader.bind()
-//        autoExposureShader.uniform4f("uParams", targetLuma, minInc, maxInc, exposureMul)
         autoExposureShader.applyBinding {
             sampler(avgLumSamplerBinding)
             sampler(fboGroup.inputBindings)
@@ -115,18 +109,18 @@ class AutoExposure(private val scene: TerrainScene) : IGLObjContainer by IGLObjC
 
         fboGroup.swap()
 
-//        if (timer.tickAndReset(1000)) {
-//            readBuffer.bind(GL_PIXEL_PACK_BUFFER)
-//            glGetTextureImage(avgLumTex.id, 0, GL_RED, GL_FLOAT, 4, 0L)
-//            readBuffer.unbind(GL_PIXEL_PACK_BUFFER)
-//
-//            println("AvgLum: ${mapped.ptr.getFloat()}")
-//
-//            buffer.copyTo(readBuffer, 255 * 4L, 4L, 4L)
-//            val topBinV =
-//                mapped.ptr.getInt(4).toDouble() / (fboGroup.input.fbo.width * fboGroup.input.fbo.height).toDouble()
-//            println("TopBin: $topBinV")
-//            println()
-//        }
+        if (timer.tickAndReset(1000)) {
+            readBuffer.bind(GL_PIXEL_PACK_BUFFER)
+            glGetTextureImage(avgLumTex.id, 0, GL_RED, GL_FLOAT, 4, 0L)
+            readBuffer.unbind(GL_PIXEL_PACK_BUFFER)
+
+            println("AvgLum: ${mapped.ptr.getFloat()}")
+
+            buffer.copyTo(readBuffer, 255 * 4L, 4L, 4L)
+            val topBinV =
+                mapped.ptr.getInt(4).toDouble() / (fboGroup.input.fbo.width * fboGroup.input.fbo.height).toDouble()
+            println("TopBin: $topBinV")
+            println()
+        }
     }
 }
