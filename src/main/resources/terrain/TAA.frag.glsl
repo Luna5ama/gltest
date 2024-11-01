@@ -101,17 +101,18 @@ void main() {
     projFlags = max(projFlags, textureOffset(usam_velocity_projFlags, fTexCoord, ivec2(0, -1)).rg);
     projFlags = max(projFlags, textureOffset(usam_velocity_projFlags, fTexCoord, ivec2(0, 1)).rg);
 
-    float frustumTest = 1.0 - float(projFlags.x > 0.0);
+    float frustumTest = float(projFlags.x > 0.0);
     float newPixel = float(projFlags.y > 0.0);
 
     float clampRatio = 1.0;
     clampRatio = newPixel;
     clampRatio += length(uCameraDelta) * 10.0;
+    clampRatio += frustumTest;
     clampRatio = saturate(clampRatio);
 //    lastColor = mix(lastColor, clamp(lastColor, nearMin2, nearMax2), 0.5);
     lastColor = mix(lastColor, clamp(lastColor, nearMin1, nearMax1), clampRatio);
 
     float mixWeight = uMix.x;
-    mixWeight *= frustumTest;
+//    mixWeight *= frustumTest;
     fragColor = mix(currColor, lastColor, mixWeight);
 }
