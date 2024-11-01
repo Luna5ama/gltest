@@ -5,7 +5,7 @@
 //
 // GT-VBAO
 // https://www.shadertoy.com/view/XXGSDd9
-#pragma optionNV (unroll all)
+//#pragma optionNV (unroll all)
 #define NO_NORMALS
 
 #include "../utils/Rand.glsl"
@@ -75,37 +75,33 @@ float lodTexelSize(float lod) {
 uint calcSectorBits(vec2 H) {
     uvec2 HInt = uvec2(floor(H * 32.0));
     uint ones = 0xFFFFFFFFu; // don't inline here! ANGLE bug: https://issues.angleproject.org/issues/353039526
-    uint mX = HInt.x < 32u ? ones <<        HInt.x  : 0u;
+    uint mX = HInt.x < 32u ? ones << HInt.x : 0u;
     uint mY = HInt.y != 0u ? ones >> (32u - HInt.y) : 0u;
    return mX & mY;
 }
 
-float sliceRelCDFCos(float x, float angN) {
-    float phi = x * PI_CONST - PI_HALF_CONST;
+vec2 sliceRelCDFCos(vec2 x, float angN, float sinN, float cosN) {
+    vec2 phi = x * PI_CONST - PI_HALF_CONST;
 
-    bool c = phi >= angN;
+    vec2 c = step(angN, phi);
+    vec2 n0 = c * 2.0 + 1.0;
+    vec2 n1 = c * -2.0 + 1.0;
+    vec2 n2 = c * 4.0;
 
-    float n0 = c ?  3.0 : 1.0;
-    float n1 = c ? -1.0 : 1.0;
-    float n2 = c ?  4.0 : 0.0;
-
-    float t0 = n0 * cos(angN) + n1 * cos(angN - 2.0 * phi) + (n2 * angN + (n1 * 2.0) * phi + PI_CONST) * sin(angN);
-    float t1 = 4.0 * (cos(angN) + angN * sin(angN));
+    vec2 t0 = n0 * cosN + n1 * cos(angN - 2.0 * phi) + (n2 * angN + (n1 * 2.0) * phi + PI_CONST) * sinN;
+    float t1 = 4.0 * (cosN + angN * sinN);
 
     return t0 / t1;
 }
 
-float sliceRelCDFUniform(float x, float angN) {
-    float phi = x * PI_CONST - PI_HALF_CONST;
+vec2 sliceRelCDFUniform(vec2 x, float angN, float sinN, float cosN) {
+    vec2 phi = x * PI_CONST - PI_HALF_CONST;
 
-    bool c = phi >= angN;
+    vec2 c = step(angN, phi);
+    vec2 m0 = c * 2.0;
+    vec2 m1 = c * -2.0 + 1.0;
 
-    float m0 = c ? 2.0 : 0.0;
-    float m1 = c ?-1.0 : 1.0;
-
-    float d0 = 0.5 * (m0 + m1 * cos(angN - phi) + sin(angN));
-
-    return d0;
+    return  0.5 * (m0 + m1 * cos(angN - phi) + sinN);
 }
 
 #define NOISE_FRAME ubo_cameraDefault.gFrameIndex
@@ -143,10 +139,11 @@ void main() {
                 vec2 sampleDir = sampleDir0 * flip;
 
                 vec3 planeNormal = normalize(cross(vec3(sampleDir, 0.0), viewDir));
-                vec3 sliceTangent = cross(viewDir, planeNormal);
                 vec3 projNormal = normalize(gs_viewNormal - planeNormal * dot(gs_viewNormal, planeNormal));
                 vec3 T = cross(planeNormal, projNormal);
-                float angN = -sign(dot(viewDir, T)) * acosFastPositive(dot(projNormal, viewDir));
+                float cosN = dot(projNormal, viewDir);
+                float angN = -sign(dot(viewDir, T)) * acosFastPositive(cosN);
+                float sinN = sin(angN);
 
                 float maxDist = length(sampleDir * sphereRadius);
 
@@ -177,22 +174,18 @@ void main() {
                         cosH.x = dot(frontPos, viewDir) * inversesqrt(dot(frontPos, frontPos));
                         cosH.y = dot(backPos, viewDir) * inversesqrt(dot(backPos, backPos));
 
-                        vec2 horAng = acos(cosH);
+                        vec2 H = vec2(acosFast(cosH.x), acosFast(cosH.y));
 
-                        vec2 H = clamp((horAng + angN) * RCP_PI_CONST + 0.5, 0.0, 1.0);
+                        H = saturate((H + angN) * RCP_PI_CONST + 0.5);
                         H = vec2(min(H.x, H.y), max(H.x, H.y));
-                        H.x = sliceRelCDFCos(H.x, angN);
-                        H.y = sliceRelCDFCos(H.y, angN);
-//                        H.x = sliceRelCDFUniform(H.x, angN);
-//                        H.y = sliceRelCDFUniform(H.y, angN);
+                        H = sliceRelCDFCos(H, angN, sinN, cosN);
+//                        H = sliceRelCDFUniform(H, angN, sinN, cosN);
 
-                        H = saturate(H + baseIGN * (1.0 / 32.0));
+//                        H = saturate(H + baseIGN * (1.0 / 32.0));
 
                         uint stepSectorBits = calcSectorBits(H);
 
-                        uint ilBit = bitCount(stepSectorBits & ~sampleSectorBits);
-
-                        uint ilCond = uint(ilBit != 0);
+                        uint ilCond = uint((stepSectorBits & ~sampleSectorBits) != 0);
                         ilCond &= uint(all(greaterThanEqual(sampleUV, vec2(0.0))));
                         ilCond &= uint(all(lessThanEqual(sampleUV, vec2(1.0))));
 
@@ -202,7 +195,8 @@ void main() {
                             vec3 sampleNormal = sample2.rgb * 2.0 - 1.0;
                             vec3 direct = sample1.rgb;
 
-                            float ilDiffuse = (float(ilBit) / 32.0);
+                            uint ilBit = bitCount(stepSectorBits & ~sampleSectorBits);
+                            float ilDiffuse = (float(ilBit) * (1.0 / 32.0));
                             float rcpDist = fastRcpSqrtNR0(distSq);
                             ilDiffuse *= saturate(dot(gs_viewNormal, diff) * rcpDist);
                             ilDiffuse *= saturate(dot(sampleNormal, -diff) * rcpDist);
@@ -212,13 +206,15 @@ void main() {
 
                         sampleSectorBits |= stepSectorBits;
                     }
+
                     sampleLod = sampleLod + lodStep;
                     sampleTexelDist += stepTexelSize;
                 }
             }
-            outValue.a += float(bitCount(sampleSectorBits)) / 32.0;
+
+            outValue.a += float(bitCount(sampleSectorBits)) * (1.0 / 32.0);
         }
-        outValue /= float(SSILVB_SAMPLE_SLICES * 2);
+        outValue *= (0.5 / SSILVB_SAMPLE_SLICES);
         outValue.rgb *= 2.0;
 
         outValue.a *= uval_aoStrength.x;

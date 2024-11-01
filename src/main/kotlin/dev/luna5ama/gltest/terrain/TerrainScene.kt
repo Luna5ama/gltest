@@ -741,6 +741,6 @@ class TerrainScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard)
     private fun drawElementsIndirectCommand(src: DrawElementsIndirectCommand) = src
 
     override fun shaderAsmDumps(): List<ShaderProgram> {
-        return listOf(denoiser.shaders[Denoiser.Direction.VERTICAL])
+        return listOf(denoiser.shaders[Denoiser.Direction.VERTICAL], solidLighting.hbao.shader)
     }
 }

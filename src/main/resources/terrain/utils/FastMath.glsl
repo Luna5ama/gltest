@@ -350,6 +350,14 @@ float acosFast4(float inX) {
 }
 
 // [Eberly2014] GPGPU Programming for Games and Science
+float acosFast(float inX) {
+    float x = abs(inX);
+    float res = -0.156583f * x + fsl_HALF_PI;
+    res *= sqrt(1.0f - x);
+    return inX >= 0.0f ? res : fsl_PI - res;
+}
+
+// [Eberly2014] GPGPU Programming for Games and Science
 float acosFastPositive(float inX) {
     float x = abs(inX);
     float res = -0.156583f * x + fsl_HALF_PI;
