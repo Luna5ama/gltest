@@ -474,6 +474,22 @@ class TerrainScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard)
         if (!gameInstance.toggles[4]) {
             glDebugGroup("TXAA") { txaa.render(fboGroup) }
         }
+        if (gameInstance.toggles[6]) {
+            samplers.clearBinding()
+            glViewport(0, 0, camera.screenWidth, camera.screenHeight)
+            val shader = basic.blitShader[Basic.SampleChannel.RRR]
+            shader.bind()
+            shader.applyBinding {
+                sampler("usam_input", txaa.taa.lastMixTexture)
+                buffer(camera.uboBinding)
+            }
+            shader.uniform1f("uMul", 1.0f)
+            shader.uniform1f("uAdd", 0.0f)
+            shader.uniform1f("uPower", 1.0f)
+            shader.uniform1f("uLod", 0.0f)
+            basic.drawQuad()
+        }
+
 
 //        glDebugGroup("Atmosphere") { atmosphere.postPass(fboGroup) }
 //        glDebugGroup("VolumetricLight") {
@@ -518,7 +534,7 @@ class TerrainScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard)
                 sampler("usam_input", solidLighting.hbao.finalTex)
                 buffer(camera.uboBinding)
             }
-            shader.uniform1f("uMul", 0.05f)
+            shader.uniform1f("uMul", 0.01f)
             shader.uniform1f("uAdd", 0.0f)
             shader.uniform1f("uPower", 1.0f)
             shader.uniform1f("uLod", 0.0f)

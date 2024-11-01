@@ -50,9 +50,9 @@ class AutoExposure(private val scene: TerrainScene) : IGLObjContainer by IGLObjC
     fun update(fboGroup: FboGroup){
         val pRangePower = 1.0f
         val pLumRange = 1.0f
-        val timeCoeff = 0.01f
+        val timeCoeff = 0.05f
         val minInc = 0.02f
-        val maxInc = 0.1f
+        val maxInc = 0.2f
 //        val inc = 0.05f
 //        val minInc = inc
 //        val maxInc = inc
@@ -109,18 +109,18 @@ class AutoExposure(private val scene: TerrainScene) : IGLObjContainer by IGLObjC
 
         fboGroup.swap()
 
-        if (timer.tickAndReset(1000)) {
-            readBuffer.bind(GL_PIXEL_PACK_BUFFER)
-            glGetTextureImage(avgLumTex.id, 0, GL_RED, GL_FLOAT, 4, 0L)
-            readBuffer.unbind(GL_PIXEL_PACK_BUFFER)
-
-            println("AvgLum: ${mapped.ptr.getFloat()}")
-
-            buffer.copyTo(readBuffer, 255 * 4L, 4L, 4L)
-            val topBinV =
-                mapped.ptr.getInt(4).toDouble() / (fboGroup.input.fbo.width * fboGroup.input.fbo.height).toDouble()
-            println("TopBin: $topBinV")
-            println()
-        }
+//        if (timer.tickAndReset(1000)) {
+//            readBuffer.bind(GL_PIXEL_PACK_BUFFER)
+//            glGetTextureImage(avgLumTex.id, 0, GL_RED, GL_FLOAT, 4, 0L)
+//            readBuffer.unbind(GL_PIXEL_PACK_BUFFER)
+//
+//            println("AvgLum: ${mapped.ptr.getFloat()}")
+//
+//            buffer.copyTo(readBuffer, 255 * 4L, 4L, 4L)
+//            val topBinV =
+//                mapped.ptr.getInt(4).toDouble() / (fboGroup.input.fbo.width * fboGroup.input.fbo.height).toDouble()
+//            println("TopBin: $topBinV")
+//            println()
+//        }
     }
 }

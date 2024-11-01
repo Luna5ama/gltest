@@ -6,7 +6,7 @@ import dev.luna5ama.gltest.terrain.register
 import dev.luna5ama.gltest.terrain.TerrainScene
 
 class TXAA(scene: TerrainScene, samples: Int, radius: Float) : IGLObjContainer by IGLObjContainer.Impl() {
-    private val taa = register(TAA(scene, samples, radius))
+    val taa = register(TAA(scene, samples, radius))
     private val sharpening = register(Sharpening(scene))
     private val fxaa = register(FXAA(scene))
 

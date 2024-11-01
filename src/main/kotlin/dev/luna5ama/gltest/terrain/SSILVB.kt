@@ -17,23 +17,23 @@ import dev.luna5ama.glwrapper.objects.*
 import kotlin.math.*
 
 class SSILVB(private val scene: TerrainScene, private val solidLighting: SolidLighting) : IGLObjContainer by IGLObjContainer.Impl() {
-//    private val steps = 16
-//    private fun radiusToLodStep(y: Double): Double {
-//        val a0 = 0.0771784
-//        val a1 = 0.139577
-//        val a2 = -1.34389
-//        val yClamped = MathUtil.clamp(y, 16.0, 32768.0)
-//        return a0 * log2(a1 * yClamped + a2)
-//    }
-
-    private val steps = 32
+    private val steps = 16
     private fun radiusToLodStep(y: Double): Double {
-        val a0 = 0.0382693
-        val a1 = 0.0663488
-        val a2 = -1.20751
+        val a0 = 0.0771784
+        val a1 = 0.139577
+        val a2 = -1.34389
         val yClamped = MathUtil.clamp(y, 16.0, 32768.0)
         return a0 * log2(a1 * yClamped + a2)
     }
+
+//    private val steps = 32
+//    private fun radiusToLodStep(y: Double): Double {
+//        val a0 = 0.0382693
+//        val a1 = 0.0663488
+//        val a2 = -1.20751
+//        val yClamped = MathUtil.clamp(y, 16.0, 32768.0)
+//        return a0 * log2(a1 * yClamped + a2)
+//    }
 
     private fun lodStepToRadius(x: Double): Double {
         return (0..<steps).sumOf {

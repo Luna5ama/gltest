@@ -8,11 +8,12 @@ import dev.luna5ama.gltest.terrain.TerrainScene
 import dev.luna5ama.gltest.terrain.register
 import dev.luna5ama.glwrapper.ShaderBindingSpecs
 import dev.luna5ama.glwrapper.base.*
-import dev.luna5ama.glwrapper.objects.FramebufferObject
 import dev.luna5ama.glwrapper.ShaderProgram
 import dev.luna5ama.glwrapper.ShaderSource
+import dev.luna5ama.glwrapper.enums.FilterMode
 import dev.luna5ama.glwrapper.enums.ImageFormat
-import dev.luna5ama.glwrapper.objects.TextureObject
+import dev.luna5ama.glwrapper.enums.WrapMode
+import dev.luna5ama.glwrapper.objects.*
 import org.joml.Vector2f
 import org.joml.Vector3d
 
@@ -31,8 +32,11 @@ class TAA(private val scene: TerrainScene, samples: Int, private val radius: Flo
         )
     )
 
+    val lastMixTexture = register(TextureObject.Texture2D())
+     var lastMixTextureView = TextureObject.Texture2D()
     private val prevFrameTex = register(TextureObject.Texture2D())
     private val lastFrameFbo = register(FramebufferObject())
+    private val drawFbo = register(FramebufferObject())
     private val prevFrameTexBinding = ShaderBindingSpecs.Sampler("usam_prevFrame", prevFrameTex)
 
     private val prevCameraPos = Vector3d()
@@ -137,12 +141,28 @@ class TAA(private val scene: TerrainScene, samples: Int, private val radius: Flo
             lastFrameFbo.setDrawBufferAll()
             lastFrameFbo.check()
             lastFrameFbo.clearColor(0, 0.0f, 0.0f, 0.0f, 0.0f)
+
+            lastMixTexture.apply {
+                lastMixTexture.destroy()
+                setMipLevels(0, 2)
+                setMipLod(0.0f, 2.0f)
+                setFilter(GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR)
+                setWrap(GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE)
+                lastMixTexture.allocate(3, ImageFormat.R8_UN, scene.camera.screenWidth, scene.camera.screenHeight)
+            }
+            lastMixTextureView.destroy()
+            lastMixTextureView = lastMixTexture.createView(ImageFormat.R8_UN, 2, 1, 0, 1)
         }
 
         glDisable(GL_DEPTH_TEST)
         glDisable(GL_BLEND)
 
-        fboGroup.output.fbo.bind()
+        drawFbo.clearAttachments()
+        drawFbo.attach(fboGroup.output.colorTex, GL_COLOR_ATTACHMENT0)
+        drawFbo.attach(lastMixTexture, GL_COLOR_ATTACHMENT1)
+        drawFbo.setDrawBufferAll()
+        drawFbo.check()
+        drawFbo.bind()
 
         shader.bind()
         setParams()
@@ -151,20 +171,19 @@ class TAA(private val scene: TerrainScene, samples: Int, private val radius: Flo
             sampler(scene.solidVelocity.samplerBindings)
             sampler(fboGroup.inputBindings)
             sampler(prevFrameTexBinding)
+            sampler("usam_lastMixWeight", lastMixTextureView, scene.samplerManager.get {
+                filter(FilterMode.Linear, FilterMode.Linear)
+                wrap(WrapMode.ClampToEdge, WrapMode.ClampToEdge)
+            })
 
             buffer(scene.camera.noJitterUboBinding)
         }
 
         scene.basic.drawQuad()
 
-        fboGroup.output.fbo.setReadBuffer(GL_COLOR_ATTACHMENT0)
-        glBlitNamedFramebuffer(
-            fboGroup.output.fbo.id,
-            lastFrameFbo.id,
-            0, 0, fboGroup.output.fbo.width, fboGroup.output.fbo.height,
-            0, 0, lastFrameFbo.width, lastFrameFbo.height,
-            GL_COLOR_BUFFER_BIT, GL_LINEAR
-        )
+        drawFbo.setReadBuffer(GL_COLOR_ATTACHMENT0)
+        drawFbo.blitTo(lastFrameFbo, GL_COLOR_BUFFER_BIT, GL_LINEAR)
+        lastMixTexture.generateMipmap()
 
         val x: Double
         val y: Double

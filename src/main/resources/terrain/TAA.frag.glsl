@@ -9,6 +9,7 @@
 
 uniform sampler2D usam_prevFrame;
 uniform sampler2D usam_mainFbo_inputColor;
+uniform sampler2D usam_lastMixWeight;
 
 uniform vec3 uClampPixel = vec3(0.5, 0.1, 0.9);
 uniform vec3 uClampWorld = vec3(0.5, 0.1, 0.9);
@@ -22,7 +23,8 @@ in vec2 fTexCoord;
 in vec2 fTexCoordI;
 in vec2 fJitterTexCoord;
 
-out vec4 fragColor;
+layout(location = 0) out vec4 rt_mainOutput;
+layout(location = 1) out vec4 rt_lastMixWeight;
 
 vec3 depthToWorldCoord(Camera camera, float depth, vec2 texCoord) {
     vec4 clipCoord = vec4(texCoord, depth, 1.0);
@@ -104,15 +106,25 @@ void main() {
     float frustumTest = float(projFlags.x > 0.0);
     float newPixel = float(projFlags.y > 0.0);
 
-    float clampRatio = 1.0;
-    clampRatio = newPixel;
-    clampRatio += length(uCameraDelta) * 10.0;
-    clampRatio += frustumTest;
-    clampRatio = saturate(clampRatio);
-//    lastColor = mix(lastColor, clamp(lastColor, nearMin2, nearMax2), 0.5);
-    lastColor = mix(lastColor, clamp(lastColor, nearMin1, nearMax1), clampRatio);
+    float clampRatio1 = newPixel * 0.5;
+    clampRatio1 += length(uCameraDelta) * 1.0;
+    clampRatio1 += frustumTest * 0.5;
+    clampRatio1 = saturate(clampRatio1);
 
+    float clampRatio2 = 0.05;
+    clampRatio2 += length(uCameraDelta) * 2.0;
+
+    lastColor = mix(lastColor, clamp(lastColor, nearMin2, nearMax2), clampRatio2);
+    lastColor = mix(lastColor, clamp(lastColor, nearMin1, nearMax1), clampRatio1);
+
+    float lastMixWeight = texture(usam_lastMixWeight, fTexCoord).r;
     float mixWeight = uMix.x;
-//    mixWeight *= frustumTest;
-    fragColor = mix(currColor, lastColor, mixWeight);
+    mixWeight = mix(lastMixWeight, mixWeight, 0.5);
+    float realMixWeight = mixWeight;
+    realMixWeight = clamp(realMixWeight, uMix.y, uMix.z);
+    rt_mainOutput = mix(currColor, lastColor, realMixWeight);
+    mixWeight = mix(lastMixWeight + 0.01, mixWeight, 0.05);
+    mixWeight *= 1.0 - frustumTest;
+
+    rt_lastMixWeight.rgb = vec3(mixWeight);
 }
