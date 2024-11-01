@@ -48,8 +48,6 @@ vec3 toViewSpace(vec2 texCoord, float viewZ, mat4 proj, mat4 projInv) {
     return vec3(viewXY, viewZ);
 }
 
-#define SSILVB_SAMPLE_STEPS 16
-
 float radiusToLodStep(float y) {
     #if SSILVB_SAMPLE_STEPS == 16
     const float a0 = 0.0771784;
@@ -114,8 +112,6 @@ void main() {
 
             float maxDist = length(sampleDir * sphereRadius);
 
-            vec3 backOffset = viewDir * uval_thickness;
-
             float lodStep = radiusToLodStep(maxDist);
             float maxLod = float(textureQueryLevels(usam_linearDepth)) - 1.0;
             float sampleLod = baseSampleLod;
@@ -138,6 +134,7 @@ void main() {
 
                 if (distSq <= uval_radius.w) {
                     vec3 frontPos = diff;
+                    vec3 backOffset = viewDir * uval_thickness * float(stepIndex);
                     vec3 backPos = diff - backOffset;
 
                     vec2 cosH;
@@ -181,7 +178,7 @@ void main() {
         }
 
         outValue /= float(SSILVB_SAMPLE_SLICES);
-        outValue.rgb *= 4.0;
+        outValue.rgb *= 8.0;
 
         outValue.a = linearStep(0.01, 1.0, outValue.a);
         outValue.a *= uval_aoStrength.x;

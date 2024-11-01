@@ -518,7 +518,7 @@ class TerrainScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard)
                 sampler("usam_input", solidLighting.hbao.finalTex)
                 buffer(camera.uboBinding)
             }
-            shader.uniform1f("uMul", 0.01f)
+            shader.uniform1f("uMul", 0.05f)
             shader.uniform1f("uAdd", 0.0f)
             shader.uniform1f("uPower", 1.0f)
             shader.uniform1f("uLod", 0.0f)
