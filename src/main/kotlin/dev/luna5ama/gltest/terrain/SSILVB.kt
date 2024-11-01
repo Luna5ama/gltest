@@ -17,23 +17,23 @@ import dev.luna5ama.glwrapper.objects.*
 import kotlin.math.*
 
 class SSILVB(private val scene: TerrainScene, private val solidLighting: SolidLighting) : IGLObjContainer by IGLObjContainer.Impl() {
-    private val steps = 16
-    private fun radiusToLodStep(y: Double): Double {
-        val a0 = 0.0771784
-        val a1 = 0.139577
-        val a2 = -1.34389
-        val yClamped = MathUtil.clamp(y, 16.0, 32768.0)
-        return a0 * log2(a1 * yClamped + a2)
-    }
-
-//    private val steps = 32
+//    private val steps = 16
 //    private fun radiusToLodStep(y: Double): Double {
-//        val a0 = 0.0382693
-//        val a1 = 0.0663488
-//        val a2 = -1.20751
+//        val a0 = 0.0771784
+//        val a1 = 0.139577
+//        val a2 = -1.34389
 //        val yClamped = MathUtil.clamp(y, 16.0, 32768.0)
 //        return a0 * log2(a1 * yClamped + a2)
 //    }
+
+    private val steps = 32
+    private fun radiusToLodStep(y: Double): Double {
+        val a0 = 0.0382693
+        val a1 = 0.0663488
+        val a2 = -1.20751
+        val yClamped = MathUtil.clamp(y, 16.0, 32768.0)
+        return a0 * log2(a1 * yClamped + a2)
+    }
 
     private fun lodStepToRadius(x: Double): Double {
         return (0..<steps).sumOf {
@@ -60,16 +60,20 @@ class SSILVB(private val scene: TerrainScene, private val solidLighting: SolidLi
         label = "SSILVB"
     }
 
-    private val linearDepthTex = register(TextureObject.Texture2D()).apply { label = "HBAO.LinearDepth" }
+    private val linearDepthTex = register(TextureObject.Texture2D()).apply { label = "SSILVB.LinearDepth" }
     private val linearDepthTexBinding = ShaderBindingSpecs.Sampler("usam_linearDepth", linearDepthTex)
-    val finalTex = register(TextureObject.Texture2D()).apply { label= "HBAO.Tex" }
+    val giTex = register(TextureObject.Texture2D()).apply { label= "SSILVB.GITex" }
+    val aoTex = register(TextureObject.Texture2D()).apply { label = "SSILVB.AOTex" }
 
     private var lastUpdateSizeBit = 0L
 
     private val linearDepthFbo = register(FramebufferObject())
     val finalFbo = register(FramebufferObject())
 
-    val texBinding = ShaderBindingSpecs.Sampler("usam_hbao", finalTex)
+    val texBindings = listOf(
+        ShaderBindingSpecs.Sampler("usam_giTex", giTex),
+        ShaderBindingSpecs.Sampler("usam_aoTex", aoTex)
+    )
 
     fun render(input: GBuffer) {
         glDebugGroup("update") {
@@ -86,14 +90,20 @@ class SSILVB(private val scene: TerrainScene, private val solidLighting: SolidLi
     private fun update(input: GBuffer) {
         val sizeBit = input.tex1.sizeBit
         if (sizeBit != lastUpdateSizeBit) {
-            finalTex.apply {
+            giTex.apply {
                 destroy()
-                allocate(1, ImageFormat.R16G16B16A16_F, input.width, input.height)
+                allocate(1, ImageFormat.R11G11B10_F, input.width, input.height)
+            }
+
+            aoTex.apply {
+                destroy()
+                allocate(1, ImageFormat.R8_UN, input.width, input.height)
             }
 
             finalFbo.apply {
                 clearAttachments()
-                attach(finalTex, GL_COLOR_ATTACHMENT0)
+                attach(giTex, GL_COLOR_ATTACHMENT0)
+                attach(aoTex, GL_COLOR_ATTACHMENT1)
                 setDrawBufferAll()
                 check()
             }
@@ -149,8 +159,9 @@ class SSILVB(private val scene: TerrainScene, private val solidLighting: SolidLi
         }
         val aoRadius = 8.0f
         val maxRadius = aoRadius * 4.0f
-        val baseThickness = 64.0f
-        shader.uniform1f("uval_thickness", baseThickness)
+        val aoThickness = 0.5f
+        val giThickness = 0.5f
+        shader.uniform2f("uval_thickness", aoThickness, giThickness)
         shader.uniform4f("uval_radius", aoRadius, maxRadius, aoRadius * aoRadius, maxRadius * maxRadius)
         shader.uniform2f("uval_aoStrength", if (scene.gameInstance.toggles[1]) 0.0f else 1.0f, 4.0f)
 
@@ -159,7 +170,7 @@ class SSILVB(private val scene: TerrainScene, private val solidLighting: SolidLi
         val tanHalfFov = tan(scene.camera.fov.toRadians() / 2.0f)
         shader.uniform3f("uval_projectParams", 1.0f / (aspect * tanHalfFov), 1.0f / tanHalfFov, aspect)
 
-        glViewport(0, 0, finalTex.width, finalTex.height)
+        glViewport(0, 0, giTex.width, giTex.height)
 
         gpuTimer1.begin()
         glDebugGroup("Sample") {
@@ -169,7 +180,7 @@ class SSILVB(private val scene: TerrainScene, private val solidLighting: SolidLi
 
         gpuTimer2.begin()
         glDebugGroup("Denoise") {
-            scene.denoiser.process(finalTex, scene.solidVelocity.ndpTex, 1)
+            scene.denoiser.process(giTex, scene.solidVelocity.ndpTex, 1)
         }
         gpuTimer2.end()
 

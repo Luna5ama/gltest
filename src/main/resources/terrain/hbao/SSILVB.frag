@@ -1,5 +1,4 @@
 #version 460 core
-#pragma optionNV (unroll all)
 #define NO_NORMALS
 
 #include "../utils/Rand.glsl"
@@ -15,7 +14,7 @@
 
 uniform sampler2D usam_linearDepth;
 
-uniform float uval_thickness;
+uniform vec2 uval_thickness;
 uniform float uval_maxCosH;
 uniform vec4 uval_radius;
 uniform vec2 uval_aoStrength;
@@ -27,7 +26,8 @@ uniform vec3 uval_projectParams;
 in vec2 fTexCoordI;
 in vec2 fTexCoord;
 
-layout(location = 0) out vec4 outValue;
+layout(location = 0) out vec3 rt_outGI;
+layout(location = 1) out float rt_outAO;
 
 #define F_INDEX ubo_cameraDefault.gFrameIndex
 
@@ -116,8 +116,16 @@ const float WEIGHTS[32] = float[](
     0.001204543
 );
 
+float calcHorizonAngles(vec3 projNormal, vec3 pos) {
+    float cosH = dot(pos, projNormal) * inversesqrt(dot(pos, pos));
+    cosH = saturate(cosH);
+    return acosFastPositive(cosH) * RCP_PI_HALF_CONST;
+}
+
 void main() {
-    outValue = vec4(1.0);
+    rt_outGI = vec3(0.0);
+    rt_outAO = 1.0;
+
     if (textureLod(usam_gDepth, fTexCoord, 0).r != 0.0) {
         GBufferData gs_data;
         gbuffer_unpack1(texture(usam_gData1, fTexCoord), gs_data);
@@ -132,10 +140,10 @@ void main() {
         float initialAngle = IGN(gl_FragCoord.xy, NOISE_FRAME) * sampleAngleDelta;
         vec2 sphereRadius = (uval_radius.x / -gs_viewCoord.z) * uval_projectParams.xy * ubo_cameraDefault.screenSize.xy;
 
-        outValue = vec4(0.0);
-
         uint r2Index = (hash21(uvec2(gl_FragCoord.xy)) & 1023u) + NOISE_FRAME;
         float baseSampleLod = r2Seq1(r2Index) * 0.5 - 0.25;
+
+        rt_outAO = 0.0;
 
         for (uint sliceIndex = 0; sliceIndex < SSILVB_SAMPLE_SLICES; sliceIndex++) {
             float sampleAngle = initialAngle + sampleAngleDelta * float(sliceIndex);
@@ -152,7 +160,8 @@ void main() {
             float sampleLod = baseSampleLod;
 
             float sampleTexelDist = 1.5;
-            uint sampleSectorBits = 0u;
+            uint aoSectionBits = 0u;
+            uint giSectionBits = 0u;
 
             for (int stepIndex = 0; stepIndex < SSILVB_SAMPLE_STEPS; stepIndex++) {
                 float sampleLodTexelSize = lodTexelSize(sampleLod) * 1.0;
@@ -169,20 +178,27 @@ void main() {
 
                 if (distSq <= uval_radius.w) {
                     vec3 frontPos = diff;
-                    vec3 backOffset = viewDir * max(0.1 * float(stepIndex), 0.25);
-                    vec3 backPos = diff - backOffset;
+                    float frontH = calcHorizonAngles(projNormal, frontPos);
 
-                    vec2 cosH;
-                    cosH.x = dot(frontPos, projNormal) * inversesqrt(dot(frontPos, frontPos));
-                    cosH.y = dot(backPos, projNormal) * inversesqrt(dot(backPos, backPos));
+                    uint aoStepSectorBits;
+                    {
+                        vec3 backOffset = viewDir * uval_thickness.x;
+                        vec3 backPos = diff - backOffset;
+                        float backH = calcHorizonAngles(projNormal, backPos);
+                        aoStepSectorBits = calcSectorBits(min(frontH, backH), max(frontH, backH));
+                    }
 
-                    cosH = saturate(cosH);
+                    uint giStepSectorBits;
+                    {
+                        vec3 backOffset = viewDir * uval_thickness.y * float(stepIndex);
+                        vec3 backPos = diff - backOffset;
+                        float backH = calcHorizonAngles(projNormal, backPos);
+                        giStepSectorBits = calcSectorBits(min(frontH, backH), max(frontH, backH));
+                    }
 
-                    vec2 H = acosFastPositive(cosH) * RCP_PI_HALF_CONST;
-
-                    uint stepSectorBits = calcSectorBits(min(H.x, H.y), max(H.x, H.y));
-
-                    uint ilBit = bitCount(stepSectorBits & ~sampleSectorBits);
+                    uint ilBit = bitCount(giStepSectorBits & ~giSectionBits);
+                    aoSectionBits |= aoStepSectorBits;
+                    giSectionBits |= giStepSectorBits;
 
                     uint ilCond = uint(ilBit != 0);
                     ilCond &= uint(all(greaterThanEqual(sampleUV, vec2(0.0))));
@@ -201,10 +217,8 @@ void main() {
                         emitterCos = saturate(emitterCos);
                         float receiverCos = saturate(dot(gs_viewNormal, diff) * rcpDist);
 
-                        outValue.rgb += ilBitCoeff * emitterCos * receiverCos * direct;
+                        rt_outGI += ilBitCoeff * emitterCos * receiverCos * direct;
                     }
-
-                    sampleSectorBits |= stepSectorBits;
                 }
                 sampleLod = min(sampleLod + lodStep, maxLod);
                 sampleTexelDist += stepTexelSize;
@@ -212,17 +226,17 @@ void main() {
 
             // Blute force cosine weighted hemisphere LOL
             for (uint bitIndex = 0u; bitIndex < 32; bitIndex++) {
-                outValue.a += float((sampleSectorBits >> bitIndex) & 1u) * WEIGHTS[bitIndex];
+                rt_outAO += float((aoSectionBits >> bitIndex) & 1u) * WEIGHTS[bitIndex];
             }
         }
 
-        outValue /= float(SSILVB_SAMPLE_SLICES);
-        outValue.rgb *= 8.0;
-        outValue.rgb = min(outValue.rgb, 128.0);
+        rt_outGI /= float(SSILVB_SAMPLE_SLICES);
+        rt_outGI *= 8.0;
+        rt_outGI = min(rt_outGI, 128.0);
 
-//        outValue.a = linearStep(0.1, 1.0, outValue.a);
-        outValue.a *= uval_aoStrength.x;
-        outValue.a = saturate(1.0 - outValue.a);
-        outValue.a = pow(outValue.a, uval_aoStrength.y);
+        rt_outAO /= float(SSILVB_SAMPLE_SLICES);
+        rt_outAO *= uval_aoStrength.x;
+        rt_outAO = saturate(1.0 - rt_outAO);
+        rt_outAO = pow(rt_outAO, uval_aoStrength.y);
     }
 }

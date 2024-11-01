@@ -17,7 +17,8 @@ layout(early_fragment_tests) in;
 uniform sampler2D usam_blockNormalAtlas;
 uniform sampler2D usam_blockSpecularAtlas;
 uniform sampler2D usam_lightMap;
-uniform sampler2D usam_hbao;
+uniform sampler2D usam_giTex;
+uniform sampler2D usam_aoTex;
 
 uniform vec3 originOffset;
 uniform vec4 uval_aoParams;
@@ -43,7 +44,9 @@ uint worldCoordRand[6];
 
 
 void doStuff() {
-    vec4 aoSample = texture(usam_hbao, fTexCoord);
+    vec3 giSample = texture(usam_giTex, fTexCoord).rgb;
+    float aoSample = texture(usam_aoTex, fTexCoord).r;
+
     vec4 sl1 = texelFetch(usam_solidLighting1, intTexCoord, 0);
     vec4 sl2 = texelFetch(usam_solidLighting2, intTexCoord, 0);
 
@@ -58,8 +61,8 @@ void doStuff() {
 
     vec3 viewDir = normalize(-gs_data.worldCoord);
 
-    float blockLightAo = pow(aoSample.a, uval_aoParams.x);
-    float skyLightAo = pow(aoSample.a, uval_aoParams.y);
+    float blockLightAo = pow(aoSample, uval_aoParams.x);
+    float skyLightAo = pow(aoSample, uval_aoParams.y);
     vec3 blockLightMul = 8.0 * gtaoMultiBounce(gs_data.albedo.rgb, blockLightAo);
     vec3 skyLightMul = 4.0 * gtaoMultiBounce(gs_data.albedo.rgb, skyLightAo);
     vec3 ambientLight = materialAo * calcAmbient(usam_lightMap, viewDir, mappedNormal, 0.5, gs_data.lightCoord, blockLightMul, skyLightMul);
@@ -67,12 +70,10 @@ void doStuff() {
     vec3 v = vec3(0.0);
 
     v += ambientLight;
-    v += aoSample.rgb * uval_giParams;
-//    v = max(ambientLight, aoSample.rgb * uval_giParams);
+    v += giSample * uval_giParams;
     v *= gs_data.albedo.rgb;
 
     out1.rgb = v;
-//    out1.a = pow(aoSample.a, uval_aoParams.w);
     out1.a = 1.0;
 }
 

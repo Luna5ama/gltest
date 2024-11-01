@@ -93,7 +93,7 @@ class SolidLighting(private val scene: TerrainScene) : IGLObjContainer by IGLObj
                 sampler(scene.textures.blockSpecular)
                 sampler(scene.textures.lightMap)
                 sampler(scene.rtwsm.shadowMapSamplerBindings)
-                sampler(hbao.texBinding)
+                sampler(hbao.texBindings)
 
                 buffer(scene.camera.uboBinding)
                 buffer(scene.rtwsm.uboBinding)
@@ -123,7 +123,7 @@ class SolidLighting(private val scene: TerrainScene) : IGLObjContainer by IGLObj
             indirectShader.uniform1f("uval_giParams", if (scene.gameInstance.toggles[0]) 0.0f else 1.0f)
             indirectShader.applyBinding {
                 sampler(texBingings)
-                sampler(hbao.texBinding)
+                sampler(hbao.texBindings)
                 sampler(scene.solidGBuffer.texBindings)
                 sampler(scene.textures.blockNormal)
                 sampler(scene.textures.blockSpecular)
