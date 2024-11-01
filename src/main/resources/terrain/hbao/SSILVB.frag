@@ -147,8 +147,6 @@ void main() {
 
             float maxDist = length(sampleDir * sphereRadius);
 
-            vec3 backOffset = viewDir * uval_thickness;
-
             float lodStep = radiusToLodStep(maxDist);
             float maxLod = float(textureQueryLevels(usam_linearDepth)) - 1.0;
             float sampleLod = baseSampleLod;
@@ -171,6 +169,7 @@ void main() {
 
                 if (distSq <= uval_radius.w) {
                     vec3 frontPos = diff;
+                    vec3 backOffset = viewDir * max(0.1 * float(stepIndex), 0.25);
                     vec3 backPos = diff - backOffset;
 
                     vec2 cosH;
@@ -195,10 +194,11 @@ void main() {
                         vec3 sampleNormal = sample2.rgb * 2.0 - 1.0;
                         vec3 direct = sample1.rgb;
 
-                        float ilBitCoeff = 1.0;
+                        float ilBitCoeff = (float(ilBit) / 32.0);
                         float rcpDist = fastRcpSqrtNR0(distSq);
                         float emitterCos = dot(sampleNormal, -diff) * rcpDist;
-                        emitterCos = mix(1.0, saturate(emitterCos), step(sample2.a, 0.0));
+                        emitterCos = mix(0.5 + linearStep(-0.6, 0.0, emitterCos), emitterCos, step(sample2.a, 0.0));
+                        emitterCos = saturate(emitterCos);
                         float receiverCos = saturate(dot(gs_viewNormal, diff) * rcpDist);
 
                         outValue.rgb += ilBitCoeff * emitterCos * receiverCos * direct;
@@ -217,8 +217,10 @@ void main() {
         }
 
         outValue /= float(SSILVB_SAMPLE_SLICES);
+        outValue.rgb *= 8.0;
+        outValue.rgb = min(outValue.rgb, 128.0);
 
-        outValue.a = linearStep(0.01, 1.0, outValue.a);
+//        outValue.a = linearStep(0.1, 1.0, outValue.a);
         outValue.a *= uval_aoStrength.x;
         outValue.a = saturate(1.0 - outValue.a);
         outValue.a = pow(outValue.a, uval_aoStrength.y);

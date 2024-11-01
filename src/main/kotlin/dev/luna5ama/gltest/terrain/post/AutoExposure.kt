@@ -50,7 +50,7 @@ class AutoExposure(private val scene: TerrainScene) : IGLObjContainer by IGLObjC
     fun update(fboGroup: FboGroup){
         val pRangePower = 1.0f
         val pLumRange = 1.0f
-        val timeCoeff = 0.05f
+        val timeCoeff = 0.005f
         val minInc = 0.02f
         val maxInc = 0.2f
 //        val inc = 0.05f
