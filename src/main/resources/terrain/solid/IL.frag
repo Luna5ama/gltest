@@ -45,7 +45,7 @@ uint worldCoordRand[6];
 
 
 void doStuff() {
-    vec3 giSample = texture(usam_giTex, fTexCoord).rgb;
+    vec3 giSample = texture(usam_giTex, fTexCoord).rgb * uval_giParams;
     float aoSample = texture(usam_aoTex, fTexCoord).r;
 
     vec4 sl1 = texelFetch(usam_solidLighting1, intTexCoord, 0);
@@ -73,7 +73,7 @@ void doStuff() {
     vec3 v = vec3(0.0);
 
     v += ambientLight;
-    v += giSample * uval_giParams;
+    v += giSample;
     v *= gs_data.albedo.rgb;
 
     out1.rgb = v;

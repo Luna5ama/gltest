@@ -135,7 +135,8 @@ void main() {
         float initialAngle = IGN(gl_FragCoord.xy, NOISE_FRAME) * sampleAngleDelta;
         vec2 sphereRadius = (uval_radius.x / -centerViewCoord.z) * uval_projectParams.xy * ubo_cameraDefault.screenSize.xy;
 
-        uint r2Index = (hash21(uvec2(gl_FragCoord.xy)) & 1023u) + NOISE_FRAME;
+        uvec2 hashKey = (uvec2(gl_FragCoord.xy) & uvec2(31u)) ^ (NOISE_FRAME & 0xFFFFFFF0u);
+        uint r2Index = (hash21(hashKey) & 65535u) + NOISE_FRAME;
         float baseSampleLod = r2Seq1(r2Index) * 0.5 - 0.25;
 
         rt_outAO = 0.0;
