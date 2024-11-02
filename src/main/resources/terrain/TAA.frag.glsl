@@ -120,6 +120,7 @@ void main() {
 
     float lastMixWeight = texture(usam_lastMixWeight, fTexCoord).r;
     float mixWeight = uMix.x;
+    mixWeight = max(mixWeight * (1.0 - saturate(length(uCameraDelta) * 2.0)), 0.9);
     mixWeight = mix(lastMixWeight, mixWeight, 0.5);
     float realMixWeight = mixWeight;
     realMixWeight = clamp(realMixWeight, uMix.y, uMix.z);

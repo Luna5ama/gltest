@@ -61,7 +61,7 @@ class TAA(private val scene: TerrainScene, samples: Int, private val radius: Flo
         val clampWorldMin = 0.0f
         val clampWorldMax = 0.97f
 
-        val baseMix = if (scene.gameInstance.toggles[0]) 0.97f else 0.9f
+        val baseMix = if (scene.gameInstance.toggles[0]) 0.99f else 0.9f
         val minMax = 0.5f
         val maxMix = 0.99f
 
