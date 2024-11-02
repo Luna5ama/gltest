@@ -9,6 +9,7 @@ layout(early_fragment_tests) in;
 #include "../LightParams.glsl"
 #include "../utils/R2Seqs.glsl"
 #include "../utils/Rand.glsl"
+#include "../utils/Math.glsl"
 
 #include "Texs.glsl"
 #include "../SolidGBuffer.glsl"
@@ -63,8 +64,10 @@ void doStuff() {
 
     float blockLightAo = pow(aoSample, uval_aoParams.x);
     float skyLightAo = pow(aoSample, uval_aoParams.y);
-    vec3 blockLightMul = 8.0 * gtaoMultiBounce(gs_data.albedo.rgb, blockLightAo);
-    vec3 skyLightMul = 8.0 * gtaoMultiBounce(gs_data.albedo.rgb, skyLightAo);
+    float giLuminance = linear2luminace(giSample);
+    float att = linearStep(8.0, 0.0, giLuminance);
+    vec3 blockLightMul = att * att * 8.0 * gtaoMultiBounce(gs_data.albedo.rgb, blockLightAo);
+    vec3 skyLightMul = 4.0 * gtaoMultiBounce(gs_data.albedo.rgb, skyLightAo);
     vec3 ambientLight = materialAo * calcAmbient(usam_lightMap, viewDir, mappedNormal, 0.5, gs_data.lightCoord, blockLightMul, skyLightMul);
 
     vec3 v = vec3(0.0);

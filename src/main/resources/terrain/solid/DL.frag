@@ -239,14 +239,14 @@ void doStuff() {
     float blockLightAo = pow(aoSample, uval_aoParams.x);
     float skyLightAo = pow(aoSample, uval_aoParams.y);
     vec3 blockLightMul = 8.0 * gtaoMultiBounce(gs_data.albedo.rgb, blockLightAo);
-    vec3 skyLightMul = 8.0 * gtaoMultiBounce(gs_data.albedo.rgb, skyLightAo);
+    vec3 skyLightMul = 4.0 * gtaoMultiBounce(gs_data.albedo.rgb, skyLightAo);
     vec3 ambientLight = materialAo * calcAmbient(usam_lightMap, viewDir, mappedNormal, 0.5, gs_data.lightCoord, blockLightMul, skyLightMul);
 
 
-    rt_tex1.rgb = max(dot(gs_data.worldNormal, uShadowMap.lightDir), 0.0) * shadow * SUN_LIGHT_INTENSITY * albedo * SUN_LIGHT_COLOR;
+    rt_tex1.rgb = RCP_PI_CONST * max(dot(gs_data.worldNormal, uShadowMap.lightDir), 0.0) * shadow * SUN_LIGHT_INTENSITY * albedo * SUN_LIGHT_COLOR;
     rt_tex1.rgb += emissive * EMISSIVE_INTENSITY * gs_data.albedo.rgb;
-    rt_tex1.rgb += sssValue * shadow * SUN_LIGHT_INTENSITY * albedo * SUN_LIGHT_COLOR;
-    rt_tex1.rgb += uval_mb * max(giSample, 0.0) * albedo;
+    rt_tex1.rgb += RCP_PI_CONST * sssValue * shadow * SUN_LIGHT_INTENSITY * albedo * SUN_LIGHT_COLOR;
+    rt_tex1.rgb += uval_mb * RCP_PI_CONST * max(giSample, 0.0) * albedo;
     rt_tex1.rgb += ambientLight * albedo;
 
     vec3 viewNormal = mat3(ubo_cameraDefault.modelView) * mappedNormal;
