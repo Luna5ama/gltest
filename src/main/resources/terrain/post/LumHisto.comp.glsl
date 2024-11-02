@@ -6,11 +6,6 @@ layout(local_size_x = 16, local_size_y = 16) in;
 
 #define EPSILON 0.001
 
-// Uniforms:
-uniform vec4 uParams = vec4(1.0, 0.1, 1.0, 1.0);
-#define pRangePow uParams.x
-#define pInvLumRange uParams.y
-
 uniform sampler2D usam_mainFbo_inputColor;
 
 layout(std430, binding = 1) buffer ssbo_histogramBuffer {
@@ -37,7 +32,7 @@ void main() {
         if (lum < EPSILON) {
             binIndex = 0;
         } else {
-            float lumMapped = clamp((log2(lum * pInvLumRange) + uParams.x) / uParams.x, 0.0, 1.0);
+            float lumMapped = clamp(log2(lum) + 1.0, 0.0, 1.0);
 
             // Map [0, 1] to [1, 255]. The zeroth bin is handled by the epsilon check above.
             binIndex = uint(lumMapped * 254.0 + 1.0);
