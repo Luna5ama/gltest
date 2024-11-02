@@ -102,7 +102,7 @@ class HWMeshShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRend
     override fun draw() {
         if (batchCount == 0) return
 
-        if (!scene.gameInstance.toggles[2]) {
+        if (!scene.gameInstance.toggles[3]) {
             drawPass(VisibilityState.LAST_VISIBLE)
 
             renderer.cullPipeline.depthBuffer.hwDepthBlit()

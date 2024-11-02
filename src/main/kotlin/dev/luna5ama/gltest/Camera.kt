@@ -299,8 +299,8 @@ class Camera(val scene: AbstractScene) : IGLObjContainer by IGLObjContainer.Impl
             motion.add(newMotionXZ)
             pos.add(motion)
         } else {
-            var hSpeed = 0.1 * speedMultiplier
-            var vSpeed = 0.08 * speedMultiplier
+            var hSpeed = 0.3 * speedMultiplier
+            var vSpeed = 0.2 * speedMultiplier
 
             hSpeed *= timeDelta
             vSpeed *= timeDelta

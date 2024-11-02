@@ -471,23 +471,8 @@ class TerrainScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard)
         } else {
             glDebugGroup("GammaCorrection") { gammaCorrection.render(fboGroup) }
         }
-        if (!gameInstance.toggles[4]) {
+        if (!gameInstance.toggles[9]) {
             glDebugGroup("TXAA") { txaa.render(fboGroup) }
-        }
-        if (gameInstance.toggles[6]) {
-            samplers.clearBinding()
-            glViewport(0, 0, camera.screenWidth, camera.screenHeight)
-            val shader = basic.blitShader[Basic.SampleChannel.RRR]
-            shader.bind()
-            shader.applyBinding {
-                sampler("usam_input", txaa.taa.lastMixTexture)
-                buffer(camera.uboBinding)
-            }
-            shader.uniform1f("uMul", 1.0f)
-            shader.uniform1f("uAdd", 0.0f)
-            shader.uniform1f("uPower", 1.0f)
-            shader.uniform1f("uLod", 0.0f)
-            basic.drawQuad()
         }
 
 

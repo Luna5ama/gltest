@@ -222,7 +222,7 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
             renderer.tempBuffer.clear(GL_R32UI, GL_RED_INTEGER, GL_UNSIGNED_INT, Ptr.NULL)
         }
 
-        if (!scene.gameInstance.toggles[2]) {
+        if (!scene.gameInstance.toggles[3]) {
             drawPass(VisibilityState.LAST_VISIBLE)
 
             glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)

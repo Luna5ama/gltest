@@ -26,6 +26,7 @@ import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.CoroutineContext
 import kotlin.math.max
+import kotlin.math.pow
 
 class GameInstance(val window: Long) {
     val backgroundTaskPool: ThreadPoolExecutor
@@ -54,7 +55,7 @@ class GameInstance(val window: Long) {
     var fullScreen = false
 
     var rerun = false; private set
-    val toggles = BooleanArray(9)
+    val toggles = BooleanArray(10)
 
     lateinit var mainContext: CoroutineContext
     lateinit var glCapabilities: GLCapabilities
@@ -306,17 +307,19 @@ class GameInstance(val window: Long) {
             }
         }
 
+        repeat(10) { i ->
+            keyboard.register(GLFW_KEY_KP_0 + i) {
+                if (it == GLFW_RELEASE) {
+                    scene.camera.speedMultiplier = 2.0.pow(i - 5)
+                }
+            }
+        }
 
         repeat(10) { i ->
-            keyboard.register(GLFW_KEY_1 + i) {
+            keyboard.register(GLFW_KEY_0 + i) {
                 if (it == GLFW_RELEASE) {
-                    if (keyboard.pressing(GLFW_KEY_LEFT_CONTROL)) {
-                        val v = (i + 1).toDouble()
-                        scene.camera.speedMultiplier = v * v
-                    } else {
-                        toggles[i] = !toggles[i]
-                        println("Toggle $i: ${toggles[i]}")
-                    }
+                    toggles[i] = !toggles[i]
+                    println("Toggle $i: ${toggles[i]}")
                 }
             }
         }

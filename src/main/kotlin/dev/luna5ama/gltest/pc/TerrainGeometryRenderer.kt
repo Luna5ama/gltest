@@ -179,7 +179,7 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
         hwVsPipeline.preDraw()
         swQuadPipeline.preDraw()
 
-        if (!scene.gameInstance.toggles[2]) {
+        if (!scene.gameInstance.toggles[3]) {
 //        val chunkCount = scene.terrainMeshData.chunkOffsets.size.toLong()
 //        val visibleFlagLen = chunkCount * visibilityFlagType.byteSize
 //        visibleBuffer.copyTo(visibleBuffer, 4L, 4L + visibleFlagLen, visibleFlagLen)
@@ -460,12 +460,12 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
 
             fun add(chunkInfo: ChunkLayerInfo) {
                 if (sampleCountArray[chunkInfo.chunkIndex] > 8.0f) {
-                    if (!scene.gameInstance.toggles[0]) {
+                    if (!scene.gameInstance.toggles[1]) {
 //                        hwMs.add(chunkInfo)
                         hwVs.add(chunkInfo)
                     }
                 } else {
-                    if (!scene.gameInstance.toggles[1]) {
+                    if (!scene.gameInstance.toggles[2]) {
                         swQuad.add(chunkInfo)
                     }
                 }
