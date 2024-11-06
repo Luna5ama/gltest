@@ -228,7 +228,7 @@ void main() {
 
         rt_outGI /= float(SSILVB_SAMPLE_SLICES);
         rt_outGI *= 16.0;
-        rt_outGI = min(rt_outGI, 32.0);
+        rt_outGI = min(rt_outGI, 64.0);
 
         rt_outAO /= float(SSILVB_SAMPLE_SLICES);
         rt_outAO = linearStep(0.1, 1.0, rt_outAO);

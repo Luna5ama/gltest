@@ -98,7 +98,6 @@ float calcShadow(vec3 lightViewNormal, float sssFactor) {
     vec2 texelSize;
     shadowCoord.xy = rtwsm_warpTexCoordTexelSize(usam_warpingMap, shadowCoord.xy, texelSize);
     shadowCoord.z -= 0.000003 / (texelSize.x + texelSize.y);
-//    shadowCoord.z -= lightDirOffset;
 
     float blockerDistance = searchBlocker(shadowCoord, texelSize);
     float penumbraMult = 0.05 * blockerDistance;
@@ -192,7 +191,6 @@ void doStuff() {
     float alpha = roughness * roughness;
 
     float reflectance = specMap.g;
-    reflectance = max(reflectance, 0.01);
 
     const float sssValueMin = 65.0 / 255.0;
     const float sssValueRangeInv = 1.0 / (1.0 - sssValueMin);
@@ -256,7 +254,7 @@ void doStuff() {
     vec3 diffuseDL = bsdf_diffuseHammon(nDotL, nDotV, nDotH, lDotV, albedo, a);
     diffuseDL += sssValue * albedo;
     diffuseDL *= shadow;
-//    diffuseDL *= vec3(1.0) - f;
+    diffuseDL *= 1.0 - linear2luminace(f);
 
     vec3 specularDL = shadow * cts_main(mappedNormal, uShadowMap.lightDir, viewDir, f, alpha);
     specularDL = max(vec3(0.0), specularDL);

@@ -163,7 +163,7 @@ class SSILVB(private val scene: TerrainScene, private val solidLighting: SolidLi
         val giThickness = 0.2f
         shader.uniform2f("uval_thickness", aoThickness, giThickness)
         shader.uniform4f("uval_radius", aoRadius, maxRadius, aoRadius * aoRadius, maxRadius * maxRadius)
-        shader.uniform2f("uval_aoStrength", if (scene.gameInstance.toggles[1]) 0.0f else 1.0f, 4.0f)
+        shader.uniform2f("uval_aoStrength", if (scene.gameInstance.toggles[1]) 0.0f else 1.0f, 2.0f)
 
 
         val aspect = scene.camera.aspectRatio

@@ -1,6 +1,6 @@
 #include "../BRDFs.glsl"
 
-const float EMISSIVE_INTENSITY = 16.0;
+const float EMISSIVE_INTENSITY = 32.0;
 
 vec3 calcAmbient(sampler2D lightMapTex, vec3 viewDir, vec3 normal, float roughness, vec2 lightCoord, float blockLight, float skylight) {
     const vec3 AMBIENT_DIFFUSE_1 = vec3(0.16169041, 0.80845207, -0.5659165);
