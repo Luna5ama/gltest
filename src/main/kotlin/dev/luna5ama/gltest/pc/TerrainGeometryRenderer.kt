@@ -44,7 +44,7 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
     }
 //    val visibilityFlagType = VisibilityFlagType.INT32
 
-    val threadBatchSize = if (GLWrapper.instance.properties.vendor == GpuVendor.NVIDIA) 96 else 12
+    val threadBatchSize = if (GLWrapper.instance.properties.vendor == GpuVendor.NVIDIA) 96 else 128
 
     val debugQuadCount = true
 
@@ -207,10 +207,10 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
 
         glDebugGroup("SW2HW Blit") {
             blitSW2HW()
-//            scene.vbuffer.fbo.blitTo(scene.fboGroup.input.fbo, GL_DEPTH_BUFFER_BIT, GL_NEAREST)
-//            scene.vbuffer.fbo.blitTo(scene.fboGroup.output.fbo, GL_DEPTH_BUFFER_BIT, GL_NEAREST)
+            scene.vbuffer.fbo.blitTo(scene.fboGroup.input.fbo, GL_DEPTH_BUFFER_BIT, GL_NEAREST)
+            scene.vbuffer.fbo.blitTo(scene.fboGroup.output.fbo, GL_DEPTH_BUFFER_BIT, GL_NEAREST)
         }
-        glClipControl(GL_LOWER_LEFT, GL_NEGATIVE_ONE_TO_ONE)
+        glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE)
 
         if (printTimer.tickAndReset(3000)) {
 //            println("Min distance ${sqrt(sortKeys.min().toDouble())}")

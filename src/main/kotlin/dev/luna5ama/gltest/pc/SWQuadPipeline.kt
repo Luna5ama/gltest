@@ -209,10 +209,6 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
         }
     }
 
-    override fun preDraw() {
-        super.preDraw()
-    }
-
     private val printTimer = TickTimer()
 
     override fun draw() {
@@ -311,5 +307,4 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
             glDispatchComputeIndirect(0L)
         }
     }
-
 }

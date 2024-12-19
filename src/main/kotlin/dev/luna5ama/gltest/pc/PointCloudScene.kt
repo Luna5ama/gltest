@@ -12,6 +12,7 @@ import dev.luna5ama.kmogus.Arr
 import dev.luna5ama.kmogus.MemoryStack
 import dev.luna5ama.kmogus.Ptr
 import org.joml.Vector2i
+import org.joml.Vector3d
 import org.lwjgl.glfw.GLFW.*
 import java.io.File
 import java.nio.channels.FileChannel
@@ -169,17 +170,30 @@ class PointCloudScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboa
         shadingTimer.end()
     }
 
+    private val lastPos = Vector3d()
+
     private fun bufferBlit() {
         bufferBlit.bind()
         bufferBlit.applyBinding {
-            image("uimg_prevTexture", taaPrevTex)
+            sampler("usam_inputDepth", fboGroup.input.depthStencilTex)
+            sampler("usam_prevTexture", taaPrevTex)
             image("uimg_input", fboGroup.input.colorTex)
             image("uimg_output", fboGroup.output.colorTex)
+            buffer(camera.uboBinding)
         }
-        bufferBlit.uniform1f("uval_mixFactor", 0.8f)
+        bufferBlit.uniform1f("uval_mixFactor", 0.95f)
+        bufferBlit.uniform3f(
+            "uval_cameraDelta",
+            (camera.pos.x - lastPos.x).toFloat(),
+            (camera.pos.y - lastPos.y).toFloat(),
+            (camera.pos.z - lastPos.z).toFloat()
+        )
+        lastPos.set(camera.pos)
 
         glDispatchCompute((camera.screenSize.x + 15) / 16, (camera.screenSize.y + 15) / 16, 1)
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
+
+        fboGroup.output.colorTex.copyTo(taaPrevTex)
 
         fboGroup.swap()
     }

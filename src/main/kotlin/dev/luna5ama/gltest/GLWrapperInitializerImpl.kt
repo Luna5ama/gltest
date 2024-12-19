@@ -18,7 +18,7 @@ class GLWrapperInitializerImpl : GLWrapperInitializer by GLWrapperInitializerLWJ
     }
 
     class PathResolverImpl : ShaderPathResolver {
-        private val root = PathImpl(File("C:\\CodeShit\\gltest\\src\\main\\resources").toURI())
+        private val root = PathImpl(File("I:\\code\\gltest\\src\\main\\resources").toURI())
 
         override fun resolve(path: String): ShaderPathResolver.Path {
             return PathImpl(root.uri.resolve("./$path"))

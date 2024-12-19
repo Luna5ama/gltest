@@ -148,8 +148,7 @@ bool cullQuad(uint localQuadIndex) {
     screenBoundF *= uval_viewportSize.xyxy;
     uvec4 screenBound = uvec4(floor(screenBoundF.xy), ceil(screenBoundF.zw));
     survived = survived & uint(!any(equal(round(screenBoundF.xy), round(screenBoundF.zw))));
-    //    survived = survived & uint(all(greaterThan(screenBound.zw - screenBound.xy, uvec2(8))));
-        survived = survived & uint(all(lessThan(screenBound.zw - screenBound.xy, uvec2(16))));
+    survived = survived & uint(all(lessThan(screenBound.zw - screenBound.xy, uvec2(16))));
 
     return bool(survived);
 }

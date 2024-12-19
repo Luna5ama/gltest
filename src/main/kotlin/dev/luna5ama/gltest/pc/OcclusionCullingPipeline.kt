@@ -71,7 +71,6 @@ abstract class OcclusionCullingPipeline(
 
         val fbo = register(FramebufferObject()).apply {
             label = "VBuffer.EmptyFBO"
-            create()
         }
 
         private val imageBindings = listOf(

@@ -2,11 +2,11 @@ package dev.luna5ama.gltest
 
 import dev.fastmc.common.TickTimer
 import dev.fastmc.common.wrapDirectByteBuffer
+import dev.luna5ama.gltest.atmosphere.AtmosphereScatteringScene
 import dev.luna5ama.gltest.pc.PointCloudScene
 import dev.luna5ama.gltest.structs.Vec2i32
 import dev.luna5ama.gltest.structs.sizeof
 import dev.luna5ama.gltest.terrain.TerrainScene
-import dev.luna5ama.glwrapper.ShaderSource
 import dev.luna5ama.glwrapper.base.*
 import dev.luna5ama.kmogus.*
 import kotlinx.coroutines.CoroutineScope
@@ -18,8 +18,6 @@ import org.lwjgl.opengl.GL
 import org.lwjgl.opengl.GL43C.glDebugMessageCallback
 import org.lwjgl.opengl.GLCapabilities
 import org.lwjgl.opengl.GLDebugMessageCallback
-import java.io.File
-import java.net.URI
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.ThreadFactory
 import java.util.concurrent.ThreadPoolExecutor
@@ -46,7 +44,7 @@ class GameInstance(val window: Long) {
     val backgroundTaskScope = CoroutineScope(backgroundTaskContext)
 
     companion object {
-//        private const val SWAP_INTERVAL = 10
+//        private const val SWAP_INTERVAL = 1
         private const val SWAP_INTERVAL = 0
         private const val PRINT_FPS = false
     }
@@ -137,9 +135,9 @@ class GameInstance(val window: Long) {
         val keyboard = Keyboard()
 
 //    val scene = TestScene(this, mouse, keyboard)
-        val scene = TerrainScene(this, mouse, keyboard)
-//        val scene = PointCloudScene(this, mouse, keyboard)
-//        scene.reloadShaders()
+//        val scene = TerrainScene(this, mouse, keyboard)
+        val scene = PointCloudScene(this, mouse, keyboard)
+//        val scene = AtmosphereScatteringScene(this, mouse, keyboard)
 
         registerKeyCallbacks(scene, keyboard)
 
@@ -310,7 +308,7 @@ class GameInstance(val window: Long) {
         repeat(10) { i ->
             keyboard.register(GLFW_KEY_KP_0 + i) {
                 if (it == GLFW_RELEASE) {
-                    scene.camera.speedMultiplier = 2.0.pow(i - 5)
+                    scene.camera.speedMultiplier = 2.0.pow((i - 5) * 2)
                 }
             }
         }
