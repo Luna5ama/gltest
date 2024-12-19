@@ -27,6 +27,7 @@ import org.apache.commons.lang3.mutable.MutableBoolean
 import org.joml.*
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.system.measureNanoTime
 
 class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by IGLObjContainer.Impl() {
     val visibilityFlagType = when {
@@ -228,6 +229,7 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
             println("HW Draw: %.3f ms".format(hwMsDrawTimer.averageMS() + hwVsDrawTimer.averageMS()))
             println("SW Draw: %.3f ms".format(swDrawTimer.averageMS()))
             println("Total Draw: %.3f ms".format(swDrawTimer.averageMS() + hwVsDrawTimer.averageMS() + hwMsDrawTimer.averageMS()))
+            println()
         }
     }
 
@@ -241,111 +243,119 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
 
         fun run() {
             scene.gameInstance.backgroundTaskScope.launch {
-                val updateDataList = List(ParallelUtils.CPU_THREADS * 4) { UpdateData() }
+                measureNanoTime {
+                    coroutineScope {
+                        launch {
+                            calcSampleCount()
+                        }
+                        launch {
+                            doFrustumCulling()
+                        }
+                        launch {
+                            calculateVisibleFaceMask()
+                        }
+                        launch {
+                            sortChunkPos()
+                        }
+                    }
 
-                coroutineScope {
-                    launch {
-                        calcSampleCount()
-                    }
-                    launch {
-                        doFrustumCulling()
-                    }
-                    launch {
-                        calculateVisibleFaceMask()
-                    }
-                    launch {
-                        sortChunkPos()
-                    }
+                    doUpdate()
+                }.let {
+                    println("Update time: %.3f ms".format(it / 1e6))
                 }
+            }
+        }
 
-                coroutineScope {
-                    var threadIndex = 0
-                    ParallelUtils.splitListIndex(
-                        chunkPosIndices.size,
-                        ParallelUtils.CPU_THREADS * 4,
-                        blockForEach = { start, end ->
-                            val localThreadIndex = threadIndex++
-                            launch {
-                                val localUpdateData = updateDataList[localThreadIndex]
-                                val filteredChunks = arrayOfNulls<ChunkLayerInfo>(63)
+        private suspend fun doUpdate() {
+            val updateDataList = List(ParallelUtils.CPU_THREADS * 4) { UpdateData() }
 
-                                val cameraPos = scene.camera.pos
-                                val chunkPosList = scene.terrainMeshData.chunkPos
-                                val originOffsetX = cameraPos.x.floorToInt()
-                                val originOffsetY = cameraPos.y.floorToInt()
-                                val originOffsetZ = cameraPos.z.floorToInt()
-                                val rangeSq = scene.camera.viewDistance * scene.camera.viewDistance
+            coroutineScope {
+                var threadIndex = 0
+                ParallelUtils.splitListIndex(
+                    chunkPosIndices.size,
+                    ParallelUtils.CPU_THREADS * 4,
+                    blockForEach = { start, end ->
+                        val localThreadIndex = threadIndex++
+                        launch {
+                            val localUpdateData = updateDataList[localThreadIndex]
+                            val filteredChunks = arrayOfNulls<ChunkLayerInfo>(63)
 
-                                for (i1 in start until end) {
-                                    val chunkIndex = chunkPosIndices[i1]
-                                    val chunkPos = chunkPosList[chunkIndex]
-                                    val dx = chunkPos.x * 16 + 8 - originOffsetX
-                                    val dy = chunkPos.y * 16 + 8 - originOffsetY
-                                    val dz = chunkPos.z * 16 + 8 - originOffsetZ
-                                    if (dx * dx + dy * dy + dz * dz > rangeSq) continue
-                                    if (!frustumCullingFlags[chunkIndex].value) continue
+                            val cameraPos = scene.camera.pos
+                            val chunkPosList = scene.terrainMeshData.chunkPos
+                            val originOffsetX = cameraPos.x.floorToInt()
+                            val originOffsetY = cameraPos.y.floorToInt()
+                            val originOffsetZ = cameraPos.z.floorToInt()
+                            val rangeSq = scene.camera.viewDistance * scene.camera.viewDistance
 
-                                    val rawList = scene.terrainMeshData.chunk2LayerMap[chunkIndex] ?: continue
-                                    val rawListArray = rawList.elements()
-                                    var filteredSize = 0
-                                    for (i in rawList.indices) {
-                                        val chunk = rawListArray[i]
-                                        if (faceMaskArray[chunkIndex] and chunk.faceBits == 0) continue
-                                        filteredChunks[filteredSize++] = chunk
+                            for (i1 in start until end) {
+                                val chunkIndex = chunkPosIndices[i1]
+                                val chunkPos = chunkPosList[chunkIndex]
+                                val dx = chunkPos.x * 16 + 8 - originOffsetX
+                                val dy = chunkPos.y * 16 + 8 - originOffsetY
+                                val dz = chunkPos.z * 16 + 8 - originOffsetZ
+                                if (dx * dx + dy * dy + dz * dz > rangeSq) continue
+                                if (!frustumCullingFlags[chunkIndex].value) continue
+
+                                val rawList = scene.terrainMeshData.chunk2LayerMap[chunkIndex] ?: continue
+                                val rawListArray = rawList.elements()
+                                var filteredSize = 0
+                                for (i in rawList.indices) {
+                                    val chunk = rawListArray[i]
+                                    if (faceMaskArray[chunkIndex] and chunk.faceBits == 0) continue
+                                    filteredChunks[filteredSize++] = chunk
+                                }
+
+                                if (filteredSize == 0) continue
+                                if (filteredSize == 1) {
+                                    localUpdateData.add(filteredChunks[0]!!)
+                                    continue
+                                }
+
+                                var startingIndex = -1
+                                fun flush(n: Int) {
+                                    if (startingIndex != -1) {
+                                        var quadCount = 0
+                                        for (i in startingIndex until n) {
+                                            quadCount += filteredChunks[i]!!.quadCount
+                                        }
+                                        val chunkLayerInfo = filteredChunks[startingIndex]!!
+                                        localUpdateData.add(
+                                            ChunkLayerInfo(
+                                                chunkLayerInfo.chunkIndex,
+                                                chunkLayerInfo.pos,
+                                                quadCount,
+                                                chunkLayerInfo.startIndex,
+                                                111111
+                                            )
+                                        )
+                                        startingIndex = -1
+                                    } else {
+                                        localUpdateData.add(filteredChunks[n - 1]!!)
                                     }
-
-                                    if (filteredSize == 0) continue
-                                    if (filteredSize == 1) {
-                                        localUpdateData.add(filteredChunks[0]!!)
+                                }
+                                for (i in 1 until filteredSize) {
+                                    val last = filteredChunks[i - 1]!!
+                                    val current = filteredChunks[i]!!
+                                    if (last.startIndex + last.quadCount == current.startIndex) {
+                                        if (startingIndex == -1) {
+                                            startingIndex = i - 1
+                                        }
                                         continue
                                     }
-
-                                    var startingIndex = -1
-                                    fun flush(n: Int) {
-                                        if (startingIndex != -1) {
-                                            var quadCount = 0
-                                            for (i in startingIndex until n) {
-                                                quadCount += filteredChunks[i]!!.quadCount
-                                            }
-                                            val chunkLayerInfo = filteredChunks[startingIndex]!!
-                                            localUpdateData.add(
-                                                ChunkLayerInfo(
-                                                    chunkLayerInfo.chunkIndex,
-                                                    chunkLayerInfo.pos,
-                                                    quadCount,
-                                                    chunkLayerInfo.startIndex,
-                                                    111111
-                                                )
-                                            )
-                                            startingIndex = -1
-                                        } else {
-                                            localUpdateData.add(filteredChunks[n - 1]!!)
-                                        }
-                                    }
-                                    for (i in 1 until filteredSize) {
-                                        val last = filteredChunks[i - 1]!!
-                                        val current = filteredChunks[i]!!
-                                        if (last.startIndex + last.quadCount == current.startIndex) {
-                                            if (startingIndex == -1) {
-                                                startingIndex = i - 1
-                                            }
-                                            continue
-                                        }
-                                        flush(i)
-                                    }
-                                    flush(filteredSize)
+                                    flush(i)
                                 }
+                                flush(filteredSize)
                             }
                         }
-                    )
-                }
-
-                for (i in 1 until updateDataList.size) {
-                    updateDataList[0].addAll(updateDataList[i])
-                }
-
-                pendingUpdateData.send(updateDataList[0])
+                    }
+                )
             }
+
+            for (i in 1 until updateDataList.size) {
+                updateDataList[0].addAll(updateDataList[i])
+            }
+
+            pendingUpdateData.send(updateDataList[0])
         }
 
         private suspend fun sortChunkPos() {
