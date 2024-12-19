@@ -1,6 +1,7 @@
 package dev.luna5ama.gltest.pc
 
 import dev.fastmc.common.*
+import dev.fastmc.common.collection.CircularArray
 import dev.fastmc.common.sort.IntInsertionSort
 import dev.fastmc.common.sort.IntIntrosort
 import dev.luna5ama.gltest.GPUTimer
@@ -169,7 +170,7 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
             chunkPosData.upload(0, arr.len, arr.ptr)
         }
 
-        if (updateTimer.tickAndReset(25)) {
+        if (updateTimer.tickAndReset(10)) {
             UpdateTask().run()
         }
         tryUpdate()
@@ -229,9 +230,12 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
             println("HW Draw: %.3f ms".format(hwMsDrawTimer.averageMS() + hwVsDrawTimer.averageMS()))
             println("SW Draw: %.3f ms".format(swDrawTimer.averageMS()))
             println("Total Draw: %.3f ms".format(swDrawTimer.averageMS() + hwVsDrawTimer.averageMS() + hwMsDrawTimer.averageMS()))
+            println("Update: %.3f ms".format(updateTimes.average() / 1e6))
             println()
         }
     }
+
+    private val updateTimes = CircularArray<Long>(20)
 
     private inner class UpdateTask {
         private val frustumCullingFlags = Array(scene.terrainMeshData.chunkPos.size) {
@@ -261,7 +265,9 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
 
                     doUpdate()
                 }.let {
-                    println("Update time: %.3f ms".format(it / 1e6))
+                   synchronized(updateTimes) {
+                       updateTimes.add(it)
+                   }
                 }
             }
         }

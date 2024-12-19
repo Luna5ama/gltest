@@ -1,6 +1,5 @@
 package dev.luna5ama.gltest
 
-import dev.fastmc.common.TickTimer
 import dev.luna5ama.gltest.terrain.IGLObjContainer
 import dev.luna5ama.glwrapper.base.*
 import dev.luna5ama.glwrapper.enums.GLObjectType
