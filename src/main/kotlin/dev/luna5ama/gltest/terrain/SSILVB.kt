@@ -26,6 +26,7 @@ class SSILVB(private val scene: TerrainScene, private val solidLighting: SolidLi
 //        return a0 * log2(a1 * yClamped + a2)
 //    }
 
+    // Inverse function fit
     private val steps = 32
     private fun radiusToLodStep(y: Double): Double {
         val a0 = 0.0382693
@@ -143,7 +144,7 @@ class SSILVB(private val scene: TerrainScene, private val solidLighting: SolidLi
         }
         scene.basic.drawQuad()
 
-        scene.hizGen.processColor(linearDepthTex, linearDepthTex, HiZBufferGen.KernelType.MAX)
+        scene.hizGen.processColor(linearDepthTex, linearDepthTex, HiZBufferGen.KernelType.AVG)
     }
 
     private fun sample(input: GBuffer) {

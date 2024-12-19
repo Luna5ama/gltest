@@ -32,7 +32,7 @@ class Denoiser(private val scene: TerrainScene) : IGLObjContainer by IGLObjConta
                 shaderH.applyBinding {
                     buffer(scene.camera.uboBinding)
                     sampler("usam_input", inout)
-                    sampler(    "usam_ndpTex", ndpTex)
+                    sampler("usam_ndpTex", ndpTex)
                     image("uimg_output", swapTexture)
                 }
                 glDispatchCompute(wgXH, inout.sizeY, 1)

@@ -60,8 +60,6 @@ bool findIntersection(sampler2D depthTexture, vec3 refDir, out vec3 intersection
         binarySearch = float(i >= MAX_LINEAR_ITERATION);
 
         rayCur = mix(rayMin + linearDir, (rayMin + rayMax) * 0.5, binarySearch);
-//        rayCur = (rayMin + rayMax) * 0.5;
-//        rayCur = rayMin + linearDir;
         depth = textureLod(depthTexture, rayCur.xy, 0.0).x;
 
         if (depth < rayCur.z) {
@@ -71,17 +69,6 @@ bool findIntersection(sampler2D depthTexture, vec3 refDir, out vec3 intersection
             rayMin = rayCur;
         }
     }
-
-//    for (int i = 0; i < 64; i++) {
-//        rayCur = (rayMin + rayMax) * 0.5;
-//        depth = texture(depthTexture, rayCur.xy).x;
-//
-//        if (depth < rayCur.z) {
-//            rayMax = rayCur;
-//        } else {
-//            rayMin = rayCur;
-//        }
-//    }
 
     intersectionOut = rayCur;
 
