@@ -2,6 +2,7 @@ package dev.luna5ama.gltest.pc
 
 import java.util.*
 import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.LinkedBlockingDeque
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
@@ -13,33 +14,27 @@ import kotlin.coroutines.Continuation
 import kotlin.coroutines.suspendCoroutine
 
 class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) {
-    private val lock = ReentrantLock()
-    private val condition = lock.newCondition()
-
     private val workers = List(workerCount) { Worker(it).also(threadConfigure) }
     private val activeWorkerCount = AtomicInteger()
-    private val isRunning = AtomicBoolean(true)
 
-    private val mainTaskQueue = OpenConcurrentLinkedQueue<AbstractTask<*>>(
-        DummyTask(),
-        AbstractTask::class.java.getDeclaredField("next")
-    )
+    private val isAccepting = AtomicBoolean(true)
+    private val isRunning = AtomicBoolean(true)
 
     init {
         workers.forEach { it.start() }
     }
 
     fun shutdown() {
-        var task = mainTaskQueue.peekHead()
-        while (task != null) {
-            task.awaitBlocking()
-            task = mainTaskQueue.peekHead()
-        }
-        isRunning.set(false)
+        isAccepting.set(false)
         while (activeWorkerCount.get() != 0) {
-            notifyWorkers()
+            workers.forEach { it.interrupt() }
         }
         workers.forEach { it.join() }
+    }
+
+    fun shutdownNow() {
+        isRunning.set(false)
+        shutdown()
     }
 
     fun iterativeTask(size: Int, batchSize: Int, action: IterativeAction): Task<Unit> {
@@ -48,24 +43,33 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) {
         return task
     }
 
-    inline fun <S> scopedIterativeTask(size: Int, batchSize: Int, crossinline newScope: () -> S, action: ScopedIterativeAction<S>): Task<List<S>> {
+    inline fun <S> scopedIterativeTask(
+        size: Int,
+        batchSize: Int,
+        crossinline newScope: () -> S,
+        action: ScopedIterativeAction<S>
+    ): Task<List<S>> {
         return scopedIterativeTask(size, batchSize, { _: Int -> newScope() }, action)
     }
 
-    fun <S> scopedIterativeTask(size: Int, batchSize: Int, newScope: (Int) -> S, action: ScopedIterativeAction<S>): Task<List<S>> {
+    fun <S> scopedIterativeTask(
+        size: Int,
+        batchSize: Int,
+        newScope: (Int) -> S,
+        action: ScopedIterativeAction<S>
+    ): Task<List<S>> {
         val task = ScopedIterativeTask(size, batchSize, newScope, action)
         submitTask(task)
         return task
     }
 
     private fun submitTask(task: AbstractTask<*>) {
-        mainTaskQueue.enqueue(task)
-        notifyWorkers()
-    }
-
-    private fun notifyWorkers() {
-        lock.withLock {
-            condition.signalAll()
+        if (isAccepting.get()) {
+            synchronized(workers) {
+                workers.forEach {
+                    it.taskQueue.offer(task)
+                }
+            }
         }
     }
 
@@ -90,29 +94,30 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) {
     }
 
     private inner class Worker(val id: Int) : Thread("LWWSP-$id") {
+        val taskQueue = LinkedBlockingDeque<AbstractTask<*>>()
         val random = Random()
 
         override fun run() {
             activeWorkerCount.incrementAndGet()
             var waitTime = 100L
             while (isRunning.get()) {
-                val cTask = mainTaskQueue.peekHead()
+                val cTask = taskQueue.poll(waitTime, TimeUnit.MICROSECONDS)
                 if (cTask == null) {
-                    lock.withLock {
-                        if (!condition.await(waitTime, TimeUnit.MICROSECONDS)) {
-                            waitTime = minOf(waitTime * 2L, 5_000_000)
-                        }
-                    }
+                    waitTime = minOf(waitTime * 2L, 5_000_000)
                     continue
                 }
-                waitTime = 1000L
-                cTask.run(this)
+                waitTime = 100L
+                do {
+                    cTask.run(this)
+                    yield()
+                } while (!cTask.isCompleted)
             }
             activeWorkerCount.decrementAndGet()
         }
     }
 
     sealed interface Task<T> {
+        val isCompleted: Boolean
         fun awaitBlocking(): Result<T>
         suspend fun await(): Result<T>
     }
@@ -120,20 +125,19 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) {
     private val unitResult = Result.success(Unit)
 
     private abstract inner class AbstractTask<T> : Task<T> {
-        var next: AbstractTask<*>? = null
-
-        private val completed = AtomicReference<Result<T>>(null)
+        private val completeResult = AtomicReference<Result<T>>(null)
         private val lock = ReentrantLock()
         private val condition = lock.newCondition()
         private val continuations = ConcurrentLinkedQueue<Continuation<T>>()
 
-        protected fun complete(resultProvider: () -> Result<T>) {
-            if (mainTaskQueue.dequeue(this) == null) return
-            val result = resultProvider()
-            if (!completed.compareAndSet(null, result)) {
-                error("Task already completed")
-                return
+        override val isCompleted get() = completeResult.get() != null
+
+        protected fun complete(result: Result<T>) {
+            var success = false
+            while (completeResult.get() == null) {
+                success = completeResult.compareAndSet(null, result)
             }
+            if (!success) return
             lock.withLock {
                 condition.signalAll()
             }
@@ -141,8 +145,7 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) {
         }
 
         protected fun completeFailure(result: Result<T>) {
-            mainTaskQueue.dequeue(this)
-            val oldResult = completed.getAndSet(result)
+            val oldResult = completeResult.getAndSet(result)
             if (oldResult != null) {
                 oldResult.exceptionOrNull()?.printStackTrace()
                 return
@@ -154,23 +157,23 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) {
         }
 
         final override fun awaitBlocking(): Result<T> {
-            var result = completed.get()
+            var result = completeResult.get()
             while (result == null) {
                 lock.withLock {
                     condition.await(1, TimeUnit.MICROSECONDS)
                 }
-                result = completed.get()
+                result = completeResult.get()
             }
             return result
         }
 
         final override suspend fun await(): Result<T> {
-            var result = completed.get()
+            var result = completeResult.get()
             while (result == null) {
                 suspendCoroutine {
                     continuations.add(it)
                 }
-                result = completed.get()
+                result = completeResult.get()
             }
             return result
         }
@@ -178,14 +181,8 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) {
         abstract fun run(worker: Worker)
     }
 
-    private inner class DummyTask : AbstractTask<Unit>() {
-        override fun run(worker: Worker) {
-            throw UnsupportedOperationException("Not supported")
-        }
-    }
-
     private abstract inner class AbstractIterativeTask<S>(
-        size: Int,
+        private val size: Int,
         protected val batchSize: Int
     ) : AbstractTask<S>() {
         val threadRanges = AtomicLongArray(workerCount + 1)
@@ -206,6 +203,7 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) {
 
         fun debugText(): String {
             val sb = StringBuilder()
+            sb.append("Total: ${threadRanges.get(workerCount)}/${size}\n")
             for (i in 0 until workerCount) {
                 val encoded = threadRanges.get(i)
                 val start = decodeRangeStart(encoded)
@@ -244,7 +242,6 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) {
                     }
                     steal(worker)
                     if (++stealCount >= workerCount) {
-                        notifyWorkers()
                         Thread.yield()
                     }
                     continue
@@ -260,8 +257,6 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) {
                 runBatch(worker, start, newStart)
                 completeCount += newStart - start
             }
-            notifyWorkers()
-            threadRanges.getAndAdd(workerCount, -completeCount.toLong())
         }
 
         private fun steal(worker: Worker) {
@@ -291,7 +286,7 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) {
             try {
                 super.run(worker)
                 if (threadRanges.get(workerCount) == 0L) {
-                    complete { unitResult }
+                    complete(unitResult)
                 }
             } catch (e: Exception) {
                 completeFailure(Result.failure(e))
@@ -315,7 +310,7 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) {
             try {
                 super.run(worker)
                 if (threadRanges.get(workerCount) == 0L) {
-                    complete { Result.success(scopes) }
+                    complete(Result.success(scopes))
                 }
             } catch (e: Exception) {
                 completeFailure(Result.failure(e))

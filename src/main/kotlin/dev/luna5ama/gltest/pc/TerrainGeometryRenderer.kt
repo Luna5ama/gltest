@@ -254,7 +254,6 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
             scene.gameInstance.backgroundTaskScope.launch {
                 measureNanoTime {
                     doUpdate1()
-
                     doUpdate2()
                 }.let {
                     synchronized(updateTimesAsync) {
@@ -319,7 +318,7 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
                         )
                     )
                 }
-            }.await()
+            }.await().getOrThrow()
 
             val rangeThreshold = 64.0
             if (lastCameraPos.distanceSquared(cameraPos) < rangeThreshold * rangeThreshold) {
