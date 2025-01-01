@@ -1,6 +1,5 @@
 package dev.luna5ama.gltest.pc
 
-import java.lang.foreign.MemorySegment.Scope
 import java.util.*
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.TimeUnit
@@ -49,8 +48,14 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) {
         return task
     }
 
-    fun <S> scopedIterativeTask(size: Int, batchSize: Int, newScope: (Int) -> S): ScopedIterativeTaskBuilder<S> {
-        return ScopedIterativeTaskBuilder(size, batchSize, newScope)
+    inline fun <S> scopedIterativeTask(size: Int, batchSize: Int, crossinline newScope: () -> S, action: ScopedIterativeAction<S>): Task<List<S>> {
+        return scopedIterativeTask(size, batchSize, { _: Int -> newScope() }, action)
+    }
+
+    fun <S> scopedIterativeTask(size: Int, batchSize: Int, newScope: (Int) -> S, action: ScopedIterativeAction<S>): Task<List<S>> {
+        val task = ScopedIterativeTask(size, batchSize, newScope, action)
+        submitTask(task)
+        return task
     }
 
     private fun submitTask(task: AbstractTask<*>) {
@@ -82,34 +87,6 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) {
 
     interface RecursiveAction<T, R> {
         suspend fun run(): R
-    }
-
-    inner class ScopedIterativeTaskBuilder<S> internal constructor(
-        val size: Int,
-        val batchSize: Int,
-        val newScope: (Int) -> S
-    ) {
-        private lateinit var action0: ScopedIterativeAction<S>
-        private lateinit var merge0: (S, S) -> S
-
-        fun action(action: ScopedIterativeAction<S>) : ScopedIterativeTaskBuilder<S> {
-            check(!this::action0.isInitialized) { "Action already set" }
-            action0 = action
-            return this
-        }
-
-        fun merge(merge: (S, S) -> S) : ScopedIterativeTaskBuilder<S> {
-            check(!this::merge0.isInitialized) { "Merge already set" }
-            merge0 = merge
-            return this
-        }
-
-        fun submit(): Task<S> {
-            val mergeFunc = if (this::merge0.isInitialized) merge0 else { a, b -> a }
-            val task = ScopedIterativeTask(size, batchSize, newScope, action0, mergeFunc)
-            submitTask(task)
-            return task
-        }
     }
 
     private inner class Worker(val id: Int) : Thread("LWWSP-$id") {
@@ -208,7 +185,7 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) {
     }
 
     private abstract inner class AbstractIterativeTask<S>(
-        protected val size: Int,
+        size: Int,
         protected val batchSize: Int
     ) : AbstractTask<S>() {
         val threadRanges = AtomicLongArray(workerCount + 1)
@@ -330,16 +307,15 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) {
         size: Int,
         batchSize: Int,
         private val newScope: (Int) -> S,
-        private val action: ScopedIterativeAction<S>,
-        private val merge: (S, S) -> S
-    ) : AbstractIterativeTask<S>(size, batchSize) {
+        private val action: ScopedIterativeAction<S>
+    ) : AbstractIterativeTask<List<S>>(size, batchSize) {
         private val scopes = List(workerCount) { newScope(it) }
 
         override fun run(worker: Worker) {
             try {
                 super.run(worker)
                 if (threadRanges.get(workerCount) == 0L) {
-                    complete { Result.success(scopes.reduce(merge)) }
+                    complete { Result.success(scopes) }
                 }
             } catch (e: Exception) {
                 completeFailure(Result.failure(e))

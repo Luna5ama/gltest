@@ -1,6 +1,5 @@
 package dev.luna5ama.gltest.pc
 
-import dev.fastmc.common.ParallelUtils
 import dev.fastmc.common.TickTimer
 import dev.luna5ama.gltest.VisibilityState
 import dev.luna5ama.gltest.glDebugGroup
@@ -16,8 +15,6 @@ import dev.luna5ama.glwrapper.objects.BufferObject
 import dev.luna5ama.kmogus.*
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.max
 import kotlin.math.min
 
@@ -57,153 +54,118 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
 
     private val filterShader = object : ShaderProgram.Variants<VisibilityState>() {
         override fun create(key: VisibilityState): ShaderProgram {
-            return register(ShaderProgram(
-                ShaderSource.Comp("pc/geometry/swquad/BatchFilter.comp") {
-                    define("FLAG_TYPE", renderer.visibilityFlagType.glslTypeName)
-                    define(key.defineName)
-                }
-            )).apply {
+            return register(
+                ShaderProgram(
+                    ShaderSource.Comp("pc/geometry/swquad/BatchFilter.comp") {
+                        define("FLAG_TYPE", renderer.visibilityFlagType.glslTypeName)
+                        define(key.defineName)
+                    }
+                )).apply {
                 label = "SWQuad.SWQuadBatchFilter-$key"
             }
         }
     }
 
-    private val batchIndicesShader = register(ShaderProgram(
-        ShaderSource.Comp("pc/geometry/swquad/BatchIndices.comp") {
-            define("FLAG_TYPE", renderer.visibilityFlagType.glslTypeName)
-            define("SHARED_SUM_SIZE", run {
-                val subgroupSize = glGetInteger(GL_SUBGROUP_SIZE_KHR)
-                val subgroupCount = scene.gpuScan.workGroupSize / subgroupSize
-                max(subgroupCount, subgroupSize)
-            })
-        }
-    )).apply {
+    private val batchIndicesShader = register(
+        ShaderProgram(
+            ShaderSource.Comp("pc/geometry/swquad/BatchIndices.comp") {
+                define("FLAG_TYPE", renderer.visibilityFlagType.glslTypeName)
+                define("SHARED_SUM_SIZE", run {
+                    val subgroupSize = glGetInteger(GL_SUBGROUP_SIZE_KHR)
+                    val subgroupCount = scene.gpuScan.workGroupSize / subgroupSize
+                    max(subgroupCount, subgroupSize)
+                })
+            }
+        )).apply {
         label = "SWQuad.BatchIndicesShader"
     }
 
-    val drawShader = register(ShaderProgram(
-        ShaderSource.Comp("pc/geometry/swquad/Draw.comp") {
-            define("WORKGROUP_SIZE", workGroupSize)
-            define("QUADS_PER_WORK_GROUP", quadsPerWorkGroup)
-            define("FLAG_TYPE", renderer.visibilityFlagType.glslTypeName)
-            if (scene.overdrawDebug) {
-                define("OVERDRAW_DEBUG")
+    val drawShader = register(
+        ShaderProgram(
+            ShaderSource.Comp("pc/geometry/swquad/Draw.comp") {
+                define("WORKGROUP_SIZE", workGroupSize)
+                define("QUADS_PER_WORK_GROUP", quadsPerWorkGroup)
+                define("FLAG_TYPE", renderer.visibilityFlagType.glslTypeName)
+                if (scene.overdrawDebug) {
+                    define("OVERDRAW_DEBUG")
+                }
+                if (renderer.debugQuadCount) {
+                    define("DEBUG_QUAD_COUNT")
+                }
             }
-            if (renderer.debugQuadCount) {
-                define("DEBUG_QUAD_COUNT")
-            }
-        }
-    )).apply {
+        )).apply {
         label = "SWQuad.DrawShader"
     }
 
     override suspend fun update(chunks: List<TerrainMeshData.ChunkLayerInfo>) {
+        class Scope {
+            val localBuffer = Arr.malloc(0L)
+            var localQuadCount = 0
+            var localBatchCount = 0
+        }
+
         val batchStructSize = sizeof(QuadBatchInfo)
-        val quadBatchInfoMetaSize = 16L
-        Arr.malloc(quadBatchInfoMetaSize + chunks.size * batchStructSize).use { uploadBuffer ->
-            coroutineScope {
-                launch {
-                    updateCtcBuffer(chunks)
+        coroutineScope {
+            launch {
+                updateCtcBuffer(chunks)
+            }
+
+            val scopes = renderer.lwwsp.scopedIterativeTask(chunks.size, 128, ::Scope) { start, end ->
+                localBuffer.ensureCapacity((localBatchCount + (end - start)) * batchStructSize, false)
+
+                for (i in start until end) {
+                    val chunkInfo = chunks[i]
+                    var quadIdx = 0
+                    while (quadIdx < chunkInfo.quadCount) {
+                        val batchQuadCount = min(chunkInfo.quadCount - quadIdx, quadsPerWorkGroup)
+
+                        localBuffer.ensureCapacity((localBatchCount + 1L) * batchStructSize, false)
+                        val struct = QuadBatchInfo(localBuffer.ptr + localBatchCount * batchStructSize)
+                        struct.chunkIndex = chunkInfo.chunkIndex
+                        struct.first = chunkInfo.startIndex + quadIdx
+                        struct.count = batchQuadCount
+
+                        quadIdx += batchQuadCount
+                        localBatchCount++
+                    }
+                    localQuadCount += quadIdx
+                }
+            }.await().getOrThrow()
+
+            quadCount = scopes.sumOf { it.localQuadCount }
+            batchCount = scopes.sumOf { it.localBatchCount }
+            if (batchCount == 0) return@coroutineScope
+
+            launch(scene.gameInstance.mainContext) {
+                val batchIndicesLen = 16L + batchCount * 4L
+                batchIndices.ensureCapacityDiscard(batchIndicesLen, 0)
+
+                val batchMaskBallotsLen = batchCount * renderer.visibilityFlagType.byteSize.toLong()
+                batchFilterFlag.ensureCapacityDiscard(batchMaskBallotsLen, 0)
+
+                val scanWorkGroupCount = scene.gpuScan.workGroupSize
+                val scanInputSize = 16L + (batchCount + scanWorkGroupCount - 1) / scanWorkGroupCount * 4L
+                scanBuffer.ensureCapacityDiscard(scanInputSize, 0)
+
+                val quadBatchInfoMetaSize = 16L
+                val quadMetaLen = quadBatchInfoMetaSize + batchCount * batchStructSize
+                quadBatchInfo.ensureCapacityDiscard(quadMetaLen, GL_DYNAMIC_STORAGE_BIT)
+
+                MemoryStack {
+                    val arr = calloc(quadMetaLen)
+                    arr.ptr.setInt(0L, batchCount)
+                    quadBatchInfo.upload(0, quadBatchInfoMetaSize, arr.ptr)
                 }
 
-                val quadCountGlobal = AtomicInteger(0)
-                val localBuffers = List(ParallelUtils.CPU_THREADS) { Arr.malloc(0L) }
-                val localBatchCounts = IntArray(ParallelUtils.CPU_THREADS)
-                var threadIndexCounter = 0
-
-                coroutineScope {
-                    ParallelUtils.splitListIndex(
-                        chunks.size,
-                        blockForEach = { start, end ->
-                            val threadIndex = threadIndexCounter++
-                            launch {
-                                val localBuffer = localBuffers[threadIndex]
-                                localBuffer.ensureCapacity((end - start) * batchStructSize, false)
-                                var localQuadCount = 0
-                                var localBatchCount = 0
-
-                                for (i in start until end) {
-                                    val chunkInfo = chunks[i]
-                                    var quadIdx = 0
-                                    while (quadIdx < chunkInfo.quadCount) {
-                                        val batchQuadCount = min(chunkInfo.quadCount - quadIdx, quadsPerWorkGroup)
-
-                                        localBuffer.ensureCapacity((localBatchCount + 1L) * batchStructSize, false)
-                                        val struct =
-                                            QuadBatchInfo(localBuffer.ptr + localBatchCount * batchStructSize)
-                                        struct.chunkIndex = chunkInfo.chunkIndex
-                                        struct.first = chunkInfo.startIndex + quadIdx
-                                        struct.count = batchQuadCount
-
-                                        quadIdx += batchQuadCount
-                                        localBatchCount++
-                                    }
-                                    localQuadCount += quadIdx
-                                }
-
-                                localBatchCounts[threadIndex] = localBatchCount
-                                quadCountGlobal.addAndGet(localQuadCount)
-                            }
-                        }
+                var batchOffset = 0
+                scopes.forEachIndexed { index, scope ->
+                    quadBatchInfo.upload(
+                        quadBatchInfoMetaSize + batchOffset * batchStructSize,
+                        scope.localBatchCount * batchStructSize,
+                        scope.localBuffer.ptr
                     )
-                }
-
-                quadCount = quadCountGlobal.get()
-                batchCount = localBatchCounts.sum()
-                if (batchCount == 0) return@coroutineScope
-
-                coroutineScope {
-                    launch(scene.gameInstance.mainContext) {
-                        val batchIndicesLen = 16L + batchCount * 4L
-                        if (batchIndices.size < batchIndicesLen) {
-                            batchIndices.destroy()
-                            batchIndices.allocate(batchIndicesLen, 0)
-                        }
-
-                        val batchMaskBallotsLen = batchCount * renderer.visibilityFlagType.byteSize.toLong()
-                        if (batchFilterFlag.size < batchMaskBallotsLen) {
-                            batchFilterFlag.destroy()
-                            batchFilterFlag.allocate(batchMaskBallotsLen, 0)
-                        }
-
-                        val scanWorkGroupCount = scene.gpuScan.workGroupSize
-                        val scanInputSize = 16L + (batchCount + scanWorkGroupCount - 1) / scanWorkGroupCount * 4L
-                        if (scanBuffer.size < scanInputSize) {
-                            scanBuffer.destroy()
-                            scanBuffer.allocate(scanInputSize, 0)
-                        }
-                    }
-
-                    launch {
-                        uploadBuffer.ensureCapacity(quadBatchInfoMetaSize + batchCount * batchStructSize, false)
-
-                        var batchOffset = 0
-                        localBuffers.forEachIndexed { index, arr ->
-                            val localBatchCount = localBatchCounts[index]
-                            memcpy(
-                                arr.ptr,
-                                0L,
-                                uploadBuffer.ptr,
-                                quadBatchInfoMetaSize + batchOffset * batchStructSize,
-                                localBatchCount * batchStructSize
-                            )
-                            batchOffset += localBatchCount
-                            arr.free()
-                        }
-
-                        uploadBuffer.ptr.setInt(0L, batchCount)
-
-                        withContext(scene.gameInstance.mainContext) {
-                            val quadMetaLen = quadBatchInfoMetaSize + batchCount * sizeof(QuadBatchInfo)
-                            if (quadBatchInfo.size < quadMetaLen) {
-                                quadBatchInfo.destroy()
-                                quadBatchInfo.allocate(quadMetaLen, uploadBuffer.ptr, GL_DYNAMIC_STORAGE_BIT)
-                            } else {
-                                quadBatchInfo.invalidate()
-                                quadBatchInfo.upload(0L, quadMetaLen, uploadBuffer.ptr)
-                            }
-                        }
-                    }
+                    scope.localBuffer.free()
+                    batchOffset += scope.localBatchCount
                 }
             }
         }
