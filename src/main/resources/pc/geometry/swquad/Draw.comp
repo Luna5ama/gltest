@@ -206,184 +206,76 @@ void rasterize(uint baseLocalQuadIndex) {
         vec2 invTexelN = 1.0 / texelNF;
         screenBoundF *= uval_viewportSize.zwzw;
 
-        vec4 t1bBase, t1bDx, t1bDy;
+        vec3 t1bBase, t1bDx, t1bDy;
         swr_calcBarycentricGrad(screenBoundF, invTexelN, posCS1.xy, posCS2.xy, posCS3.xy, t1bBase.xyz, t1bDx.xyz, t1bDy.xyz);
         t1bBase.xyz += (t1bDx.xyz + t1bDy.xyz) * 0.5;
 
-        vec4 t2bBase, t2bDx, t2bDy;
+        vec3 t2bBase, t2bDx, t2bDy;
         swr_calcBarycentricGrad(screenBoundF, invTexelN, posCS3.xy, posCS4.xy, posCS1.xy, t2bBase.xyz, t2bDx.xyz, t2bDy.xyz);
         t2bBase.xyz += (t2bDx.xyz + t2bDy.xyz) * 0.5;
 
-        i64vec4 valueVec;
-        ivec4 outputCoord;
-        vec4 t1b = t1bBase;
-        vec4 t2b = t2bBase;
-        valueVec.w = int64_t(quadIndex << 1u);
+        i64vec3 valueVec;
+        ivec3 outputCoord;
+        vec3 t1b = t1bBase;
+        vec3 t2b = t2bBase;
 
-        if (false) {
-            for (outputCoord.y = screenBound.y; outputCoord.y < screenBound.w; outputCoord.y++) {
-                vec3 t1bDxInv;
-                t1bDxInv = mix(
-                    vec3(1e8),
-                    vec3(1.0) / t1bDx.xyz,
-                    notEqual(t1bDx.xyz, vec3(0.0))
-                );
-                vec3 t1CrossX = t1b.xyz * -t1bDxInv;
+        t1bDy.xyz -= t1bDx.xyz * texelNF.x;
+        t2bDy.xyz -= t2bDx.xyz * texelNF.x;
+        for (outputCoord.y = screenBound.y; outputCoord.y < screenBound.w; outputCoord.y++) {
+            for (outputCoord.x = screenBound.x; outputCoord.x < screenBound.z; outputCoord.x++) {
+                if (any(bvec2(all(greaterThanEqual(t1b.xyz, vec3(0.0))), all(greaterThanEqual(t2b.xyz, vec3(0.0)))))) {
+                    outputCoord.z = outputCoord.y * uval_viewportSizeI.x + outputCoord.x;
+                    valueVec.x = ssbo_vBufferDepthQuadIndex[outputCoord.z];
+                    valueVec.y = (int64_t(floatBitsToInt(dot(posZs.xyz, t1b.xyz))) << 32) | int64_t(quadIndex << 1u);
+                    valueVec.z = (int64_t(floatBitsToInt(dot(posZs.zwx, t2b.xyz))) << 32) | int64_t((quadIndex << 1u) | 1u);
+                    #ifdef CUTOUT
+                    vec4 texCoordX = vec4(
+                        unpackUnorm2x16(texCoordXY.x),
+                        unpackUnorm2x16(texCoordXY.y)
+                    );
+                    vec4 texCoordY = vec4(
+                        unpackUnorm2x16(texCoordXY.z),
+                        unpackUnorm2x16(texCoordXY.w)
+                    );
+                    vec2 texCoord1 = vec2(dot(texCoordX.xyz, t1b.xyz), dot(texCoordY.xyz, t1b.xyz));
+                    vec2 texCoord2 = vec2(dot(texCoordX.zwx, t2b.xyz), dot(texCoordY.zwx, t2b.xyz));
+                    #endif
 
-                bvec3 t1OpenEdge = greaterThan(t1bDx.xyz, vec3(0.0));
-                vec3 t1MinX = mix(vec3(0.0), t1CrossX, t1OpenEdge);
-                vec3 t1MaxX = mix(t1CrossX, vec3(screenBound.z - screenBound.x), t1OpenEdge);
-
-                ivec4 tx;
-                tx.x = int(ceil(max3(t1MinX)));
-                tx.y = int(floor(min3(t1MaxX)));
-
-
-                vec3 t2bDxInv;
-                t2bDxInv = mix(
-                    vec3(1e8),
-                    vec3(1.0) / t2bDx.xyz,
-                    notEqual(t2bDx.xyz, vec3(0.0))
-                );
-                vec3 t2CrossX = t2b.xyz * -t2bDxInv;
-
-                bvec3 t2OpenEdge = greaterThan(t2bDx.xyz, vec3(0.0));
-                vec3 t2MinX = mix(vec3(0.0), t2CrossX, t2OpenEdge);
-                vec3 t2MaxX = mix(t2CrossX, vec3(screenBound.z - screenBound.x), t2OpenEdge);
-
-                tx.z = int(ceil(max3(t2MinX)));
-                tx.w = int(floor(min3(t2MaxX)));
-
-                tx.x = min(tx.x, tx.z);
-                tx.y = max(tx.y, tx.w);
-
-                vec3 t1bX = t1b.xyz + tx.x * t1bDx.xyz;
-                vec3 t2bX = t2b.xyz + tx.x * t2bDx.xyz;
-
-                tx.xy += screenBound.xx;
-                tx.xy = clamp(tx.xy, screenBound.xx, screenBound.zz);
-
-                for (outputCoord.x = tx.x; outputCoord.x <= tx.y; outputCoord.x++) {
-                    if (any(bvec2(all(greaterThanEqual(t1bX, vec3(0.0))), all(greaterThanEqual(t2bX, vec3(0.0)))))) {
-                        #ifdef CUTOUT
-                        vec4 texCoordX = vec4(
-                            unpackUnorm2x16(texCoordXY.x),
-                            unpackUnorm2x16(texCoordXY.y)
-                        );
-                        vec4 texCoordY = vec4(
-                            unpackUnorm2x16(texCoordXY.z),
-                            unpackUnorm2x16(texCoordXY.w)
-                        );
-                        vec4 texCoord12 = vec4(
-                            dot(texCoordX.xyz, t1bX),
-                            dot(texCoordY.xyz, t1bX),
-                            dot(texCoordX.zwx, t2bX),
-                            dot(texCoordY.zwx, t2bX)
-                        );
-                        #endif
-
-                        outputCoord.z = outputCoord.y * uval_viewportSizeI.x + outputCoord.x;
-                        valueVec.x = ssbo_vBufferDepthQuadIndex[outputCoord.z];
-                        valueVec.y = (int64_t(floatBitsToInt(dot(posZs.xyz, t1bX))) << 32) | valueVec.w;
-                        valueVec.z = (int64_t(floatBitsToInt(dot(posZs.zwx, t2bX))) << 32) | valueVec.w | 1;
-
-                        #ifdef CUTOUT
-                        if (all(bvec3(all(greaterThanEqual(t1bX, vec3(0.0))), texture(usam_blockAlbedoAtlas, texCoord12.xy).a > 0.5, valueVec.y >= valueVec.x)))
-                        #else
-                        if (all(greaterThanEqual(t1bX, vec3(0.0))) && valueVec.y >= valueVec.x)
-                        #endif
-                        {
-                            #ifdef OVERDRAW_DEBUG
-                            if (atomicMax(ssbo_vBufferDepthQuadIndex[outputCoord.z], valueVec.y) <= valueVec.y) {
-                                imageAtomicAdd(uimg_overdrawCounter, outputCoord.xy, 1u);
-                            }
-                            #else
-                            atomicMax(ssbo_vBufferDepthQuadIndex[outputCoord.z], valueVec.y);
-                            #endif
+                    #ifdef CUTOUT
+                    if (all(bvec3(all(greaterThanEqual(t1b.xyz, vec3(0.0))), texture(usam_blockAlbedoAtlas, texCoord1).a > 0.5, valueVec.y >= valueVec.x)))
+                    #else
+                    if (all(greaterThanEqual(t1b.xyz, vec3(0.0))) && valueVec.y >= valueVec.x)
+                    #endif
+                    {
+                        #ifdef OVERDRAW_DEBUG
+                        if (atomicMax(ssbo_vBufferDepthQuadIndex[outputCoord.z], valueVec.y) <= valueVec.y) {
+                            imageAtomicAdd(uimg_overdrawCounter, outputCoord.xy, 1u);
                         }
-
-
-                        #ifdef CUTOUT
-                        if (all(bvec3(all(greaterThanEqual(t2bX, vec3(0.0))), texture(usam_blockAlbedoAtlas, texCoord12.zw).a > 0.5, valueVec.z >= valueVec.x)))
                         #else
-                        if (all(greaterThanEqual(t2bX, vec3(0.0))) && valueVec.z >= valueVec.x)
+                        atomicMax(ssbo_vBufferDepthQuadIndex[outputCoord.z], valueVec.y);
                         #endif
-                        {
-                            #ifdef OVERDRAW_DEBUG
-                            if (atomicMax(ssbo_vBufferDepthQuadIndex[outputCoord.z], valueVec.z) <= valueVec.z) {
-                                imageAtomicAdd(uimg_overdrawCounter, outputCoord.xy, 1u);
-                            }
-                            #else
-                            atomicMax(ssbo_vBufferDepthQuadIndex[outputCoord.z], valueVec.z);
-                            #endif
-                        }
                     }
-                    t1bX += t1bDx.xyz;
-                    t2bX += t2bDx.xyz;
-                }
 
-                t1b.xyz += t1bDy.xyz;
-                t2b.xyz += t2bDy.xyz;
-            }
-        } else {
-            t1bDy.xyz -= t1bDx.xyz * texelNF.x;
-            t2bDy.xyz -= t2bDx.xyz * texelNF.x;
-            for (outputCoord.y = screenBound.y; outputCoord.y < screenBound.w; outputCoord.y++) {
-                for (outputCoord.x = screenBound.x; outputCoord.x < screenBound.z; outputCoord.x++) {
-                    if (any(bvec2(all(greaterThanEqual(t1b.xyz, vec3(0.0))), all(greaterThanEqual(t2b.xyz, vec3(0.0)))))) {
-                        outputCoord.z = outputCoord.y * uval_viewportSizeI.x + outputCoord.x;
-                        valueVec.x = ssbo_vBufferDepthQuadIndex[outputCoord.z];
-                        valueVec.y = (int64_t(floatBitsToInt(dot(posZs.xyz, t1b.xyz))) << 32) | int64_t(quadIndex << 1u);
-                        valueVec.z = (int64_t(floatBitsToInt(dot(posZs.zwx, t2b.xyz))) << 32) | int64_t((quadIndex << 1u) | 1u);
-                        #ifdef CUTOUT
-                        vec4 texCoordX = vec4(
-                            unpackUnorm2x16(texCoordXY.x),
-                            unpackUnorm2x16(texCoordXY.y)
-                        );
-                        vec4 texCoordY = vec4(
-                            unpackUnorm2x16(texCoordXY.z),
-                            unpackUnorm2x16(texCoordXY.w)
-                        );
-                        vec2 texCoord1 = vec2(dot(texCoordX.xyz, t1b.xyz), dot(texCoordY.xyz, t1b.xyz));
-                        vec2 texCoord2 = vec2(dot(texCoordX.zwx, t2b.xyz), dot(texCoordY.zwx, t2b.xyz));
-                        #endif
-
-                        #ifdef CUTOUT
-                        if (all(bvec3(all(greaterThanEqual(t1b.xyz, vec3(0.0))), texture(usam_blockAlbedoAtlas, texCoord1).a > 0.5, valueVec.y >= valueVec.x)))
-                        #else
-                        if (all(greaterThanEqual(t1b.xyz, vec3(0.0))) && valueVec.y >= valueVec.x)
-                        #endif
-                        {
-                            #ifdef OVERDRAW_DEBUG
-                            if (atomicMax(ssbo_vBufferDepthQuadIndex[outputCoord.z], valueVec.y) <= valueVec.y) {
-                                imageAtomicAdd(uimg_overdrawCounter, outputCoord.xy, 1u);
-                            }
-                            #else
-                            atomicMax(ssbo_vBufferDepthQuadIndex[outputCoord.z], valueVec.y);
-                            #endif
+                    #ifdef CUTOUT
+                    if (all(bvec3(all(greaterThanEqual(t2b.xyz, vec3(0.0))), texture(usam_blockAlbedoAtlas, texCoord2).a > 0.5, valueVec.z >= valueVec.x)))
+                    #else
+                    if (all(greaterThanEqual(t2b.xyz, vec3(0.0))) && valueVec.z >= valueVec.x)
+                    #endif
+                    {
+                        #ifdef OVERDRAW_DEBUG
+                        if (atomicMax(ssbo_vBufferDepthQuadIndex[outputCoord.z], valueVec.z) <= valueVec.z) {
+                            imageAtomicAdd(uimg_overdrawCounter, outputCoord.xy, 1u);
                         }
-
-                        #ifdef CUTOUT
-                        if (all(bvec3(all(greaterThanEqual(t2b.xyz, vec3(0.0))), texture(usam_blockAlbedoAtlas, texCoord2).a > 0.5, valueVec.z >= valueVec.x)))
                         #else
-                        if (all(greaterThanEqual(t2b.xyz, vec3(0.0))) && valueVec.z >= valueVec.x)
+                        atomicMax(ssbo_vBufferDepthQuadIndex[outputCoord.z], valueVec.z);
                         #endif
-                        {
-                            #ifdef OVERDRAW_DEBUG
-                            if (atomicMax(ssbo_vBufferDepthQuadIndex[outputCoord.z], valueVec.z) <= valueVec.z) {
-                                imageAtomicAdd(uimg_overdrawCounter, outputCoord.xy, 1u);
-                            }
-                            #else
-                            atomicMax(ssbo_vBufferDepthQuadIndex[outputCoord.z], valueVec.z);
-                            #endif
-                        }
                     }
-                    t1b.xyz += t1bDx.xyz;
-                    t2b.xyz += t2bDx.xyz;
                 }
-                t1b.xyz += t1bDy.xyz;
-                t2b.xyz += t2bDy.xyz;
+                t1b.xyz += t1bDx.xyz;
+                t2b.xyz += t2bDx.xyz;
             }
+            t1b.xyz += t1bDy.xyz;
+            t2b.xyz += t2bDy.xyz;
         }
     }
 }

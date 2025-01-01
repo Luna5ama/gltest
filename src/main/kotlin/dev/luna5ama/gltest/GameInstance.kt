@@ -2,7 +2,6 @@ package dev.luna5ama.gltest
 
 import dev.fastmc.common.TickTimer
 import dev.fastmc.common.wrapDirectByteBuffer
-import dev.luna5ama.gltest.atmosphere.AtmosphereScatteringScene
 import dev.luna5ama.gltest.pc.PointCloudScene
 import dev.luna5ama.gltest.structs.Vec2i32
 import dev.luna5ama.gltest.structs.sizeof

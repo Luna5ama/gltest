@@ -275,3 +275,6 @@ gradle-app.setting
 /logs/
 
 .architectury-transformer
+
+/*.bat
+/*.cap

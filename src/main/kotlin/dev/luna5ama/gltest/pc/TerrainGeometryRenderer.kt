@@ -55,7 +55,9 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
         println("Using thread batch size: $threadBatchSize")
     }
 
-    val lwwsp = LWWSP(Runtime.getRuntime().availableProcessors())
+    val lwwsp = LWWSP(Runtime.getRuntime().availableProcessors()) {
+        it.isDaemon = true
+    }
     val hwVsPipeline = register(HWVertexShaderPipeline(scene, this))
     val hwMsPipeline = register(HWMeshShaderPipeline(scene, this))
     val swQuadPipeline = register(SWQuadPipeline(scene, this))
@@ -231,12 +233,14 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
             println("HW Draw: %.3f ms".format(hwMsDrawTimer.averageMS() + hwVsDrawTimer.averageMS()))
             println("SW Draw: %.3f ms".format(swDrawTimer.averageMS()))
             println("Total Draw: %.3f ms".format(swDrawTimer.averageMS() + hwVsDrawTimer.averageMS() + hwMsDrawTimer.averageMS()))
-            println("Update: %.3f ms".format(updateTimes.average() / 1e6))
+            println("Update Async: %.3f ms".format(updateTimesAsync.average() / 1e6))
+            println("Update Sync: %.3f ms".format(updateTimesSync.average() / 1e6))
             println()
         }
     }
 
-    private val updateTimes = CircularArray<Long>(200)
+    private val updateTimesAsync = CircularArray<Long>(200)
+    private val updateTimesSync = CircularArray<Long>(200)
 
     private inner class UpdateTask {
         private val frustumCullingFlags = Array(scene.terrainMeshData.chunkPos.size) {
@@ -253,8 +257,8 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
 
                     doUpdate2()
                 }.let {
-                    synchronized(updateTimes) {
-                        updateTimes.add(it)
+                    synchronized(updateTimesAsync) {
+                        updateTimesAsync.add(it)
                     }
                 }
             }
@@ -442,10 +446,14 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
     private suspend fun tryUpdate() {
         val updateData = pendingUpdateData.tryReceive().getOrNull() ?: return
 
-        coroutineScope {
-            launch(Dispatchers.Default) { hwVsPipeline.update(updateData.hwVs) }
-            launch(Dispatchers.Default) { hwMsPipeline.update(updateData.hwMs) }
-            launch(Dispatchers.Default) { swQuadPipeline.update(updateData.swQuad) }
+        measureNanoTime {
+            coroutineScope {
+                launch(Dispatchers.Default) { hwVsPipeline.update(updateData.hwVs) }
+                launch(Dispatchers.Default) { hwMsPipeline.update(updateData.hwMs) }
+                launch(Dispatchers.Default) { swQuadPipeline.update(updateData.swQuad) }
+            }
+        }.let {
+            updateTimesSync.add(it)
         }
     }
 
