@@ -34,17 +34,17 @@ fun main() {
             val window = glfwCreateWindow(1920, 1080, "", 0, 0)
 //            val window = glfwCreateWindow(1280, 720, "", 0, 0)
 //            val window = glfwCreateWindow(800, 600, "", 0, 0)
-           try {
+            try {
                 gameInstance = GameInstance(window)
-               try {
-                   gameInstance.run()
-               } finally {
-                   gameInstance.backgroundTaskScope.cancel()
-               }
+                try {
+                    gameInstance.run()
+                } finally {
+                    gameInstance.backgroundTaskScope.cancel()
+                }
             } finally {
-               GL.destroy()
-               glfwFreeCallbacks(window)
-               glfwDestroyWindow(window)
+                GL.destroy()
+                glfwFreeCallbacks(window)
+                glfwDestroyWindow(window)
             }
 
             if (!gameInstance.rerun) break

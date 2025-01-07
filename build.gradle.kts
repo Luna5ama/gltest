@@ -2,7 +2,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
 
 plugins {
-    kotlin("jvm") version "2.0.20"
+    kotlin("jvm") version "2.1.0"
 
     id("dev.luna5ama.jar-optimizer")
     id("dev.luna5ama.ktgen").version("1.0.0") apply false
@@ -40,7 +40,7 @@ dependencies {
     runtimeOnly("org.lwjgl", "lwjgl-stb", classifier = "natives-windows")
 
     implementation(kotlin("reflect"))
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
 
     implementation("org.joml", "joml", "1.10.5")
 
@@ -113,7 +113,6 @@ allprojects {
         compilerOptions {
             freeCompilerArgs = listOf("-Xdebug")
             jvmTarget.set(JvmTarget.JVM_21)
-            languageVersion.set(KotlinVersion.KOTLIN_2_0)
         }
     }
 }

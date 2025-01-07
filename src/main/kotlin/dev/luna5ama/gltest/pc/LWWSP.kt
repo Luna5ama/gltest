@@ -1,5 +1,8 @@
 package dev.luna5ama.gltest.pc
 
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeout
 import java.util.*
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.LinkedBlockingDeque
@@ -160,7 +163,7 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) {
             var result = completeResult.get()
             while (result == null) {
                 lock.withLock {
-                    condition.await(1, TimeUnit.MICROSECONDS)
+                    condition.await(1, TimeUnit.MILLISECONDS)
                 }
                 result = completeResult.get()
             }
@@ -170,8 +173,10 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) {
         final override suspend fun await(): Result<T> {
             var result = completeResult.get()
             while (result == null) {
-                suspendCoroutine {
-                    continuations.add(it)
+                 withTimeout(1) {
+                    suspendCancellableCoroutine {
+                        continuations.add(it)
+                    }
                 }
                 result = completeResult.get()
             }

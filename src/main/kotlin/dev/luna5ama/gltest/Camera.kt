@@ -127,7 +127,7 @@ class Camera(val scene: AbstractScene) : IGLObjContainer by IGLObjContainer.Impl
         lastRotation.set(rotation)
 
         jitter.set(offsetX, offsetY)
-        nearPlane = 0.01f
+        nearPlane = 0.00001f
         farPlane = viewDistance * 1.5f
         planeZ.set(nearPlane, farPlane)
         aspectRatio = screenWidth.toFloat() / screenHeight.toFloat()
