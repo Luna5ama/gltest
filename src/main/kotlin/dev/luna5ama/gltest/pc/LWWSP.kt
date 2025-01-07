@@ -1,6 +1,5 @@
 package dev.luna5ama.gltest.pc
 
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeout
 import java.util.*
@@ -14,7 +13,6 @@ import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 import kotlin.coroutines.Continuation
-import kotlin.coroutines.suspendCoroutine
 
 class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) {
     private val workers = List(workerCount) { Worker(it).also(threadConfigure) }
@@ -110,10 +108,7 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) {
                     continue
                 }
                 waitTime = 100L
-                do {
-                    cTask.run(this)
-                    yield()
-                } while (!cTask.isCompleted)
+                cTask.run(this)
             }
             activeWorkerCount.decrementAndGet()
         }
@@ -121,8 +116,8 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) {
 
     sealed interface Task<T> {
         val isCompleted: Boolean
-        fun awaitBlocking(): Result<T>
-        suspend fun await(): Result<T>
+        fun awaitBlocking(pollingTimeout: Long = 1L): Result<T>
+        suspend fun await(pollingTimeout: Long = 1L): Result<T>
     }
 
     private val unitResult = Result.success(Unit)
@@ -159,26 +154,32 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) {
             continuations.forEach { it.resumeWith(result) }
         }
 
-        final override fun awaitBlocking(): Result<T> {
+        final override fun awaitBlocking(pollingTimeout: Long): Result<T> {
             var result = completeResult.get()
             while (result == null) {
                 lock.withLock {
-                    condition.await(1, TimeUnit.MILLISECONDS)
+                    result = completeResult.get()
+                    if (result == null) {
+                        condition.await(pollingTimeout, TimeUnit.MILLISECONDS)
+                    }
                 }
-                result = completeResult.get()
             }
             return result
         }
 
-        final override suspend fun await(): Result<T> {
+        final override suspend fun await(pollingTimeout: Long): Result<T> {
             var result = completeResult.get()
             while (result == null) {
-                 withTimeout(1) {
+                withTimeout(pollingTimeout) {
                     suspendCancellableCoroutine {
-                        continuations.add(it)
+                        result = completeResult.get()
+                        if (result != null) {
+                            it.resumeWith(result)
+                        } else {
+                            continuations.add(it)
+                        }
                     }
                 }
-                result = completeResult.get()
             }
             return result
         }

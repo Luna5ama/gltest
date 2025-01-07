@@ -405,8 +405,7 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
                     flush(filteredSize)
                 }
             }.await().getOrThrow().reduce { a, b ->
-                a.updateData.addAll(b.updateData)
-                a
+                a.apply { updateData.addAll(b.updateData) }
             }
 
             pendingUpdateData.send(updateDataList.updateData)
