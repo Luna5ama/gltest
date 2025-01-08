@@ -1,10 +1,16 @@
 package dev.luna5ama.gltest.pc
 
-import dev.fastmc.common.*
+import dev.fastmc.common.Direction
+import dev.fastmc.common.TickTimer
 import dev.fastmc.common.collection.CircularArray
+import dev.fastmc.common.collection.FastObjectArrayList
+import dev.fastmc.common.floorToInt
 import dev.fastmc.common.sort.IntInsertionSort
 import dev.fastmc.common.sort.IntIntrosort
+import dev.fastmc.common.toRadians
 import dev.luna5ama.gltest.GPUTimer
+import dev.luna5ama.gltest.concurrent.LWWSP
+import dev.luna5ama.gltest.concurrent.ParallelIntIntrosort
 import dev.luna5ama.gltest.glDebugGroup
 import dev.luna5ama.gltest.pc.TerrainMeshData.ChunkLayerInfo
 import dev.luna5ama.gltest.terrain.IGLObjContainer
@@ -18,7 +24,6 @@ import dev.luna5ama.glwrapper.objects.BufferObject
 import dev.luna5ama.kmogus.MemoryStack
 import dev.luna5ama.kmogus.Ptr
 import it.unimi.dsi.fastutil.objects.ObjectArrayList
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
@@ -251,7 +256,7 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
         private val chunkPosIndices = this@TerrainGeometryRenderer.chunkPosIndices.copyOf()
 
         fun run() {
-            scene.gameInstance.backgroundTaskScope.launch {
+            scene.gameInstance.backgroundTaskScope.launch(lwwsp) {
                 measureNanoTime {
                     doUpdate1()
                     doUpdate2()
@@ -264,10 +269,6 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
         }
 
         private suspend fun doUpdate1() {
-            class Scope1 {
-                val areaCalc = QuadAreaCalc()
-            }
-
             val cameraPos = scene.camera.pos
             val chunkPosList = scene.terrainMeshData.chunkPos
 
@@ -283,48 +284,57 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
             newMatrix.mul(scene.camera.modelView)
             val frustumCull = FrustumIntersection(newMatrix, false)
 
-            lwwsp.scopedIterativeTask(chunkPosList.size, 256, ::Scope1) { start, end ->
+            class Scope1 {
                 val originOffsetX = cameraPos.x.floorToInt()
                 val originOffsetY = cameraPos.y.floorToInt()
                 val originOffsetZ = cameraPos.z.floorToInt()
-                for (i in start until end) {
-                    val chunkPos = chunkPosList[i]
-                    sampleCountArray[i] = areaCalc.calc(chunkPos)
+            }
 
-                    val dx = chunkPos.x * 16 + 8 - originOffsetX
-                    val dy = chunkPos.y * 16 + 8 - originOffsetY
-                    val dz = chunkPos.z * 16 + 8 - originOffsetZ
-                    sortKeys[i] = (dx * dx + dy * dy + dz * dz)
+            coroutineScope {
+                launch {
+                    LWWSP.iterativeTask(chunkPosList.size, 256, ::Scope1) { start, end ->
+                        for (i in start until end) {
+                            val chunkPos = chunkPosList[i]
+                            val dx = chunkPos.x * 16 + 8 - originOffsetX
+                            val dy = chunkPos.y * 16 + 8 - originOffsetY
+                            val dz = chunkPos.z * 16 + 8 - originOffsetZ
+                            sortKeys[i] = -(dx * dx + dy * dy + dz * dz)
+                        }
+                    }.submit().await().getOrThrow()
 
-                    val worldPosX = chunkPos.x shl 4
-                    val worldPosY = chunkPos.y shl 4
-                    val worldPosZ = chunkPos.z shl 4
-                    faceMaskArray[i] =
-                        (Direction.B_EAST * (((worldPosX - 1) - scene.camera.pos.x).floorToInt() ushr 31)) or
-                                (Direction.B_WEST * ((scene.camera.pos.x - (worldPosX + 17)).floorToInt() ushr 31)) or
-                                (Direction.B_UP * (((worldPosY - 1) - scene.camera.pos.y).floorToInt() ushr 31)) or
-                                (Direction.B_DOWN * ((scene.camera.pos.y - (worldPosY + 17)).floorToInt() ushr 31)) or
-                                (Direction.B_SOUTH * (((worldPosZ - 1) - scene.camera.pos.z).floorToInt() ushr 31)) or
-                                (Direction.B_NORTH * ((scene.camera.pos.z - (worldPosZ + 17)).floorToInt() ushr 31))
-
-                    frustumCullingFlags[i].setValue(
-                        frustumCull.testAab(
-                            ((worldPosX - 1) - scene.camera.pos.x).toFloat(),
-                            ((worldPosY - 1) - scene.camera.pos.y).toFloat(),
-                            ((worldPosZ - 1) - scene.camera.pos.z).toFloat(),
-                            ((worldPosX + 17) - scene.camera.pos.x).toFloat(),
-                            ((worldPosY + 17) - scene.camera.pos.y).toFloat(),
-                            ((worldPosZ + 17) - scene.camera.pos.z).toFloat()
-                        )
-                    )
+                    ParallelIntIntrosort(this).iSort(chunkPosIndices, sortKeys)
                 }
-            }.await().getOrThrow()
 
-            val rangeThreshold = 64.0
-            if (lastCameraPos.distanceSquared(cameraPos) < rangeThreshold * rangeThreshold) {
-                IntInsertionSort.sort(chunkPosIndices, sortKeys)
-            } else {
-                IntIntrosort.sort(chunkPosIndices, sortKeys)
+                launch {
+                    LWWSP.iterativeTask(chunkPosList.size, 256, ::QuadAreaCalc) { start, end ->
+                        for (i in start until end) {
+                            val chunkPos = chunkPosList[i]
+                            sampleCountArray[i] = calc(chunkPos)
+
+                            val worldPosX = chunkPos.x shl 4
+                            val worldPosY = chunkPos.y shl 4
+                            val worldPosZ = chunkPos.z shl 4
+                            faceMaskArray[i] =
+                                (Direction.B_EAST * (((worldPosX - 1) - scene.camera.pos.x).floorToInt() ushr 31)) or
+                                        (Direction.B_WEST * ((scene.camera.pos.x - (worldPosX + 17)).floorToInt() ushr 31)) or
+                                        (Direction.B_UP * (((worldPosY - 1) - scene.camera.pos.y).floorToInt() ushr 31)) or
+                                        (Direction.B_DOWN * ((scene.camera.pos.y - (worldPosY + 17)).floorToInt() ushr 31)) or
+                                        (Direction.B_SOUTH * (((worldPosZ - 1) - scene.camera.pos.z).floorToInt() ushr 31)) or
+                                        (Direction.B_NORTH * ((scene.camera.pos.z - (worldPosZ + 17)).floorToInt() ushr 31))
+
+                            frustumCullingFlags[i].setValue(
+                                frustumCull.testAab(
+                                    ((worldPosX - 1) - scene.camera.pos.x).toFloat(),
+                                    ((worldPosY - 1) - scene.camera.pos.y).toFloat(),
+                                    ((worldPosZ - 1) - scene.camera.pos.z).toFloat(),
+                                    ((worldPosX + 17) - scene.camera.pos.x).toFloat(),
+                                    ((worldPosY + 17) - scene.camera.pos.y).toFloat(),
+                                    ((worldPosZ + 17) - scene.camera.pos.z).toFloat()
+                                )
+                            )
+                        }
+                    }.submit().await().getOrThrow()
+                }
             }
 
             this@TerrainGeometryRenderer.chunkPosIndices = chunkPosIndices
@@ -337,7 +347,7 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
                 val filteredChunks = arrayOfNulls<ChunkLayerInfo>(63)
             }
 
-            val updateDataList = lwwsp.scopedIterativeTask(chunkPosIndices.size, 256, ::Scope2) { start, end ->
+            val scopes = LWWSP.iterativeTask(chunkPosIndices.size, 256, ::Scope2) { start, end ->
                 val cameraPos = scene.camera.pos
                 val chunkPosList = scene.terrainMeshData.chunkPos
                 val originOffsetX = cameraPos.x.floorToInt()
@@ -404,15 +414,16 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
                     }
                     flush(filteredSize)
                 }
-            }.await().getOrThrow().reduce { a, b ->
-                a.apply { updateData.addAll(b.updateData) }
-            }
+            }.submit().await().getOrThrow().map { it.updateData }
 
-            pendingUpdateData.send(updateDataList.updateData)
+            val first = scopes.first()
+            first.addAllOther(scopes.drop(1))
+
+            pendingUpdateData.send(first)
         }
 
         inner class UpdateData {
-            private val lists = List(3) { ObjectArrayList<ChunkLayerInfo>() }
+            val lists = List(3) { FastObjectArrayList.typed<ChunkLayerInfo>() }
             val hwVs = lists[0]
             val hwMs = lists[1]
             val swQuad = lists[2]
@@ -435,6 +446,16 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
                     lists[i].addAll(other.lists[i])
                 }
             }
+
+            fun addAllOther(others: List<UpdateData>) {
+                for (i in lists.indices) {
+                    val listThis = lists[i]
+                    listThis.ensureCapacity(listThis.size + others.sumOf { it.lists[i].size })
+                    for (other in others) {
+                        listThis.addAll(other.lists[i])
+                    }
+                }
+            }
         }
     }
 
@@ -445,9 +466,9 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
 
         measureNanoTime {
             coroutineScope {
-                launch(Dispatchers.Default) { hwVsPipeline.update(updateData.hwVs) }
-                launch(Dispatchers.Default) { hwMsPipeline.update(updateData.hwMs) }
-                launch(Dispatchers.Default) { swQuadPipeline.update(updateData.swQuad) }
+                launch(lwwsp) { hwVsPipeline.update(updateData.hwVs) }
+                launch(lwwsp) { hwMsPipeline.update(updateData.hwMs) }
+                launch(lwwsp) { swQuadPipeline.update(updateData.swQuad) }
             }
         }.let {
             updateTimesSync.add(it)

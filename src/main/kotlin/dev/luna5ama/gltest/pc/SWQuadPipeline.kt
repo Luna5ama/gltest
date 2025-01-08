@@ -2,6 +2,7 @@ package dev.luna5ama.gltest.pc
 
 import dev.fastmc.common.TickTimer
 import dev.luna5ama.gltest.VisibilityState
+import dev.luna5ama.gltest.concurrent.LWWSP
 import dev.luna5ama.gltest.glDebugGroup
 import dev.luna5ama.gltest.structs.QuadBatchInfo
 import dev.luna5ama.gltest.structs.sizeof
@@ -110,7 +111,7 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
                 updateCtcBuffer(chunks)
             }
 
-            val scopes = renderer.lwwsp.scopedIterativeTask(chunks.size, 128, ::Scope) { start, end ->
+            val scopes = LWWSP.iterativeTask(chunks.size, 128, ::Scope) { start, end ->
                 localBuffer.ensureCapacity((localBatchCount + (end - start)) * batchStructSize, false)
 
                 for (i in start until end) {
@@ -130,7 +131,7 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
                     }
                     localQuadCount += quadIdx
                 }
-            }.await().getOrThrow()
+            }.submit(renderer.lwwsp).await().getOrThrow()
 
             quadCount = scopes.sumOf { it.localQuadCount }
             batchCount = scopes.sumOf { it.localBatchCount }

@@ -109,13 +109,6 @@ class HWMeshShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRend
             glViewport(0, 0, scene.camera.screenWidth / 8, scene.camera.screenHeight / 8)
             renderer.cullPipeline.draw(ctcBuffer, chunkCount)
 
-            glEnable(GL_CULL_FACE)
-            glCullFace(GL_BACK)
-            glEnable(GL_DEPTH_TEST)
-            glDepthFunc(GL_GEQUAL)
-            glDepthMask(true)
-            glColorMask(true, true, true, true)
-
             drawPass(VisibilityState.NEWLY_VISIBLE)
         } else {
             drawPass(VisibilityState.CURRENT_VISIBLE)
