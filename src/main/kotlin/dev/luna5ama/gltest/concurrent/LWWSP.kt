@@ -61,6 +61,7 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) : 
             return if (isEmpty) null else dequeue()
         }
 
+        val sharedSize get() = queueShared.size()
         val size get() = queueShared.size() + queueExclusive.size()
 
         fun enqueueShared(tasks: Collection<AbstractTask<*>>) {
@@ -137,7 +138,7 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) : 
         private val drainTemp = ObjectArrayList<AbstractTask<*>>()
         private val random = Random()
 
-        fun stealVictimID(): Int {
+        fun randomOtherWorkerID(): Int {
             val victimIDOffset = random.nextInt(pool.workerCountMinus1)
             val victimId = (id + 1 + victimIDOffset) % pool.workerCount
             assert(victimId != id)
@@ -145,6 +146,7 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) : 
         }
 
         private fun steal() {
+            yield()
             val victimIDBaseOffset = random.nextInt(pool.workerCountMinus1)
 
             for (i in 0..<pool.workerCountMinus1) {
@@ -157,7 +159,7 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) : 
                 victim.taskQueue.drainToShared(drainTemp, limit)
                 taskQueue.enqueueShared(drainTemp)
                 drainTemp.clear()
-                break
+                return
             }
         }
 
@@ -169,8 +171,8 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) : 
                 } catch (e: InterruptedException) {
                     null
                 }
-                if (taskQueue.size >= 1) {
-                    pool.workers[stealVictimID()].interrupt()
+                if (taskQueue.sharedSize >= 1) {
+                    pool.workers[randomOtherWorkerID()].interrupt()
                 }
                 if (cTask == null) {
                     steal()
@@ -312,17 +314,24 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) : 
         }
 
         private fun steal(worker: Worker) {
-            val victimId = worker.stealVictimID()
-            val encoded = threadRanges.get(victimId)
-            val start = decodeRangeStart(encoded)
-            val end = decodeRangeEnd(encoded)
-            val remaining = end - start
-            if (remaining < batchSize * 2) return
-            val half = remaining / 2
-            val newStart = start + half
-            if (!threadRanges.compareAndSet(victimId, encoded, encodeRange(newStart, end))) return
+            Thread.yield()
+            val victimIDBaseOffset = random.nextInt(worker.pool.workerCountMinus1)
 
-            threadRanges.set(worker.id, encodeRange(start, newStart))
+            for (i in 0..<worker.pool.workerCountMinus1) {
+                val victimIDOffset = (victimIDBaseOffset + i) % (worker.pool.workerCountMinus1)
+                val victimID = (worker.id + 1 + victimIDOffset) % worker.pool.workerCount
+                val encoded = threadRanges.get(victimID)
+                val start = decodeRangeStart(encoded)
+                val end = decodeRangeEnd(encoded)
+                val remaining = end - start
+                if (remaining < batchSize * 2) continue
+                val half = remaining / 2
+                val newStart = start + half
+                if (!threadRanges.compareAndSet(victimID, encoded, encodeRange(newStart, end))) continue
+
+                threadRanges.set(worker.id, encodeRange(start, newStart))
+                return
+            }
         }
 
         private fun runBatch(worker: Worker, start: Int, end: Int) {
@@ -333,7 +342,6 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) : 
 
         override fun run(worker: Worker) {
             try {
-                var stealCount = 0
                 var completeCount = 0
                 while (true) {
                     val encoded = threadRanges.get(worker.id)
@@ -342,18 +350,18 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) : 
                     assert(start <= end)
 
                     if (start == end) {
-                        val v = threadRanges.addAndGet(workerCount, -completeCount.toLong())
+                        val v = if (completeCount == 0) {
+                            threadRanges.get(workerCount)
+                        } else {
+                            threadRanges.addAndGet(workerCount, -completeCount.toLong())
+                        }
                         completeCount = 0
                         if (v < batchSize * 2 * workerCount) {
                             break
                         }
                         steal(worker)
-                        if (++stealCount >= workerCount) {
-                            Thread.yield()
-                        }
                         continue
                     }
-                    stealCount = 0
 
                     var newStart = minOf(start + batchSize, end)
                     if (end - newStart < batchSize) {
