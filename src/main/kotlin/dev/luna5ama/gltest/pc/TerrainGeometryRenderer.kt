@@ -23,6 +23,7 @@ import dev.luna5ama.glwrapper.enums.BufferTarget
 import dev.luna5ama.glwrapper.objects.BufferObject
 import dev.luna5ama.kmogus.MemoryStack
 import dev.luna5ama.kmogus.Ptr
+import it.unimi.dsi.fastutil.ints.IntArrayList
 import it.unimi.dsi.fastutil.objects.ObjectArrayList
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
@@ -375,7 +376,12 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
 
                     if (filteredSize == 0) continue
                     if (filteredSize == 1) {
-                        updateData.add(filteredChunks[0]!!)
+                        val info = filteredChunks[0]!!
+                        updateData.add(
+                            info.chunkIndex,
+                            info.startIndex,
+                            info.quadCount,
+                        )
                         continue
                     }
 
@@ -388,17 +394,18 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
                             }
                             val chunkLayerInfo = filteredChunks[startingIndex]!!
                             updateData.add(
-                                ChunkLayerInfo(
                                     chunkLayerInfo.chunkIndex,
-                                    chunkLayerInfo.pos,
+                                chunkLayerInfo.startIndex,
                                     quadCount,
-                                    chunkLayerInfo.startIndex,
-                                    111111
-                                )
                             )
                             startingIndex = -1
                         } else {
-                            updateData.add(filteredChunks[n - 1]!!)
+                            val info = filteredChunks[n - 1]!!
+                            updateData.add(
+                                info.chunkIndex,
+                                info.startIndex,
+                                info.quadCount,
+                            )
                         }
                     }
                     for (i in 1 until filteredSize) {
@@ -423,22 +430,28 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
         }
 
         inner class UpdateData {
-            val lists = List(3) { FastObjectArrayList.typed<ChunkLayerInfo>() }
+            val lists = List(3) { IntArrayList() }
             val hwVs = lists[0]
             val hwMs = lists[1]
             val swQuad = lists[2]
 
-            fun add(chunkInfo: ChunkLayerInfo) {
-                if (sampleCountArray[chunkInfo.chunkIndex] > 8.0f) {
+            fun add(chunkIndex: Int, startIndex: Int, quadCount: Int) {
+                if (sampleCountArray[chunkIndex] > 8.0f) {
                     if (!scene.gameInstance.toggles[1]) {
-                        hwMs.add(chunkInfo)
-//                        hwVs.add(chunkInfo)
+                        hwMs.add(chunkIndex, startIndex, quadCount)
+//                        hwVs.add(chunkIndex, startIndex, quadCount)
                     }
                 } else {
                     if (!scene.gameInstance.toggles[2]) {
-                        swQuad.add(chunkInfo)
+                        swQuad.add(chunkIndex, startIndex, quadCount)
                     }
                 }
+            }
+
+            private fun IntArrayList.add(chunkIndex: Int, startIndex: Int, quadCount: Int) {
+                add(chunkIndex)
+                add(startIndex)
+                add(quadCount)
             }
 
             fun addAll(other: UpdateData) {

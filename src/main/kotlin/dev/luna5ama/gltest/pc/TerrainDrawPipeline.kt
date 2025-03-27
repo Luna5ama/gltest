@@ -8,6 +8,7 @@ import dev.luna5ama.gltest.terrain.register
 import dev.luna5ama.glwrapper.base.GL_DYNAMIC_STORAGE_BIT
 import dev.luna5ama.glwrapper.objects.BufferObject
 import dev.luna5ama.kmogus.Arr
+import it.unimi.dsi.fastutil.ints.IntArrayList
 import kotlinx.coroutines.withContext
 
 abstract class TerrainDrawPipeline(
@@ -23,23 +24,27 @@ abstract class TerrainDrawPipeline(
         label = "$name.CullTestCommandBuffer"
     }
 
-    abstract suspend fun update(chunks: List<TerrainMeshData.ChunkLayerInfo>)
+    protected fun IntArrayList.chunkIndex(i: Int) = this.getInt(i * 3)
+    protected fun IntArrayList.startIndex(i: Int) = this.getInt(i * 3 + 1)
+    protected fun IntArrayList.quadCount(i: Int) = this.getInt(i * 3 + 2)
+
+    abstract suspend fun update(chunks: IntArrayList)
 
     open fun preDraw() {}
     abstract fun draw()
 
-    protected suspend fun updateCtcBuffer(chunks: List<TerrainMeshData.ChunkLayerInfo>) {
+    protected suspend fun updateCtcBuffer(chunks: IntArrayList) {
         val ctcBufferBaseOffset = renderer.cullPipeline.ctcBufferBaseOffset
         val ctcStructSize = sizeof(CullTestCommand)
-        Arr.malloc(ctcBufferBaseOffset + chunks.size * ctcStructSize).use { ctcUploadBuffer ->
+        Arr.malloc(ctcBufferBaseOffset + chunks.size / 3 * ctcStructSize).use { ctcUploadBuffer ->
             var chunkCounter = 0
             val chunkIndexBitSet = StaticBitSet(scene.terrainMeshData.chunkPos.size)
-            for (i in chunks.indices) {
-                val chunkInfo = chunks[i]
-                if (!chunkIndexBitSet.add(chunkInfo.chunkIndex)) continue
+            for (i in 0..<chunks.size / 3) {
+                val chunkIndex = chunks.chunkIndex(i)
+                if (!chunkIndexBitSet.add(chunkIndex)) continue
                 val offset = chunkCounter++ * ctcStructSize
                 val ctcStruct = CullTestCommand(ctcUploadBuffer.ptr + ctcBufferBaseOffset + offset)
-                ctcStruct.chunkIndex = chunkInfo.chunkIndex
+                ctcStruct.chunkIndex = chunkIndex
             }
             chunkCount = chunkCounter
             if (chunkCount == 0) return

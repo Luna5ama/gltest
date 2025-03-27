@@ -16,6 +16,7 @@ import dev.luna5ama.glwrapper.objects.BufferObject
 import dev.luna5ama.kmogus.Arr
 import dev.luna5ama.kmogus.MemoryStack
 import dev.luna5ama.kmogus.Ptr
+import it.unimi.dsi.fastutil.ints.IntArrayList
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -49,9 +50,9 @@ class HWMeshShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRend
     private val bufferBinding =
         ShaderBindingSpecs.Buffer("BatchInfoBuffer", batchInfoBuffer, BufferTarget.ShaderStorage)
 
-    override suspend fun update(chunks: List<TerrainMeshData.ChunkLayerInfo>) {
+    override suspend fun update(chunks: IntArrayList) {
         val batchStructSize = sizeof(MeshShaderBatchInfo)
-        Arr.malloc(chunks.size * batchStructSize).use { batchInfoUploadBuffer ->
+        Arr.malloc(chunks.size / 3 * batchStructSize).use { batchInfoUploadBuffer ->
             coroutineScope {
                 launch {
                     updateCtcBuffer(chunks)
@@ -61,19 +62,21 @@ class HWMeshShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRend
 
                 coroutineScope {
                     ParallelUtils.splitListIndex(
-                        chunks.size,
+                        chunks.size / 3,
                         blockForEach = { start, end ->
                             launch {
                                 var quadCountLocal = 0
                                 for (i in start until end) {
-                                    val chunkInfo = chunks[i]
+                                    val chunkIndex = chunks.chunkIndex(i)
+                                    val startIndex = chunks.startIndex(i)
+                                    val quadCount = chunks.quadCount(i)
 
                                     val struct = MeshShaderBatchInfo(batchInfoUploadBuffer.ptr + i * batchStructSize)
-                                    struct.chunkIndex = chunkInfo.chunkIndex
-                                    struct.quadStartIndex = chunkInfo.startIndex
-                                    struct.quadCount = chunkInfo.quadCount
+                                    struct.chunkIndex = chunkIndex
+                                    struct.quadStartIndex = startIndex
+                                    struct.quadCount = quadCount
 
-                                    quadCountLocal += chunkInfo.quadCount
+                                    quadCountLocal += quadCount
                                 }
                                 quadCountGlobal.addAndGet(quadCountLocal)
                             }
@@ -81,7 +84,7 @@ class HWMeshShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRend
                     )
                 }
 
-                batchCount = chunks.size
+                batchCount = chunks.size / 3
                 quadCount = quadCountGlobal.get()
                 if (batchCount == 0) return@coroutineScope
 

@@ -15,6 +15,7 @@ import dev.luna5ama.glwrapper.enums.BufferTarget
 import dev.luna5ama.glwrapper.objects.BufferObject
 import dev.luna5ama.glwrapper.objects.VertexArrayObject
 import dev.luna5ama.kmogus.*
+import it.unimi.dsi.fastutil.ints.IntArrayList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -91,9 +92,9 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
         vao.attachEbo(elementBuffer)
     }
 
-    override suspend fun update(chunks: List<TerrainMeshData.ChunkLayerInfo>) {
+    override suspend fun update(chunks: IntArrayList) {
         val batchStructSize = sizeof(DrawElementsIndirectCommand)
-        Arr.malloc(chunks.size * batchStructSize).use { uploadBuffer ->
+        Arr.malloc(chunks.size / 3 * batchStructSize).use { uploadBuffer ->
             coroutineScope {
                 val quadCountGlobal = AtomicInteger(0)
                 val localBuffers = List(ParallelUtils.CPU_THREADS) { Arr.malloc(0L) }
@@ -105,7 +106,7 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
                         updateCtcBuffer(chunks)
                     }
                     ParallelUtils.splitListIndex(
-                        chunks.size,
+                        chunks.size / 3,
                         blockForEach = { start, end ->
                             val threadIndex = threadIndexCounter++
                             launch(Dispatchers.Default) {
@@ -115,10 +116,12 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
                                 var localBatchCount = 0
 
                                 for (i in start until end) {
-                                    val chunkInfo = chunks[i]
+                                    val chunkIndex = chunks.chunkIndex(i)
+                                    val startIndex = chunks.startIndex(i)
+                                    val quadCount = chunks.quadCount(i)
                                     var quadIdx = 0
-                                    while (quadIdx < chunkInfo.quadCount) {
-                                        val batchQuadCount = min(chunkInfo.quadCount - quadIdx, BATCH_MAX_QUAD)
+                                    while (quadIdx < quadCount) {
+                                        val batchQuadCount = min(quadCount - quadIdx, BATCH_MAX_QUAD)
 
                                         localBuffer.ensureCapacity((localBatchCount + 1L) * batchStructSize, false)
                                         val structOffset = localBatchCount * batchStructSize
@@ -126,14 +129,14 @@ class HWVertexShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRe
                                         struct.count = batchQuadCount * 6
                                         struct.instanceCount = 1
                                         struct.firstIndex = 0
-                                        struct.baseVertex = (chunkInfo.startIndex + quadIdx) * 4
-                                        struct.baseInstance = chunkInfo.chunkIndex
+                                        struct.baseVertex = (startIndex + quadIdx) * 4
+                                        struct.baseInstance = chunkIndex
 
                                         quadIdx += batchQuadCount
                                         localBatchCount++
                                     }
 
-                                    quadCountLocal += chunkInfo.quadCount
+                                    quadCountLocal += quadCount
                                 }
 
                                 localBatchCounts[threadIndex] = localBatchCount

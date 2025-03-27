@@ -7,6 +7,7 @@ import dev.luna5ama.glwrapper.ShaderSource
 import dev.luna5ama.glwrapper.base.glDispatchCompute
 import dev.luna5ama.glwrapper.enums.BufferTarget
 import dev.luna5ama.glwrapper.objects.BufferObject
+import it.unimi.dsi.fastutil.ints.IntArrayList
 import org.joml.Vector4f
 
 class SWPointPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) :
@@ -120,7 +121,7 @@ class SWPointPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer)
         }
     }
 
-    override suspend fun update(chunks: List<TerrainMeshData.ChunkLayerInfo>) {
+    override suspend fun update(chunks: IntArrayList) {
 
     }
 

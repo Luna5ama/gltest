@@ -14,6 +14,7 @@ import dev.luna5ama.glwrapper.base.*
 import dev.luna5ama.glwrapper.enums.BufferTarget
 import dev.luna5ama.glwrapper.objects.BufferObject
 import dev.luna5ama.kmogus.*
+import it.unimi.dsi.fastutil.ints.IntArrayList
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlin.math.max
@@ -98,7 +99,7 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
         label = "SWQuad.DrawShader"
     }
 
-    override suspend fun update(chunks: List<TerrainMeshData.ChunkLayerInfo>) {
+    override suspend fun update(chunks: IntArrayList) {
         class Scope {
             val localBuffer = Arr.malloc(0L)
             var localQuadCount = 0
@@ -111,19 +112,21 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
                 updateCtcBuffer(chunks)
             }
 
-            val scopes = LWWSP.iterativeTask(chunks.size, 128, ::Scope) { start, end ->
+            val scopes = LWWSP.iterativeTask(chunks.size / 3, 128, ::Scope) { start, end ->
                 localBuffer.ensureCapacity((localBatchCount + (end - start)) * batchStructSize, false)
 
                 for (i in start until end) {
-                    val chunkInfo = chunks[i]
+                    val chunkIndex = chunks.chunkIndex(i)
+                    val startIndex = chunks.startIndex(i)
+                    val quadCount = chunks.quadCount(i)
                     var quadIdx = 0
-                    while (quadIdx < chunkInfo.quadCount) {
-                        val batchQuadCount = min(chunkInfo.quadCount - quadIdx, quadsPerWorkGroup)
+                    while (quadIdx < quadCount) {
+                        val batchQuadCount = min(quadCount - quadIdx, quadsPerWorkGroup)
 
                         localBuffer.ensureCapacity((localBatchCount + 1L) * batchStructSize, false)
                         val struct = QuadBatchInfo(localBuffer.ptr + localBatchCount * batchStructSize)
-                        struct.chunkIndex = chunkInfo.chunkIndex
-                        struct.first = chunkInfo.startIndex + quadIdx
+                        struct.chunkIndex = chunkIndex
+                        struct.first = startIndex + quadIdx
                         struct.count = batchQuadCount
 
                         quadIdx += batchQuadCount
