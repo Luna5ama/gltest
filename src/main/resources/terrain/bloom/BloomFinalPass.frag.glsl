@@ -1,7 +1,7 @@
 #version 460 core
 
 layout(binding = 0) uniform sampler2D inputTexture;
-layout(binding = 1) uniform sampler2D brightTexture;
+layout(binding = 2) uniform sampler2D brightTexture;
 layout(location = 1) uniform float bloomAmount;
 layout(location = 2) uniform float bloomPower;
 layout(location = 3) uniform float subtractAmount;

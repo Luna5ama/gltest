@@ -1,4 +1,4 @@
-layout(std430) restrict readonly buffer ChunkPosData {
+layout(std430, binding = 1) restrict readonly buffer ChunkPosData {
     vec4 cameraChunkLocalPos;
     ivec4 chunkPos[];
 } ssbo_chunkPosData;

@@ -8,7 +8,7 @@ layout(local_size_x = 16, local_size_y = 16) in;
 
 uniform sampler2D usam_mainFbo_inputColor;
 
-layout(std430, binding = 1) buffer ssbo_histogramBuffer {
+layout(std430, binding = 2) buffer ssbo_histogramBuffer {
     uint histogram[];
 };
 

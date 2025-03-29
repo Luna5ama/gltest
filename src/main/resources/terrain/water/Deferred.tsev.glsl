@@ -1,7 +1,7 @@
 version 460 core
 #pragma optionNV (unroll all)
 
-layout(binding = 1) uniform sampler2D noiseTexture;
+layout(binding = 2) uniform sampler2D noiseTexture;
 
 layout(quads, fractional_odd_spacing, ccw) in;
 

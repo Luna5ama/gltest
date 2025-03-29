@@ -21,7 +21,7 @@ struct CullTestCommand {
     uint chunkIndex;
 };
 
-layout(std430, binding = 1) restrict readonly buffer CullTestCommandBuffer {
+layout(std430, binding = 2) restrict readonly buffer CullTestCommandBuffer {
     uint first;
     uint count;
     uint chunkCount;
