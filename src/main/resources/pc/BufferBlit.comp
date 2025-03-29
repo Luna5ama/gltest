@@ -36,11 +36,11 @@ void main() {
 
     vec3 screenPos = vec3((vec2(texel) + 0.5) / vec2(outputSize), depth);
     vec3 ndcPos = vec3(screenPos.xy * 2.0 - 1.0, screenPos.z);
-    vec4 scenePos = ubo_cameraNoJitter.invCombined * vec4(ndcPos, 1.0);
+    vec4 scenePos = ubo_camera.invCombinedNoJitter * vec4(ndcPos, 1.0);
     scenePos /= scenePos.w;
     vec4 prevScenePos = scenePos;
     prevScenePos.xyz += uval_cameraDelta;
-    vec4 prevNdcPos = ubo_prevCameraNoJitter.combined * prevScenePos;
+    vec4 prevNdcPos = ubo_camera.prevCombinedNoJitter * prevScenePos;
     prevNdcPos.xyz /= prevNdcPos.w;
     vec3 prevScreenPos = vec3(prevNdcPos.xy * 0.5 + 0.5, prevNdcPos.z);
 

@@ -10,16 +10,16 @@ layout(local_size_x = 16) in;
 layout(max_vertices = 64, max_primitives = 32) out;
 layout(triangles) out;
 
-layout(std430) restrict readonly buffer QuadPosDataBuffer {
+layout(std430, binding = 1) restrict readonly buffer QuadPosDataBuffer {
     uvec4 ssbo_quadPosDataBuffer[];
 };
 
-layout(std430) restrict readonly buffer QuadPosIndexBuffer {
+layout(std430, binding = 2) restrict readonly buffer QuadPosIndexBuffer {
     uint ssbo_quadPosIndexBuffer[];
 };
 
 #ifdef DEBUG_QUAD_COUNT
-layout(std430) buffer TempBuffer {
+layout(std430, binding = 3) buffer TempBuffer {
     uint v1;
     uint v2;
     uint v3;
@@ -85,10 +85,10 @@ bool writeVertexData() {
     posYs = posYs * COORD_CONVERT + dataIn.chunkOffset.y;
     posZs = posZs * COORD_CONVERT + dataIn.chunkOffset.z;
 
-    vec4 pos1 = ubo_cameraDefault.combined * vec4(posXs.x, posYs.x, posZs.x, 1.0);
-    vec4 pos2 = ubo_cameraDefault.combined * vec4(posXs.y, posYs.y, posZs.y, 1.0);
-    vec4 pos3 = ubo_cameraDefault.combined * vec4(posXs.z, posYs.z, posZs.z, 1.0);
-    vec4 pos4 = ubo_cameraDefault.combined * vec4(posXs.w, posYs.w, posZs.w, 1.0);
+    vec4 pos1 = ubo_camera.combined * vec4(posXs.x, posYs.x, posZs.x, 1.0);
+    vec4 pos2 = ubo_camera.combined * vec4(posXs.y, posYs.y, posZs.y, 1.0);
+    vec4 pos3 = ubo_camera.combined * vec4(posXs.z, posYs.z, posZs.z, 1.0);
+    vec4 pos4 = ubo_camera.combined * vec4(posXs.w, posYs.w, posZs.w, 1.0);
 
     survived = survived & uint(determinant(mat3(pos1.xyw, pos2.xyw, pos3.xyw)) > 0.0);
 

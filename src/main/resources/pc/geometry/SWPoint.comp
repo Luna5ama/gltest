@@ -94,7 +94,7 @@ void main() {
 
     uint wgQuadIndex = metaPointSamplePow2 >= 0 ?
     gl_LocalInvocationID.x :
-    gl_LocalInvocationID.x * (1u << -metaPointSamplePow2) + ((ubo_cameraDefault.gFrameIndex + gl_LocalInvocationID.x) & uint((1u << -metaPointSamplePow2) - 1));
+    gl_LocalInvocationID.x * (1u << -metaPointSamplePow2) + ((ubo_camera.gFrameIndex + gl_LocalInvocationID.x) & uint((1u << -metaPointSamplePow2) - 1));
     if (wgQuadIndex >= metaCount) return;
 
     uint quadIndex = metaFirst + wgQuadIndex;
@@ -105,10 +105,10 @@ void main() {
     vec4 posY = readPos(quadPosDataIdx + 2u);
     vec4 posZ = readPos(quadPosDataIdx + 4u);
 
-    vec3 pos1 = (ubo_cameraDefault.combined * vec4(vec3(posX.x, posY.x, posZ.x) * COORD_CONVERT + chunkOffset, 1.0)).xyw;
-    vec3 pos2 = (ubo_cameraDefault.combined * vec4(vec3(posX.y, posY.y, posZ.y) * COORD_CONVERT + chunkOffset, 1.0)).xyw;
-    vec3 pos3 = (ubo_cameraDefault.combined * vec4(vec3(posX.z, posY.z, posZ.z) * COORD_CONVERT + chunkOffset, 1.0)).xyw;
-    vec3 pos4 = (ubo_cameraDefault.combined * vec4(vec3(posX.w, posY.w, posZ.w) * COORD_CONVERT + chunkOffset, 1.0)).xyw;
+    vec3 pos1 = (ubo_camera.combined * vec4(vec3(posX.x, posY.x, posZ.x) * COORD_CONVERT + chunkOffset, 1.0)).xyw;
+    vec3 pos2 = (ubo_camera.combined * vec4(vec3(posX.y, posY.y, posZ.y) * COORD_CONVERT + chunkOffset, 1.0)).xyw;
+    vec3 pos3 = (ubo_camera.combined * vec4(vec3(posX.z, posY.z, posZ.z) * COORD_CONVERT + chunkOffset, 1.0)).xyw;
+    vec3 pos4 = (ubo_camera.combined * vec4(vec3(posX.w, posY.w, posZ.w) * COORD_CONVERT + chunkOffset, 1.0)).xyw;
 
     vec4 pos12 = vec4(pos1.xy, pos2.xy);
     vec4 pos34 = vec4(pos3.xy, pos4.xy);

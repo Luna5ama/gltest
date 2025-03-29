@@ -54,7 +54,7 @@ float searchBlocker(vec3 shadowCoord, vec2 texelSize) {
     #define BLOCKER_SEARCH_N 8
 
     vec2 blockerSearchRange = texelSize * 2.0;
-    uint idxB = ubo_cameraDefault.gFrameIndex * BLOCKER_SEARCH_N + worldCoordRand[1];
+    uint idxB = ubo_camera.gFrameIndex * BLOCKER_SEARCH_N + worldCoordRand[1];
 
     float blockerDepth = 0.0f;
     int n = 0;
@@ -88,7 +88,7 @@ float calcShadow(vec3 lightViewNormal, float sssFactor) {
     float normalOffsetFactor = max(dot(gs_data.worldNormal, uShadowMap.lightDir), 0.0) * 0.9 + 0.1;
     coord += lightViewNormal * mix(minNormalOffset, maxNormalOffset, normalOffsetFactor);
 
-    vec4 worldCoord = ubo_cameraDefault.invModelView * vec4(coord, 1.0);
+    vec4 worldCoord = ubo_camera.invModelView * vec4(coord, 1.0);
     worldCoord += uShadowMap.shadowWorldOffset;
     vec4 shadowCoordCS = uShadowMap.matrix * worldCoord;
     shadowCoordCS /= shadowCoordCS.w;
@@ -109,8 +109,8 @@ float calcShadow(vec3 lightViewNormal, float sssFactor) {
     ssRange += texelSize * penumbraMult;
 
     float shadow = 0.0;
-    uint idxSS = (ubo_cameraDefault.gFrameIndex + worldCoordRand[0]) * SAMPLE_N;
-    uint idxSSS = (ubo_cameraDefault.gFrameIndex + worldCoordRand[1]) * SAMPLE_N;
+    uint idxSS = (ubo_camera.gFrameIndex + worldCoordRand[0]) * SAMPLE_N;
+    uint idxSSS = (ubo_camera.gFrameIndex + worldCoordRand[1]) * SAMPLE_N;
 
     #if SAMPLE_N == 1
     vec2 offset = r2Seq2(idxSS) * ssRange - ssRange * 0.5;
@@ -247,7 +247,7 @@ void doStuff() {
     rt_tex1.rgb += uval_mb * RCP_PI_CONST * max(giSample, 0.0) * albedo;
     rt_tex1.rgb += ambientLight * albedo;
 
-    vec3 viewNormal = mat3(ubo_cameraDefault.modelView) * mappedNormal;
+    vec3 viewNormal = mat3(ubo_camera.modelView) * mappedNormal;
     rt_tex2.rgb = viewNormal * 0.5 + 0.5;
     rt_tex2.a = float(emissive > 0.0);
 
@@ -270,7 +270,7 @@ void main() {
     gbuffer_unpack1(texelFetch(usam_gSolidData1, intTexCoord, 0), gs_data);
     gbuffer_unpack2(texelFetch(usam_gSolidData2, intTexCoord, 0), gs_data);
 
-    gs_viewCoord = (ubo_cameraDefault.modelView * vec4(gs_data.worldCoord, 1.0)).xyz;
+    gs_viewCoord = (ubo_camera.modelView * vec4(gs_data.worldCoord, 1.0)).xyz;
     gs_viewNormal = normalize(fNormalMatrix * gs_data.worldNormal);
     gs_lightMapColor = texture(usam_lightMap, gs_data.lightCoord).rgb;
     gs_aoMul = float((gs_data.materialID >> 2u) & 1u);

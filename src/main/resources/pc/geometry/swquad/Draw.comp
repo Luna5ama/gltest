@@ -122,10 +122,10 @@ bool cullQuad(uint localQuadIndex) {
     posYs = posYs * COORD_CONVERT + chunkOffset.y;
     posZs = posZs * COORD_CONVERT + chunkOffset.z;
 
-    vec3 posCS1 = (ubo_cameraDefault.combined * vec4(posXs.x, posYs.x, posZs.x, 1.0)).xyw;
-    vec3 posCS2 = (ubo_cameraDefault.combined * vec4(posXs.y, posYs.y, posZs.y, 1.0)).xyw;
-    vec3 posCS3 = (ubo_cameraDefault.combined * vec4(posXs.z, posYs.z, posZs.z, 1.0)).xyw;
-    vec3 posCS4 = (ubo_cameraDefault.combined * vec4(posXs.w, posYs.w, posZs.w, 1.0)).xyw;
+    vec3 posCS1 = (ubo_camera.combined * vec4(posXs.x, posYs.x, posZs.x, 1.0)).xyw;
+    vec3 posCS2 = (ubo_camera.combined * vec4(posXs.y, posYs.y, posZs.y, 1.0)).xyw;
+    vec3 posCS3 = (ubo_camera.combined * vec4(posXs.z, posYs.z, posZs.z, 1.0)).xyw;
+    vec3 posCS4 = (ubo_camera.combined * vec4(posXs.w, posYs.w, posZs.w, 1.0)).xyw;
 
     uint survived = uint(determinant(mat3(posCS1, posCS2, posCS3)) > 0.0);
 
@@ -176,10 +176,10 @@ void rasterize(uint baseLocalQuadIndex) {
         posYs = posYs * COORD_CONVERT + shared_chunkOffset.y;
         posZs = posZs * COORD_CONVERT + shared_chunkOffset.z;
 
-        vec4 posCS1 = (ubo_cameraDefault.combined * vec4(posXs.x, posYs.x, posZs.x, 1.0));
-        vec4 posCS2 = (ubo_cameraDefault.combined * vec4(posXs.y, posYs.y, posZs.y, 1.0));
-        vec4 posCS3 = (ubo_cameraDefault.combined * vec4(posXs.z, posYs.z, posZs.z, 1.0));
-        vec4 posCS4 = (ubo_cameraDefault.combined * vec4(posXs.w, posYs.w, posZs.w, 1.0));
+        vec4 posCS1 = (ubo_camera.combined * vec4(posXs.x, posYs.x, posZs.x, 1.0));
+        vec4 posCS2 = (ubo_camera.combined * vec4(posXs.y, posYs.y, posZs.y, 1.0));
+        vec4 posCS3 = (ubo_camera.combined * vec4(posXs.z, posYs.z, posZs.z, 1.0));
+        vec4 posCS4 = (ubo_camera.combined * vec4(posXs.w, posYs.w, posZs.w, 1.0));
 
         posCS1.xyz /= posCS1.w;
         posCS2.xyz /= posCS2.w;

@@ -57,8 +57,8 @@ void main() {
     uint worldCoordRand1 = uint(rand(vertData.worldCoord.xyz) * 1024.0);
     uint worldCoordRand2 = uint(rand(vertData.worldCoord.yzx) * 1024.0);
 
-    outData.worldNormal.x += 0.004 * (r2Seq1(worldCoordRand1 + ubo_cameraDefault.gFrameIndex) * 2.0 - 1.0);
-    outData.worldNormal.y += 0.004 * (r2Seq1(worldCoordRand2 + ubo_cameraDefault.gFrameIndex) * 2.0 - 1.0);
+    outData.worldNormal.x += 0.004 * (r2Seq1(worldCoordRand1 + ubo_camera.gFrameIndex) * 2.0 - 1.0);
+    outData.worldNormal.y += 0.004 * (r2Seq1(worldCoordRand2 + ubo_camera.gFrameIndex) * 2.0 - 1.0);
 
     outData.albedo *= vertData.colorMul;
     outData.albedo.rgb = srgb2linear(outData.albedo.rgb);

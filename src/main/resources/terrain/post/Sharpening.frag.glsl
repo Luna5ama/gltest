@@ -16,7 +16,7 @@ void main() {
     // Get the color from the TAA texture
     vec4 colorC = texelFetch(usam_mainFbo_inputColor, intTexCoord, 0);
 
-    vec2 offsetHalf = fTexCoord + 0.5 * ubo_cameraDefault.screenSize.zw;
+    vec2 offsetHalf = fTexCoord + 0.5 * ubo_camera.screenSize.zw;
 
     // Calculate the blurred version of the image using a simple box blur or other blur filter
     vec4 blurredColor = textureOffset(usam_mainFbo_inputColor, offsetHalf, ivec2(-1, -1));

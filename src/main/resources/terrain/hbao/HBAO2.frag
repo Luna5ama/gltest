@@ -38,7 +38,7 @@ float blinnPhong(vec3 lightDir, vec3 viewDir, vec3 normal, float roughness) {
     return max(pow(NdotH, 2.0 / (roughness2) - 2.0) * (1.0 - roughness2), 0.0);
 }
 
-#define F_INDEX ubo_cameraDefault.gFrameIndex
+#define F_INDEX ubo_camera.gFrameIndex
 //#define F_INDEX 0
 
 float IGN(vec2 v) {
@@ -65,7 +65,7 @@ void main() {
 
     vec4 slThis2 = texture(usam_solidLighting2, fTexCoord);
 
-    vec3 gs_viewCoord = (ubo_cameraDefault.modelView * vec4(gs_data.worldCoord, 1.0)).xyz;
+    vec3 gs_viewCoord = (ubo_camera.modelView * vec4(gs_data.worldCoord, 1.0)).xyz;
     vec3 viewDirThis = normalize(-gs_data.worldCoord);
     vec3 viewCordDirThis = normalize(-gs_viewCoord);
 
@@ -73,7 +73,7 @@ void main() {
 //            vec3 worldNormalThis = gs_data.worldNormal;
     vec3 worldNormalThis = normalize(slThis2.rgb);
 
-    vec3 gs_viewNormal = normalize(mat3(ubo_cameraDefault.modelView) * worldNormalThis);
+    vec3 gs_viewNormal = normalize(mat3(ubo_camera.modelView) * worldNormalThis);
     float roughnessThis = slThis2.a;
     roughnessThis *= roughnessThis;
 
@@ -83,14 +83,14 @@ void main() {
     //    uint worldCoordRand0 = uint(rand(gl_FragCoord.yx) * 256.0);
     //    uint worldCoordRand1 = uint(rand(gl_FragCoord.yx) * 256.0);
 
-    //    uint worldCoordRand0 = uint(IGN(gl_FragCoord.yx, ubo_cameraDefault.gFrameIndex) * 256.0);
-    //    uint worldCoordRand1 = uint(IGN(gl_FragCoord.yx, ubo_cameraDefault.gFrameIndex) * 256.0);
+    //    uint worldCoordRand0 = uint(IGN(gl_FragCoord.yx, ubo_camera.gFrameIndex) * 256.0);
+    //    uint worldCoordRand1 = uint(IGN(gl_FragCoord.yx, ubo_camera.gFrameIndex) * 256.0);
 
     ivec2 intTexCoord = ivec2(fTexCoordI);
 
     float sampleAngleDelta = 2.0 * PI_CONST / HBAO_DIR_SAMPLES;
     //    float initialAngle = r2Seq1(F_INDEX + worldCoordRand0) * sampleAngleDelta - sampleAngleDelta * 0.5;
-    float initialAngle = IGN(gl_FragCoord.xy, ubo_cameraDefault.gFrameIndex) * sampleAngleDelta - sampleAngleDelta * 0.5;
+    float initialAngle = IGN(gl_FragCoord.xy, ubo_camera.gFrameIndex) * sampleAngleDelta - sampleAngleDelta * 0.5;
     vec2 sphereRadius = (uval_radius.x / -gs_viewCoord.z) * uval_projectParams.xy;
 
     vec4 sum = vec4(0.0);
@@ -98,7 +98,7 @@ void main() {
     for (int i = 0; i < HBAO_DIR_SAMPLES; i++) {
         float sampleAngle = initialAngle + sampleAngleDelta * float(i);
         vec2 sampleDir = vec2(cos(sampleAngle), sin(sampleAngle));
-        vec2 sampleDirUVUnit = sampleDir * vec2(uval_projectParams.z, 1.0) * ubo_cameraDefault.screenSize.zw;
+        vec2 sampleDirUVUnit = sampleDir * vec2(uval_projectParams.z, 1.0) * ubo_camera.screenSize.zw;
         vec2 sampleDirUV = sampleDir * sphereRadius;
 
         vec3 colorSum = vec3(0.0);
@@ -142,7 +142,7 @@ void main() {
             GBufferData gSampleData;
             gbuffer_unpack1(texture(usam_gData1, sampleTexCoord), gSampleData);
 
-            vec3 viewCoordThat = (ubo_cameraDefault.modelView * vec4(gSampleData.worldCoord, 1.0)).xyz;
+            vec3 viewCoordThat = (ubo_camera.modelView * vec4(gSampleData.worldCoord, 1.0)).xyz;
             vec3 diff = viewCoordThat - gs_viewCoord;
             float dist = length(diff);
             if (dist > uval_radius.y) continue;

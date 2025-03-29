@@ -13,5 +13,5 @@ void main() {
 
     fPos = vPos;
     fTexCoord = vPos * 0.5 + 0.5;
-    fTexCoordI = fTexCoord * ubo_cameraDefault.screenSize.xy;
+    fTexCoordI = fTexCoord * ubo_camera.screenSize.xy;
 }

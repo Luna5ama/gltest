@@ -176,7 +176,7 @@ class TAA(private val scene: TerrainScene, samples: Int, private val radius: Flo
                 wrap(WrapMode.ClampToEdge, WrapMode.ClampToEdge)
             })
 
-            buffer(scene.camera.noJitterUboBinding)
+            buffer(scene.camera.uboBinding)
         }
 
         scene.basic.drawQuad()

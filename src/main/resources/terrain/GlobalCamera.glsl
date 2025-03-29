@@ -21,7 +21,7 @@ layout(std140) uniform GlobalCameraNoJitter {
 };
 
 layout(std140) uniform GlobalCameraDefault {
-    Camera ubo_cameraDefault;
+    Camera ubo_camera;
 };
 
 layout(std140) uniform PrevGlobalCameraJitter {

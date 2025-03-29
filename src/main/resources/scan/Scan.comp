@@ -54,7 +54,7 @@ uniform uint uval_pass;
 
 layout(local_size_x = WORK_GROUP_SIZE) in;
 
-shared uint shared_sum[gl_NumSubgroups];
+shared uint shared_sum[WORK_GROUP_SIZE / 16];
 
 void main() {
     uint sum = 0u;

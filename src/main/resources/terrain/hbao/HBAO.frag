@@ -28,7 +28,7 @@ layout(location = 0) out vec4 outValue;
 vec3 getViewPos(vec2 uv) {
     GBufferData data;
     gbuffer_unpack1(texture(usam_gData1, uv), data);
-    return (ubo_cameraDefault.modelView * vec4(data.worldCoord, 1.0)).xyz;
+    return (ubo_camera.modelView * vec4(data.worldCoord, 1.0)).xyz;
 }
 
 float tan2sin(float x) {
@@ -129,7 +129,7 @@ void main(void) {
     GBufferData gDataC;
     gbuffer_unpack1(texture(usam_gData1, fTexCoord), gDataC);
 
-    vec3 viewCoordC = (ubo_cameraDefault.modelView * vec4(gDataC.worldCoord, 1.0)).xyz;
+    vec3 viewCoordC = (ubo_camera.modelView * vec4(gDataC.worldCoord, 1.0)).xyz;
 
     // Sample neighboring pixels
     vec3 viewCoordR = getViewPos(fTexCoord + vec2(uval_aoRes.z, 0));
@@ -146,9 +146,9 @@ void main(void) {
     uint worldCoordRand2 = uint(rand(gDataC.worldCoord.zxy) * 1024.0);
 
     vec3 random = vec3(
-        r2Seq1(worldCoordRand0 + ubo_cameraDefault.gFrameIndex),
-        r2Seq1(worldCoordRand1 + ubo_cameraDefault.gFrameIndex),
-        r2Seq1(worldCoordRand2 + ubo_cameraDefault.gFrameIndex)
+        r2Seq1(worldCoordRand0 + ubo_camera.gFrameIndex),
+        r2Seq1(worldCoordRand1 + ubo_camera.gFrameIndex),
+        r2Seq1(worldCoordRand2 + ubo_camera.gFrameIndex)
     );
 
     // Calculate the projected size of the hemisphere

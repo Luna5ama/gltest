@@ -12,7 +12,7 @@ out vec4 fragColor;
 void main() {
     fragColor = vec4(SUN_LIGHT_INTENSITY * SUN_LIGHT_COLOR, 4.0);
 
-    vec4 camVec = ubo_cameraDefault.invCombined * vec4(fPos, 0.0, 1.0);
+    vec4 camVec = ubo_camera.invCombined * vec4(fPos, 0.0, 1.0);
     camVec.xyz *= 1.0 / camVec.w;
 
     vec3 camNormal = normalize(camVec.xyz);

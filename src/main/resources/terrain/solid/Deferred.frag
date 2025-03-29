@@ -48,7 +48,7 @@ void main() {
     outData.lightCoord = fragData.lightCoord;
 
     const float delta = 16.0 / 256.0;
-    outData.lightCoord += r2Seq2(uint(rand(gl_FragCoord.xy) * 1024.0 + ubo_cameraDefault.gFrameIndex)) * delta - delta * 0.5;
+    outData.lightCoord += r2Seq2(uint(rand(gl_FragCoord.xy) * 1024.0 + ubo_camera.gFrameIndex)) * delta - delta * 0.5;
 
     outData.worldTangent = vec3(1.0, 0.0, 0.0);
 

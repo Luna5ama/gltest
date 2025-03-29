@@ -1,39 +1,43 @@
 struct Camera {
+    // 0 bytes
     mat4 projection;
     mat4 modelView;
     mat4 combined;
     mat4 invProjection;
     mat4 invModelView;
     mat4 invCombined;
+    // 384 bytes
+    mat4 projectionNoJitter;
+    mat4 modelViewNoJitter;
+    mat4 combinedNoJitter;
+    mat4 invProjectionNoJitter;
+    mat4 invModelViewNoJitter;
+    mat4 invCombinedNoJitter;
+    // 768 bytes
+    mat4 prevProjection;
+    mat4 prevModelView;
+    mat4 prevCombined;
+    mat4 prevInvProjection;
+    mat4 prevInvModelView;
+    mat4 prevInvCombined;
+    // 1152 bytes
+    mat4 prevProjectionNoJitter;
+    mat4 prevModelViewNoJitter;
+    mat4 prevCombinedNoJitter;
+    mat4 prevInvProjectionNoJitter;
+    mat4 prevInvModelViewNoJitter;
+    mat4 prevInvCombinedNoJitter;
+    // 1536 bytes
     vec4 screenSize;
     vec3 viewDir;
+    vec3 cameraDelta;
     vec2 cameraRotation;
     vec2 planeZ;
     uint gFrameIndex;
 };
 
-layout(std140) uniform GlobalCameraJitter {
-    Camera ubo_cameraJitter;
-};
-
-layout(std140) uniform GlobalCameraNoJitter {
-    Camera ubo_cameraNoJitter;
-};
-
-layout(std140) uniform GlobalCameraDefault {
-    Camera ubo_cameraDefault;
-};
-
-layout(std140) uniform PrevGlobalCameraJitter {
-    Camera ubo_prevCameraJitter;
-};
-
-layout(std140) uniform PrevGlobalCameraNoJitter {
-    Camera ubo_prevCameraNoJitter;
-};
-
-layout(std140) uniform PrevGlobalCameraDefault {
-    Camera ubo_prevCameraDefault;
+layout(std140, binding = 0) uniform GlobalCamera {
+    Camera ubo_camera;
 };
 
 float global_linearizeDepth(Camera camera, float depth) {

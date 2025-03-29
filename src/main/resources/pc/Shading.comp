@@ -80,9 +80,9 @@ void main() {
     vec3 ndcCoord = vec3(vec2(centerCoord) + 0.5, depth);
     ndcCoord.xy *= uval_viewportSize.zw;
     ndcCoord.xy = ndcCoord.xy * 2.0 - 1.0;
-    vec4 viewCoord = ubo_cameraDefault.invProjection * vec4(ndcCoord, 1.0);
+    vec4 viewCoord = ubo_camera.invProjection * vec4(ndcCoord, 1.0);
     viewCoord /= viewCoord.w;
-    vec4 worldCoord = ubo_cameraDefault.invModelView * viewCoord;
+    vec4 worldCoord = ubo_camera.invModelView * viewCoord;
     vec3 offset = worldCoord.xyz;
 
     offset.xyz += ssbo_chunkPosData.cameraChunkLocalPos.xyz;
@@ -106,9 +106,9 @@ void main() {
     pos2 += extraOffset;
     pos3 += extraOffset;
 
-    vec4 posCS1 = (ubo_cameraDefault.combined * vec4(pos1, 1.0));
-    vec4 posCS2 = (ubo_cameraDefault.combined * vec4(pos2, 1.0));
-    vec4 posCS3 = (ubo_cameraDefault.combined * vec4(pos3, 1.0));
+    vec4 posCS1 = (ubo_camera.combined * vec4(pos1, 1.0));
+    vec4 posCS2 = (ubo_camera.combined * vec4(pos2, 1.0));
+    vec4 posCS3 = (ubo_camera.combined * vec4(pos3, 1.0));
 
     posCS1.xy /= posCS1.w;
     posCS2.xy /= posCS2.w;
@@ -199,7 +199,7 @@ void main() {
     vec2 texCoordTileMax = vec2(max4(texCoordXRaw), max4(texCoordYRaw));
 
     #define SAMPLE_COUNT 4
-    uint rIndex = ubo_cameraDefault.gFrameIndex * SAMPLE_COUNT;
+    uint rIndex = ubo_camera.gFrameIndex * SAMPLE_COUNT;
 
     vec4 colorCenter = textureLod(usam_blockAlbedoAtlas, texCoordThis, 0.0);
     vec4 colorV = colorCenter;

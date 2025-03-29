@@ -94,10 +94,10 @@ bool setupCull(out CullTestQuad data) {
     vec3 pos3 = BOX_VERT_POS[BOX_VERT_INDICES[indicesBaseIdx + 2]] + chunkOffset;
     vec3 pos4 = BOX_VERT_POS[BOX_VERT_INDICES[indicesBaseIdx + 3]] + chunkOffset;
 
-    vec4 clipPos1 = ubo_cameraDefault.combined * vec4(pos1, 1.0);
-    vec4 clipPos2 = ubo_cameraDefault.combined * vec4(pos2, 1.0);
-    vec4 clipPos3 = ubo_cameraDefault.combined * vec4(pos3, 1.0);
-    vec4 clipPos4 = ubo_cameraDefault.combined * vec4(pos4, 1.0);
+    vec4 clipPos1 = ubo_camera.combined * vec4(pos1, 1.0);
+    vec4 clipPos2 = ubo_camera.combined * vec4(pos2, 1.0);
+    vec4 clipPos3 = ubo_camera.combined * vec4(pos3, 1.0);
+    vec4 clipPos4 = ubo_camera.combined * vec4(pos4, 1.0);
 
     survived = survived & (uint(determinant(mat3(clipPos1.xyw, clipPos2.xyw, clipPos3.xyw)) > 0.0) | uint(determinant(mat3(clipPos3.xyw, clipPos2.xyw, clipPos4.xyw)) > 0.0));
 

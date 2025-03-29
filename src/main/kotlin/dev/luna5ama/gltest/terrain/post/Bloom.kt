@@ -70,7 +70,7 @@ class Bloom(private val scene: TerrainScene) : IGLObjContainer by IGLObjContaine
         initPass.bind()
         initPass.applyBinding {
             sampler(fboGroup.inputBindings)
-            buffer(scene.camera.noJitterUboBinding)
+            buffer(scene.camera.uboBinding)
         }
         scene.basic.drawQuad()
 

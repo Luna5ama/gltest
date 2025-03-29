@@ -84,7 +84,7 @@ void main() {
     gbuffer_unpack1(texelFetch(usam_gSolidData1, intTexCoord, 0), gs_data);
     gbuffer_unpack2(texelFetch(usam_gSolidData2, intTexCoord, 0), gs_data);
 
-    gs_viewCoord = (ubo_cameraDefault.modelView * vec4(gs_data.worldCoord, 1.0)).xyz;
+    gs_viewCoord = (ubo_camera.modelView * vec4(gs_data.worldCoord, 1.0)).xyz;
     gs_viewNormal = normalize(fNormalMatrix * gs_data.worldNormal);
     gs_lightMapColor = texture(usam_lightMap, gs_data.lightCoord).rgb;
     gs_aoMul = float((gs_data.materialID >> 2u) & 1u);

@@ -15,5 +15,5 @@ void main() {
     worldCoord.xyz += originOffset;
 
     rawIndirectIdx = vertRawIndirectIdx;
-    gl_Position = ubo_cameraDefault.combined * worldCoord;
+    gl_Position = ubo_camera.combined * worldCoord;
 }

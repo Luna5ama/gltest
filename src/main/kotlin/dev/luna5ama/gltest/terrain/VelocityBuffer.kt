@@ -60,7 +60,7 @@ class VelocityBuffer(private val scene: TerrainScene) : IGLObjContainer by IGLOb
             sampler(input.genericTexBindings)
             sampler(samplerBindings)
 
-            buffer(scene.camera.noJitterUboBinding)
+            buffer(scene.camera.uboBinding)
         }
         velocityBufferShader.uniform3f(
             "uCameraDelta",

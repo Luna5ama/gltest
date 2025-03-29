@@ -12,5 +12,5 @@ void main() {
     gl_Position = vec4(vPos, 1.0, 1.0);
     fClipCoord = vPos;
     fTexCoord = vPos * 0.5 + 0.5;
-    fNormalMatrix = transpose(inverse(mat3(ubo_cameraDefault.modelView)));
+    fNormalMatrix = transpose(inverse(mat3(ubo_camera.modelView)));
 }

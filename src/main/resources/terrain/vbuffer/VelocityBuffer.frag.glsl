@@ -37,7 +37,7 @@ void main() {
     ndpacking_unpack(texelFetch(usam_velocity_ndTex, intTexCoord, 0).xy, currNormal, currDepth);
     currDepth = max(currDepth, 0.0000001);
 
-    vec4 currWorldCoord = ubo_cameraDefault.invCombined * vec4(fClipCoord, currDepth, 1.0);
+    vec4 currWorldCoord = ubo_camera.invCombined * vec4(fClipCoord, currDepth, 1.0);
     currWorldCoord /= currWorldCoord.w;
     vec4 prevWorldCoord = currWorldCoord;
     prevWorldCoord.xyz -= uCameraDelta;
@@ -48,7 +48,7 @@ void main() {
     vec3 prevNormal;
     ndpacking_unpack(texelFetch(usam_velocity_prevNDTex, intTexCoord, 0).xy, prevNormal, prevDepth);
 
-    vec4 prevProjCoord = projPrevToCurr(ubo_cameraDefault, ubo_prevCameraDefault, vec3(fClipCoord, prevDepth));
+    vec4 prevProjCoord = projPrevToCurr(ubo_camera, ubo_prevCameraDefault, vec3(fClipCoord, prevDepth));
 
     uint flag = 0u;
     flag |= uint(currDepth != 0.0) & uint(any(greaterThan(abs(prevClipCoord.xyz), vec3(prevClipCoord.w))));
@@ -61,7 +61,7 @@ void main() {
         vec3 ndpCurrNormal;
         ndpacking_unpack(texture(usam_velocity_ndTex, fTexCoord).xy, ndpCurrNormal, ndpCurrDepth);
 
-        vec3 ndpCurrWorldCoord = projClipToWorld(ubo_cameraDefault, vec3(fClipCoord, ndpCurrDepth));
+        vec3 ndpCurrWorldCoord = projClipToWorld(ubo_camera, vec3(fClipCoord, ndpCurrDepth));
         ndpCurrWorldCoord -= uCameraDelta;
 
         vec4 prevNDPDepths = uintBitsToFloat(textureGather(usam_velocity_prevNDTex, fTexCoord.xy, 1));

@@ -362,7 +362,7 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
         forwardShader.applyBinding {
             sampler(shadowMapSamplerBindings)
 
-            buffer(scene.camera.noJitterUboBinding)
+            buffer(scene.camera.uboBinding)
             buffer(uboBinding)
         }
 
@@ -519,7 +519,7 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
         mapGenSolid.applyBinding {
             sampler("usam_warpingMap", warpingMap)
 
-            buffer(scene.camera.noJitterUboBinding)
+            buffer(scene.camera.uboBinding)
             buffer(uboBinding)
         }
     }
@@ -536,7 +536,7 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
             sampler(scene.textures.blockSpecular)
             sampler("usam_warpingMap", warpingMap)
 
-            buffer(scene.camera.noJitterUboBinding)
+            buffer(scene.camera.uboBinding)
             buffer(uboBinding)
         }
     }
@@ -557,7 +557,7 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
         scene.basic.blitDepthShader.uniform1f("uLod", 0.0f)
         scene.basic.blitDepthShader.applyBinding {
             sampler("usam_input", shadowDepthTexture, shadowDepthSampler)
-            buffer(scene.camera.noJitterUboBinding)
+            buffer(scene.camera.uboBinding)
         }
 
         val sizes = 512
@@ -578,14 +578,14 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
         scene.basic.blit1DArrayH.uniform1f("uLayer", 0.0f)
         scene.basic.blit1DArrayH.applyBinding {
             sampler("usam_input", imap1D)
-            buffer(scene.camera.noJitterUboBinding)
+            buffer(scene.camera.uboBinding)
         }
         scene.basic.drawQuad()
 
         glViewport(0, sizes + sizes + 16, sizes, 16)
         scene.basic.blit1DArrayH.applyBinding {
             sampler("usam_input", warpingMap)
-            buffer(scene.camera.noJitterUboBinding)
+            buffer(scene.camera.uboBinding)
         }
         scene.basic.drawQuad()
 
@@ -594,14 +594,14 @@ class RTWSM(private val scene: TerrainScene, private val texSize: Int) : IGLObjC
         scene.basic.blit1DArrayV.uniform1f("uLayer", 1.0f)
         scene.basic.blit1DArrayV.applyBinding {
             sampler("usam_input", imap1D)
-            buffer(scene.camera.noJitterUboBinding)
+            buffer(scene.camera.uboBinding)
         }
         scene.basic.drawQuad()
 
         glViewport(sizes + 16, sizes, 16, sizes)
         scene.basic.blit1DArrayV.applyBinding {
             sampler("usam_input", warpingMap)
-            buffer(scene.camera.noJitterUboBinding)
+            buffer(scene.camera.uboBinding)
         }
         scene.basic.drawQuad()
 

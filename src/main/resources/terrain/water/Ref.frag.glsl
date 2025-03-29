@@ -37,8 +37,8 @@ bool findIntersection(sampler2D depthTexture, vec3 refDir, out vec3 intersection
     vec3 sampleEnd = sampleOrigin + refDir * maxDist;
 
     vec3 sampleDelta = sampleEnd.xyz - sampleOrigin.xyz;
-    ivec2 sampleScreenPos = ivec2(sampleOrigin.xy * ubo_cameraDefault.screenSize.xy);
-    ivec2 endPosScreenPos = ivec2(sampleEnd.xy * ubo_cameraDefault.screenSize.xy);
+    ivec2 sampleScreenPos = ivec2(sampleOrigin.xy * ubo_camera.screenSize.xy);
+    ivec2 endPosScreenPos = ivec2(sampleEnd.xy * ubo_camera.screenSize.xy);
 
     ivec2 dp2 = abs(endPosScreenPos - sampleScreenPos);
     vec3 pixelDelta = sampleDelta / max(dp2.x, dp2.y);
@@ -78,7 +78,7 @@ bool findIntersection(sampler2D depthTexture, vec3 refDir, out vec3 intersection
 vec3 calcRefDirTS(vec3 refDirView) {
     vec4 refEndView = vec4(gw_viewCoord + refDirView * 1000, 1.0);
 
-    vec4 reflEndClip = ubo_cameraDefault.projection * vec4(refEndView.xyz, 1);
+    vec4 reflEndClip = ubo_camera.projection * vec4(refEndView.xyz, 1);
     reflEndClip /= reflEndClip.w;
 
     vec3 refDir = normalize((reflEndClip.xyz - vec3(fClipCoord, gw_depth)).xyz);
@@ -114,7 +114,7 @@ void calcRefraction() {
     vec3 intersection;
 
     if (findIntersection(usam_gSolidDepth, refDir, intersection)) {
-//        vec2 offset = normalize(refDir.xy) * ubo_cameraDefault.screenSize.zw * 2.0;
+//        vec2 offset = normalize(refDir.xy) * ubo_camera.screenSize.zw * 2.0;
 //        GBufferData tempData;
 //        gbuffer_unpack1(texture(usam_gSolidData1, intersection.xy), tempData);
 //        refUV.zw = tempData.albedo.a > 0.0 ? intersection.xy : fTexCoord;
@@ -136,7 +136,7 @@ void main() {
     gw_worldNormal = gw_data.worldNormal;
     gw_depth = textureLod(usam_gWaterDepth, fTexCoord, 0.0).x;
 
-    gw_viewCoord = (ubo_cameraDefault.modelView * vec4(gw_worldCoord, 1.0)).xyz;
+    gw_viewCoord = (ubo_camera.modelView * vec4(gw_worldCoord, 1.0)).xyz;
     gw_viewNormal = fNormalMatrix * gw_worldNormal;
 
     sampleOrigin = vec3(fTexCoord, gw_depth);

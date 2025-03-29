@@ -81,7 +81,7 @@ void importance(ivec2 gCoord, out uint p, out float v) {
     maxDiff = max(maxDiff, abs(center - textureOffset(usam_shadowDepth, shadowTSWarped, ivec2(1, -1)).x));
     maxDiff = max(maxDiff, abs(center - textureOffset(usam_shadowDepth, shadowTSWarped, ivec2(1, 0)).x));
     maxDiff = max(maxDiff, abs(center - textureOffset(usam_shadowDepth, shadowTSWarped, ivec2(1, 1)).x));
-    maxDiff *= ubo_cameraDefault.planeZ.y - ubo_cameraDefault.planeZ.x;
+    maxDiff *= ubo_camera.planeZ.y - ubo_camera.planeZ.x;
 
     const float NON_EDGE = 0.01;
     importance *= mix(NON_EDGE, 1.0, smoothstep(0.5, 2.0, maxDiff));

@@ -25,7 +25,7 @@ const vec3 COORD_CONVERT = vec3(2.51773861295491E-4);
 
 void main() {
     vec3 worldCoord = fma(vPos, COORD_CONVERT, vChunkOffset * 16.0 + originOffset);
-    gl_Position = ubo_cameraDefault.combined * vec4(worldCoord, 1.0);
+    gl_Position = ubo_camera.combined * vec4(worldCoord, 1.0);
 
     fragData.worldCoord = worldCoord;
     fragData.colorMul = vec4(vColorMul, 1.0);

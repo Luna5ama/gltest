@@ -57,7 +57,7 @@ const float WEIGHTS[] = { 0.42857142857142855, 0.2857142857142857, 0.07142857142
 ivec2 imgSize = imageSize(uimg_output);
 
 vec3 projClipToWorld(vec3 clipCoord) {
-    vec4 worldCoord = ubo_cameraDefault.invCombined * vec4(clipCoord, 1.0);
+    vec4 worldCoord = ubo_camera.invCombined * vec4(clipCoord, 1.0);
     worldCoord /= worldCoord.w;
     return worldCoord.xyz;
 }

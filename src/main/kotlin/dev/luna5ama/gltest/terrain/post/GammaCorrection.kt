@@ -18,7 +18,7 @@ class GammaCorrection(private val scene: TerrainScene) : IGLObjContainer by IGLO
         shader.uniform1f("uInvGamma", 1.0f / 2.2f)
         shader.applyBinding {
             sampler(fboGroup.inputBindings)
-            buffer(scene.camera.noJitterUboBinding)
+            buffer(scene.camera.uboBinding)
         }
 
         fboGroup.input.colorTex.bindTextureUnit(0)

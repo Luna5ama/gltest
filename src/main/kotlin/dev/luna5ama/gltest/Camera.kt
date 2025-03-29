@@ -29,6 +29,7 @@ class Camera(val scene: AbstractScene) : IGLObjContainer by IGLObjContainer.Impl
     val fov get() = (fov0 / 2.0.pow(zoom)).toFloat()
 
     val pos = Vector3d()
+    val prevPos = Vector3d()
     val rotation = Vector2f()
 
     var aspectRatio = 0.0f; private set
@@ -36,58 +37,45 @@ class Camera(val scene: AbstractScene) : IGLObjContainer by IGLObjContainer.Impl
     var nearPlane = 0.0f; private set
     val planeZ = Vector2f()
 
-    val noJitterProjection = Matrix4f()
-    val noJitterModelView = Matrix4f()
-    val noJitterCombined = Matrix4f()
-
-    val noJitterInvProjection = Matrix4f()
-    val noJitterInvModelView = Matrix4f()
-    val noJitterInvCombined = Matrix4f()
-
-    var noJitterFrustum = Frustum(noJitterInvCombined)
-
     val projection = Matrix4f()
     val modelView = Matrix4f()
     val combined = Matrix4f()
-    val viewDir = Vector3f()
-
     val invProjection = Matrix4f()
     val invModelView = Matrix4f()
     val invCombined = Matrix4f()
 
+    val noJitterProjection = Matrix4f()
+    val noJitterModelView = Matrix4f()
+    val noJitterCombined = Matrix4f()
+    val noJitterInvProjection = Matrix4f()
+    val noJitterInvModelView = Matrix4f()
+    val noJitterInvCombined = Matrix4f()
+
+    val prevProjection = Matrix4f()
+    val prevModelView = Matrix4f()
+    val prevCombined = Matrix4f()
+    val prevInvProjection = Matrix4f()
+    val prevInvModelView = Matrix4f()
+    val prevInvCombined = Matrix4f()
+
+    val prevNoJitterProjection = Matrix4f()
+    val prevNoJitterModelView = Matrix4f()
+    val prevNoJitterCombined = Matrix4f()
+    val prevNoJitterInvProjection = Matrix4f()
+    val prevNoJitterInvModelView = Matrix4f()
+    val prevNoJitterInvCombined = Matrix4f()
+
+    val viewDir = Vector3f()
+
+    var noJitterFrustum = Frustum(noJitterInvCombined); private set
     var frustum = Frustum(invCombined); private set
 
     private val ubo = register(BufferObject.Immutable()).apply {
         allocate(UBO_SIZE, GL_DYNAMIC_STORAGE_BIT)
         label = "GlobalCameraUBO"
     }
-    private val noJitterUbo = register(BufferObject.Immutable()).apply {
-        allocate(UBO_SIZE, GL_DYNAMIC_STORAGE_BIT)
-        label = "GlobalCameraNoJitterUBO"
-    }
-    private val prevUBO = register(BufferObject.Immutable()).apply {
-        allocate(UBO_SIZE, 0)
-        label = "GlobalCameraPrevUBO"
-    }
-    private val prevNoJitterUBO = register(BufferObject.Immutable()).apply {
-        allocate(UBO_SIZE, 0)
-        label = "GlobalCameraPrevNoJitterUBO"
-    }
-    val noJitterUboBinding = listOf(
-        ShaderBindingSpecs.Buffer("GlobalCameraDefault", noJitterUbo, BufferTarget.Uniform),
-        ShaderBindingSpecs.Buffer("GlobalCameraJitter", ubo, BufferTarget.Uniform),
-        ShaderBindingSpecs.Buffer("GlobalCameraNoJitter", noJitterUbo, BufferTarget.Uniform),
-        ShaderBindingSpecs.Buffer("PrevGlobalCameraDefault", prevNoJitterUBO, BufferTarget.Uniform),
-        ShaderBindingSpecs.Buffer("PrevGlobalCameraJitter", prevUBO, BufferTarget.Uniform),
-        ShaderBindingSpecs.Buffer("PrevGlobalCameraNoJitter", prevNoJitterUBO, BufferTarget.Uniform)
-    )
     val uboBinding = listOf(
-        ShaderBindingSpecs.Buffer("GlobalCameraDefault", ubo, BufferTarget.Uniform),
-        ShaderBindingSpecs.Buffer("GlobalCameraJitter", ubo, BufferTarget.Uniform),
-        ShaderBindingSpecs.Buffer("GlobalCameraNoJitter", noJitterUbo, BufferTarget.Uniform),
-        ShaderBindingSpecs.Buffer("PrevGlobalCameraDefault", prevUBO, BufferTarget.Uniform),
-        ShaderBindingSpecs.Buffer("PrevGlobalCameraJitter", prevUBO, BufferTarget.Uniform),
-        ShaderBindingSpecs.Buffer("PrevGlobalCameraNoJitter", prevNoJitterUBO, BufferTarget.Uniform)
+        ShaderBindingSpecs.Buffer("GlobalCamera", ubo, BufferTarget.Uniform)
     )
 
     val jitter = Vector2f()
@@ -121,6 +109,7 @@ class Camera(val scene: AbstractScene) : IGLObjContainer by IGLObjContainer.Impl
     var maxRotationAngle = 0.0f; private set
 
     fun update(offsetX: Float, offsetY: Float) {
+        updatePrev()
         val maxRotateAngle = max(abs(rotation.x - lastRotation.x), abs(rotation.y - lastRotation.y))
         rotationAngleHistory.add(maxRotateAngle)
         maxRotationAngle = rotationAngleHistory.maxOrNull() ?: 0.0f
@@ -138,16 +127,6 @@ class Camera(val scene: AbstractScene) : IGLObjContainer by IGLObjContainer.Impl
             .rotate(rotation.y.toRadians(), 1.0f, 0.0f, 0.0f)
             .rotate((rotation.x + 180.0f).toRadians(), 0.0f, 1.0f, 0.0f)
 
-        noJitterUbo.copyTo(prevNoJitterUBO)
-        updateUBO(
-            noJitterUbo,
-            noJitterProjection,
-            noJitterModelView,
-            noJitterCombined,
-            noJitterInvProjection,
-            noJitterInvModelView,
-            noJitterInvCombined
-        )
         noJitterFrustum = Frustum(noJitterInvCombined)
 
         projection.identity()
@@ -157,11 +136,29 @@ class Camera(val scene: AbstractScene) : IGLObjContainer by IGLObjContainer.Impl
             .rotate(rotation.y.toRadians(), 1.0f, 0.0f, 0.0f)
             .rotate((rotation.x + 180.0f).toRadians(), 0.0f, 1.0f, 0.0f)
 
-        ubo.copyTo(prevUBO)
-        updateUBO(ubo, projection, modelView, combined, invProjection, invModelView, invCombined)
-        frustum = Frustum(invCombined)
+        updateUBO()
 
+
+        frustum = Frustum(invCombined)
         frameIndex = (frameIndex + 1) % 2048
+    }
+
+    private fun updatePrev() {
+        prevPos.set(pos)
+
+        prevProjection.set(projection)
+        prevModelView.set(modelView)
+        prevCombined.set(combined)
+        prevInvProjection.set(invProjection)
+        prevInvModelView.set(invModelView)
+        prevInvCombined.set(invCombined)
+
+        prevNoJitterProjection.set(noJitterProjection)
+        prevNoJitterModelView.set(noJitterModelView)
+        prevNoJitterCombined.set(noJitterCombined)
+        prevNoJitterInvProjection.set(noJitterInvProjection)
+        prevNoJitterInvModelView.set(noJitterInvModelView)
+        prevNoJitterInvCombined.set(noJitterInvCombined)
     }
 
     fun Matrix4f.setupPerspective(fovY: Float, aspectRatio: Float, zNear: Float, zFar: Float) {
@@ -181,19 +178,16 @@ class Camera(val scene: AbstractScene) : IGLObjContainer by IGLObjContainer.Impl
         mul(tempMatrix)
     }
 
-    private fun updateUBO(
-        buffer: BufferObject.Immutable,
-        projection: Matrix4f,
-        modelView: Matrix4f,
-        combined: Matrix4f,
-        invProjection: Matrix4f,
-        invModelView: Matrix4f,
-        invCombined: Matrix4f
-    ) {
+    private fun updateUBO() {
         combined.set(projection).mul(modelView)
         invProjection.set(projection).invert()
         invModelView.set(modelView).invert()
         invCombined.set(combined).invert()
+
+        noJitterCombined.set(noJitterProjection).mul(noJitterModelView)
+        noJitterInvProjection.set(noJitterProjection).invert()
+        noJitterInvModelView.set(noJitterModelView).invert()
+        noJitterInvCombined.set(noJitterCombined).invert()
 
         viewDir.set(0.0f, 0.0f, -1.0f).mulDirection(invModelView)
 
@@ -205,6 +199,28 @@ class Camera(val scene: AbstractScene) : IGLObjContainer by IGLObjContainer.Impl
             invProjection.copyToMutableArr(arr)
             invModelView.copyToMutableArr(arr)
             invCombined.copyToMutableArr(arr)
+
+            noJitterProjection.copyToMutableArr(arr)
+            noJitterModelView.copyToMutableArr(arr)
+            noJitterCombined.copyToMutableArr(arr)
+            noJitterInvProjection.copyToMutableArr(arr)
+            noJitterInvModelView.copyToMutableArr(arr)
+            noJitterInvCombined.copyToMutableArr(arr)
+
+            prevProjection.copyToMutableArr(arr)
+            prevModelView.copyToMutableArr(arr)
+            prevCombined.copyToMutableArr(arr)
+            prevInvProjection.copyToMutableArr(arr)
+            prevInvModelView.copyToMutableArr(arr)
+            prevInvCombined.copyToMutableArr(arr)
+
+            prevNoJitterProjection.copyToMutableArr(arr)
+            prevNoJitterModelView.copyToMutableArr(arr)
+            prevNoJitterCombined.copyToMutableArr(arr)
+            prevNoJitterInvProjection.copyToMutableArr(arr)
+            prevNoJitterInvModelView.copyToMutableArr(arr)
+            prevNoJitterInvCombined.copyToMutableArr(arr)
+
             arr.usePtr {
                 setFloatInc(screenWidth.toFloat())
                     .setFloatInc(screenHeight.toFloat())
@@ -217,13 +233,20 @@ class Camera(val scene: AbstractScene) : IGLObjContainer by IGLObjContainer.Impl
                     .setFloatInc(viewDir.y)
                     .setFloatInc(viewDir.z)
                     .setFloatInc(0.0f)
-                    .setFloatInc(0.05f)
-                    .setFloatInc(viewDistance * 1.5f)
+
+                    .setFloatInc((pos.x - prevPos.x).toFloat())
+                    .setFloatInc((pos.y - prevPos.y).toFloat())
+                    .setFloatInc((pos.z - prevPos.z).toFloat())
+                    .setFloatInc(0.0f)
+
+                    .setFloatInc(nearPlane)
+                    .setFloatInc(farPlane)
+
                     .setIntInc(frameIndex)
             }
 
-            buffer.invalidate()
-            buffer.upload(arr.basePtr)
+            ubo.invalidate()
+            ubo.upload(arr.basePtr)
         }
     }
 
@@ -357,6 +380,6 @@ class Camera(val scene: AbstractScene) : IGLObjContainer by IGLObjContainer.Impl
     }
 
     companion object {
-        const val UBO_SIZE = 436L
+        const val UBO_SIZE = 1616L
     }
 }

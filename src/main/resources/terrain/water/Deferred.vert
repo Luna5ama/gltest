@@ -38,7 +38,7 @@ void main() {
         vertData.worldCoord.y -= waveHeight;
     }
 
-    gl_Position = ubo_cameraDefault.combined * vec4(vertData.worldCoord, 1.0);
+    gl_Position = ubo_camera.combined * vec4(vertData.worldCoord, 1.0);
 
     vertData.colorMul = vec4(vColorMul, 1.0);
     vertData.colorMul = bool(vertIsWater) ? vertData.colorMul * WATER_MUL : vertData.colorMul;

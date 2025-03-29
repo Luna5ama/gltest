@@ -27,7 +27,7 @@ in vec2 fTexCoord;
 layout(location = 0) out vec3 rt_outGI;
 layout(location = 1) out float rt_outAO;
 
-#define F_INDEX ubo_cameraDefault.gFrameIndex
+#define F_INDEX ubo_camera.gFrameIndex
 
 float IGN(vec2 v) {
     return fract(52.9829189 * fract(0.06711056 * v.x + 0.00583715 * v.y));
@@ -76,7 +76,7 @@ uint calcSectorBits(float minHorizon, float maxHorizon) {
     return currentBitfield;
 }
 
-#define NOISE_FRAME ubo_cameraDefault.gFrameIndex
+#define NOISE_FRAME ubo_camera.gFrameIndex
 //#define NOISE_FRAME 0u
 
 const float WEIGHTS[32] = float[](
@@ -127,13 +127,13 @@ void main() {
     float centerDepth = texture(usam_linearDepth, fTexCoord).r;
 
     if (centerDepth != 0.0) {
-        vec3 centerViewCoord = toViewSpace(fTexCoord, centerDepth, ubo_cameraDefault.projection, ubo_cameraDefault.invProjection);
+        vec3 centerViewCoord = toViewSpace(fTexCoord, centerDepth, ubo_camera.projection, ubo_camera.invProjection);
         vec3 centerViewNormal = textureLod(usam_solidLighting2, fTexCoord, 0.0).rgb * 2.0 - 1.0;
         vec3 centerViewDir = normalize(-centerViewCoord);
 
         float sampleAngleDelta = 2.0 * PI_CONST / SSILVB_SAMPLE_SLICES;
         float initialAngle = IGN(gl_FragCoord.xy, NOISE_FRAME) * sampleAngleDelta;
-        vec2 sphereRadius = (uval_radius.x / -centerViewCoord.z) * uval_projectParams.xy * ubo_cameraDefault.screenSize.xy;
+        vec2 sphereRadius = (uval_radius.x / -centerViewCoord.z) * uval_projectParams.xy * ubo_camera.screenSize.xy;
 
         uvec2 hashKey = (uvec2(gl_FragCoord.xy) & uvec2(31u)) ^ (NOISE_FRAME & 0xFFFFFFF0u);
         uint r2Index = (hash21(hashKey) & 65535u) + NOISE_FRAME;
@@ -165,10 +165,10 @@ void main() {
                 sampleTexelDist += stepTexelSize;
 
                 vec2 sampleTexelCoord = sampleDir * sampleTexelDist + gl_FragCoord.xy;
-                vec2 sampleUV = sampleTexelCoord * ubo_cameraDefault.screenSize.zw;
+                vec2 sampleUV = sampleTexelCoord * ubo_camera.screenSize.zw;
 
                 float sampleViewZ = textureLod(usam_linearDepth, sampleUV, sampleLod * 0.5).r;
-                vec3 sampleViewXYZ = toViewSpace(sampleUV, sampleViewZ, ubo_cameraDefault.projection, ubo_cameraDefault.invProjection);
+                vec3 sampleViewXYZ = toViewSpace(sampleUV, sampleViewZ, ubo_camera.projection, ubo_camera.invProjection);
                 vec3 diff = sampleViewXYZ - centerViewCoord;
                 float distSq = dot(diff, diff);
 

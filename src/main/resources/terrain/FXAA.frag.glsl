@@ -39,7 +39,7 @@ void main() {
 
     float dirReduce = max((lumaNW + lumaNE + lumaSW + lumaSE) * (0.25 * FXAA_REDUCE_MUL), FXAA_REDUCE_MIN);
     float rcpDirMin = 1.0 / (min(abs(dir.x), abs(dir.y)) + dirReduce);
-    dir = min(vec2(FXAA_SPAN_MAX), max(vec2(-FXAA_SPAN_MAX), dir * rcpDirMin)) * ubo_cameraDefault.screenSize.zw;
+    dir = min(vec2(FXAA_SPAN_MAX), max(vec2(-FXAA_SPAN_MAX), dir * rcpDirMin)) * ubo_camera.screenSize.zw;
 
     vec4 colorA = 0.5 * (texture(usam_mainFbo_inputColor, posPos.xy + dir * vec2(1.0 / 3.0 - 0.5)) + texture(usam_mainFbo_inputColor, posPos.xy + dir * vec2(2.0 / 3.0 - 0.5)));
     vec4 colorB = colorA * 0.5 + 0.25 * (texture(usam_mainFbo_inputColor, posPos.xy + dir * vec2(0.0 / 3.0 - 0.5)) + texture(usam_mainFbo_inputColor, posPos.xy + dir * vec2(3.0 / 3.0 - 0.5)));

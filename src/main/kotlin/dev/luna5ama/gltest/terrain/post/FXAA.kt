@@ -21,7 +21,7 @@ class FXAA(private val scene: TerrainScene) : IGLObjContainer by IGLObjContainer
         fboGroup.output.fbo.bind()
         shader.applyBinding {
             sampler(fboGroup.inputBindings)
-            buffer(scene.camera.noJitterUboBinding)
+            buffer(scene.camera.uboBinding)
         }
 
         glEnable(GL_BLEND)

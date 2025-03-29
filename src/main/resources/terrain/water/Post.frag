@@ -82,7 +82,7 @@ float calcShadow() {
     coord += fNormalMatrix * uShadowMap.lightDir * 0.05;
     coord += gw_viewNormal * 0.1;
 
-    vec4 worldCoord = ubo_cameraDefault.invModelView * vec4(coord, 1.0);
+    vec4 worldCoord = ubo_camera.invModelView * vec4(coord, 1.0);
     worldCoord += uShadowMap.shadowWorldOffset;
     vec4 shadowCoord = uShadowMap.matrix * worldCoord;
     shadowCoord /= shadowCoord.w;
@@ -101,7 +101,7 @@ float calcShadow() {
     vec2 INV_RANGE = 1.0 / ssRange;
 
     float shadow = 0.0;
-    uint idx2 = ubo_cameraDefault.gFrameIndex * SAMPLE_N + worldCoordRand;
+    uint idx2 = ubo_camera.gFrameIndex * SAMPLE_N + worldCoordRand;
 
     #if SAMPLE_N == 1
     vec2 offset = r2Seq2(idx2) * ssRange - ssRange * 0.5;
@@ -224,7 +224,7 @@ const float DEPTH_POWER = 1.0;
 
 vec3 calcRefractColor() {
     vec3 refractColor = sampleRefractionTex(fTexCoord);
-    vec2 halfTexel = ubo_cameraDefault.screenSize.zw * 0.5;
+    vec2 halfTexel = ubo_camera.screenSize.zw * 0.5;
     refractColor *= REFRACTION_BRIGHNESS;
 
     return refractColor;
@@ -238,9 +238,9 @@ void main() {
     gbuffer_unpack1(texelFetch(usam_gWaterData1, intTexCoord, 0), gw_data);
     gbuffer_unpack2(texelFetch(usam_gWaterData2, intTexCoord, 0), gw_data);
 
-    gs_viewCoord = (ubo_cameraDefault.modelView * vec4(gs_worldCoord, 1.0)).xyz;
+    gs_viewCoord = (ubo_camera.modelView * vec4(gs_worldCoord, 1.0)).xyz;
     
-    gw_viewCoord = (ubo_cameraDefault.modelView * vec4(gw_data.worldCoord, 1.0)).xyz;
+    gw_viewCoord = (ubo_camera.modelView * vec4(gw_data.worldCoord, 1.0)).xyz;
     gw_viewNormal = fNormalMatrix * gw_data.worldNormal;
 
     vec3 refractColor = calcRefractColor();

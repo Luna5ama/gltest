@@ -18,7 +18,7 @@ class Sharpening(private val scene: TerrainScene) : IGLObjContainer by IGLObjCon
         shader.bind()
         shader.applyBinding {
             sampler(fboGroup.inputBindings)
-            buffer(scene.camera.noJitterUboBinding)
+            buffer(scene.camera.uboBinding)
         }
         shader.uniform1f("uSharpnessAmount", 0.5f)
 

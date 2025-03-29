@@ -29,7 +29,7 @@ in vec2 fTexCoord;
 
 layout(location = 0) out vec4 outValue;
 
-#define F_INDEX ubo_cameraDefault.gFrameIndex
+#define F_INDEX ubo_camera.gFrameIndex
 
 float IGN(vec2 v) {
     return fract(52.9829189 * fract(0.06711056 * v.x + 0.00583715 * v.y));
@@ -73,34 +73,34 @@ void main() {
     GBufferData gs_data;
     gbuffer_unpack1(texture(usam_gData1, fTexCoord), gs_data);
 
-    vec3 gs_viewCoord = (ubo_cameraDefault.modelView * vec4(gs_data.worldCoord, 1.0)).xyz;
+    vec3 gs_viewCoord = (ubo_camera.modelView * vec4(gs_data.worldCoord, 1.0)).xyz;
 
     vec3 viewDirThis = normalize(-gs_viewCoord);
 
     vec3 worldNormalThis = texture(usam_solidLighting2, fTexCoord).rgb;
-    vec3 gs_viewNormal = mat3(ubo_cameraDefault.modelView) * worldNormalThis;
+    vec3 gs_viewNormal = mat3(ubo_camera.modelView) * worldNormalThis;
 
     float sampleAngleDelta = 2.0 * PI_CONST / HBAO_DIR_SAMPLES;
-    float initialAngle = IGN(gl_FragCoord.xy, ubo_cameraDefault.gFrameIndex) * sampleAngleDelta - sampleAngleDelta * 0.5;
-    vec2 sphereRadius = (uval_radius.x / -gs_viewCoord.z) * uval_projectParams.xy * ubo_cameraDefault.screenSize.xy;
+    float initialAngle = IGN(gl_FragCoord.xy, ubo_camera.gFrameIndex) * sampleAngleDelta - sampleAngleDelta * 0.5;
+    vec2 sphereRadius = (uval_radius.x / -gs_viewCoord.z) * uval_projectParams.xy * ubo_camera.screenSize.xy;
 
     outValue = vec4(0.0);
 
-    vec2 texelCoord = fTexCoord * ubo_cameraDefault.screenSize.xy;
+    vec2 texelCoord = fTexCoord * ubo_camera.screenSize.xy;
 
     for (int dirIndex = 0; dirIndex < HBAO_DIR_SAMPLES; dirIndex++) {
         float sampleAngle = initialAngle + sampleAngleDelta * float(dirIndex);
         vec2 sampleDir = vec2(cos(sampleAngle), sin(sampleAngle));
 
-//        float maxDistX = sampleDir.x != 0.0 ? (sampleDir.x >= 0.0 ? (ubo_cameraDefault.screenSize.x - texelCoord.x) / sampleDir.x : -texelCoord.x / sampleDir.x) : 1e6;
-//        float maxDistY = sampleDir.y != 0.0 ? (sampleDir.y < 0.0 ? (-texelCoord.y / sampleDir.y) : (ubo_cameraDefault.screenSize.y - texelCoord.y) / sampleDir.y) : 1e6;
+//        float maxDistX = sampleDir.x != 0.0 ? (sampleDir.x >= 0.0 ? (ubo_camera.screenSize.x - texelCoord.x) / sampleDir.x : -texelCoord.x / sampleDir.x) : 1e6;
+//        float maxDistY = sampleDir.y != 0.0 ? (sampleDir.y < 0.0 ? (-texelCoord.y / sampleDir.y) : (ubo_camera.screenSize.y - texelCoord.y) / sampleDir.y) : 1e6;
 //        float maxDist = min(maxDistX, maxDistY);
 //        maxDist = min(maxDist, length(sampleDir * sphereRadius));
         float maxDist = length(sampleDir * sphereRadius);
 
         float maxLod = float(textureQueryLevels(usam_linearDepth)) - 1.0;
         float baseLod = clamp(radiusToBaseLod(maxDist), 0.0, maxLod);
-        baseLod += r2Seq1(ubo_cameraDefault.gFrameIndex + uint(IGN(gl_FragCoord.xy) * 1024.0)) - 0.5;
+        baseLod += r2Seq1(ubo_camera.gFrameIndex + uint(IGN(gl_FragCoord.xy) * 1024.0)) - 0.5;
 
         float sampleLod = baseLod;
         float sampleTexelDist = 1.5;
@@ -125,10 +125,10 @@ void main() {
             sampleTexelDist += sampleLodTexelSizeHalf;
 
             vec2 sampleTexelCoord = texelCoord + sampleDir * sampleTexelDist;
-            vec2 sampleUV = sampleTexelCoord * ubo_cameraDefault.screenSize.zw;
+            vec2 sampleUV = sampleTexelCoord * ubo_camera.screenSize.zw;
 
             float sampleViewZ = textureLod(usam_linearDepth, sampleUV, sampleLod).r;
-            vec3 sampleViewXYZ = toViewSpace(sampleUV, sampleViewZ, ubo_cameraDefault.projection, ubo_cameraDefault.invProjection);
+            vec3 sampleViewXYZ = toViewSpace(sampleUV, sampleViewZ, ubo_camera.projection, ubo_camera.invProjection);
 
             vec3 diff = sampleViewXYZ - gs_viewCoord;
             float dist = length(diff);

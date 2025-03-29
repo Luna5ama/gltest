@@ -42,5 +42,5 @@ void main() {
 
     primDataOut.chunkIndex = cullCommand.chunkIndex;
 
-    gl_Position = ubo_cameraDefault.combined * vec4(BOX_VERT_POS[gl_VertexID] + chunkOffset, 1.0);
+    gl_Position = ubo_camera.combined * vec4(BOX_VERT_POS[gl_VertexID] + chunkOffset, 1.0);
 }

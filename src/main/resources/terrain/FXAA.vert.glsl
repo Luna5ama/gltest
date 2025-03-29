@@ -12,5 +12,5 @@ void main() {
     texCoord = vPos * 0.5 + 0.5;
 
     posPos.xy = texCoord.xy;
-    posPos.zw = texCoord.xy - (ubo_cameraDefault.screenSize.zw * 0.5);
+    posPos.zw = texCoord.xy - (ubo_camera.screenSize.zw * 0.5);
 }

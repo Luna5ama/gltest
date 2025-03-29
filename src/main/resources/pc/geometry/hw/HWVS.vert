@@ -70,6 +70,6 @@ void main() {
 
     vertPos.xyz = vertPos.xyz * COORD_CONVERT + chunkOffset;
 
-    gl_Position = ubo_cameraDefault.combined * vertPos;
+    gl_Position = ubo_camera.combined * vertPos;
 //    vertDataOut.depth = gl_Position.z;
 }

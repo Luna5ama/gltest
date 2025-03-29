@@ -90,7 +90,7 @@ class AutoExposure(private val scene: TerrainScene) : IGLObjContainer by IGLObjC
             sampler(avgLumSamplerBinding)
             sampler(fboGroup.inputBindings)
 
-            buffer(scene.camera.noJitterUboBinding)
+            buffer(scene.camera.uboBinding)
         }
         fboGroup.output.fbo.bind()
 
