@@ -50,9 +50,13 @@ layout(std430) readonly buffer VisibleBuffer {
     FLAG_TYPE states[];
 } ssbo_visibleBuffer;
 
-shared uint shared_commandCount = 0u;
+shared uint shared_commandCount;
 
 void main() {
+    if (gl_LocalInvocationID.x == 0) {
+        shared_commandCount = 0u;
+    }
+    barrier();
     uint index = gl_GlobalInvocationID.x;
     bool batchFlag = false;
     if (index < ssbo_quadBatchInfo.batchCount) {
