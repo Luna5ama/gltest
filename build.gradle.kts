@@ -28,7 +28,7 @@ dependencies {
     val kmogusVersion: String by project
     testImplementation(kotlin("test"))
 
-    implementation(platform("org.lwjgl:lwjgl-bom:3.3.3"))
+    implementation(platform("org.lwjgl:lwjgl-bom:3.3.6"))
 
     implementation("org.lwjgl", "lwjgl")
     implementation("org.lwjgl", "lwjgl-glfw")
@@ -55,7 +55,7 @@ dependencies {
     implementation("dev.luna5ama:kmogus-joml:$kmogusVersion")
     implementation("org.lz4:lz4-java:1.8.0")
 
-    implementation("com.tambapps.fft4j:fft4j:2.0")
+//    implementation("com.tambapps.fft4j:fft4j:2.0")
 }
 
 tasks {
