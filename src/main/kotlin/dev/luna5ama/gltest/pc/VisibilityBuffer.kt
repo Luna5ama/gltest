@@ -50,7 +50,7 @@ class VisibilityBuffer(private val scene: PointCloudScene) : IGLObjContainer by 
 
             depthTex.apply {
                 destroy()
-                allocate(1, ImageFormat.Depth32F, scene.camera.screenWidth, scene.camera.screenHeight)
+                allocate(1, ImageFormat.Depth32FStencil8, scene.camera.screenWidth, scene.camera.screenHeight)
                 nearestClampEdge()
             }
 
