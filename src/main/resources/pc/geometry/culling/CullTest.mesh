@@ -31,9 +31,9 @@ layout(std430, binding = 2) restrict readonly buffer CullTestCommandBuffer {
 
 uniform vec3 uval_originOffset;
 
-layout(location = 0) perprimitiveNV out PrimData {
+layout(location = 0) out VertData {
     uint chunkIndex;
-} primDataOut[];
+} vertDataOut[];
 
 const vec3 BOX_VERT_POS[8] = {
     vec3(-1.0, -1.0, -1.0),
@@ -103,18 +103,14 @@ void main() {
 
     uint primBaseIdx = gl_LocalInvocationID.x * PRIM_PER_BOX;
 
-    primDataOut[primBaseIdx].chunkIndex = cullCommand.chunkIndex;
-    primDataOut[primBaseIdx + 1].chunkIndex = cullCommand.chunkIndex;
-    primDataOut[primBaseIdx + 2].chunkIndex = cullCommand.chunkIndex;
-    primDataOut[primBaseIdx + 3].chunkIndex = cullCommand.chunkIndex;
-    primDataOut[primBaseIdx + 4].chunkIndex = cullCommand.chunkIndex;
-    primDataOut[primBaseIdx + 5].chunkIndex = cullCommand.chunkIndex;
-    primDataOut[primBaseIdx + 6].chunkIndex = cullCommand.chunkIndex;
-    primDataOut[primBaseIdx + 7].chunkIndex = cullCommand.chunkIndex;
-    primDataOut[primBaseIdx + 8].chunkIndex = cullCommand.chunkIndex;
-    primDataOut[primBaseIdx + 9].chunkIndex = cullCommand.chunkIndex;
-    primDataOut[primBaseIdx + 10].chunkIndex = cullCommand.chunkIndex;
-    primDataOut[primBaseIdx + 11].chunkIndex = cullCommand.chunkIndex;
+    vertDataOut[vertIdx1].chunkIndex = cullCommand.chunkIndex;
+    vertDataOut[vertIdx2].chunkIndex = cullCommand.chunkIndex;
+    vertDataOut[vertIdx3].chunkIndex = cullCommand.chunkIndex;
+    vertDataOut[vertIdx4].chunkIndex = cullCommand.chunkIndex;
+    vertDataOut[vertIdx5].chunkIndex = cullCommand.chunkIndex;
+    vertDataOut[vertIdx6].chunkIndex = cullCommand.chunkIndex;
+    vertDataOut[vertIdx7].chunkIndex = cullCommand.chunkIndex;
+    vertDataOut[vertIdx8].chunkIndex = cullCommand.chunkIndex;
 
     uint indicesBaseIdx = gl_LocalInvocationID.x * PRIM_PER_BOX * 3u;
 

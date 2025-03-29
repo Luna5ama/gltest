@@ -16,16 +16,10 @@ layout(std430) restrict writeonly buffer VisibleBuffer {
     FLAG_TYPE states[];
 } ssbo_visibleBuffer;
 
-#ifdef MESH_SHADER
-layout(location = 0) perprimitiveNV in PrimData {
-    uint chunkIndex;
-} primDataIn;
-#else
-layout(location = 0) in PrimData {
+layout(location = 0) in VertData {
     flat uint chunkIndex;
-} primDataIn;
-#endif
+} vertDataIn;
 
 void main() {
-    ssbo_visibleBuffer.states[primDataIn.chunkIndex] = FLAG_TYPE(1u);
+    ssbo_visibleBuffer.states[vertDataIn.chunkIndex] = FLAG_TYPE(1u);
 }
