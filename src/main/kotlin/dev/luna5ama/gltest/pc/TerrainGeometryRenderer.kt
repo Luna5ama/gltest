@@ -570,10 +570,10 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
             point3.mul(scene.camera.screenWidth.toFloat(), scene.camera.screenHeight.toFloat(), 1.0f, 1.0f)
             point4.mul(scene.camera.screenWidth.toFloat(), scene.camera.screenHeight.toFloat(), 1.0f, 1.0f)
 
-            val minX = minOf(point1.x(), point2.x(), point3.x(), point4.x())
-            val minY = minOf(point1.y(), point2.y(), point3.y(), point4.y())
-            val maxX = maxOf(point1.x(), point2.x(), point3.x(), point4.x())
-            val maxY = maxOf(point1.y(), point2.y(), point3.y(), point4.y())
+            val minX = minOf(minOf(point1.x(), point2.x()), minOf(point3.x(), point4.x()))
+            val minY = minOf(minOf(point1.y(), point2.y()), minOf(point3.y(), point4.y()))
+            val maxX = maxOf(maxOf(point1.x(), point2.x()), maxOf(point3.x(), point4.x()))
+            val maxY = maxOf(maxOf(point1.y(), point2.y()), maxOf(point3.y(), point4.y()))
             val maxEdge = max(maxX - minX, maxY - minY)
 
             return maxEdge

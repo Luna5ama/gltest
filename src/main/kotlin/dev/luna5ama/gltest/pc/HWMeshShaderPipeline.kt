@@ -30,6 +30,9 @@ class HWMeshShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRend
                 ShaderSource.Task("pc/geometry/hw/HWMS.task") {
                     define(key.defineName)
                     define("FLAG_TYPE", renderer.visibilityFlagType.glslTypeName)
+                    if (renderer.debugQuadCount) {
+                        define("DEBUG_QUAD_COUNT")
+                    }
                 },
                 ShaderSource.Mesh("pc/geometry/hw/HWMS.mesh") {
                     if (renderer.debugQuadCount) {
@@ -156,8 +159,8 @@ class HWMeshShaderPipeline(scene: PointCloudScene, renderer: TerrainGeometryRend
                 MemoryStack {
                     val ptr = malloc(renderer.tempBuffer.size).ptr
                     glGetNamedBufferSubData(renderer.tempBuffer.id, 0, renderer.tempBuffer.size, ptr)
-                    println("HWMS: Quad Count: %,d".format(ptr.getInt(0)))
-                    println("HWMS: Vertex Count: %,d".format(ptr.getInt(4)))
+                    println("HWMS: Input Quad Count: %,d".format(ptr.getInt(0)))
+                    println("HWMS: Output Quad Count: %,d".format(ptr.getInt(4)))
                 }
             }
         }

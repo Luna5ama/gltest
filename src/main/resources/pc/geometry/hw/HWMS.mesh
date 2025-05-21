@@ -157,7 +157,6 @@ void main() {
     if (gl_LocalInvocationID.x == 0) {
         gl_PrimitiveCountNV = subgroupCount * 2;
         #ifdef DEBUG_QUAD_COUNT
-        atomicAdd(ssbo_tempBuffer.v1, dataIn.quadCount);
         atomicAdd(ssbo_tempBuffer.v2, subgroupCount);
         #endif
     }

@@ -114,6 +114,7 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
         val quadAttribDataIdxMap = ConcurrentHashMap<AttribKey, Int>()
 
         val quadPosDataUploadBuffer = Arr.malloc(pointCount * sizeof(QuadPos))
+        val quadPosDataUploadBufferStructArray = QuadPos(quadPosDataUploadBuffer)
         val quadTexCoordUploadBuffer = Arr.malloc(pointCount * 16L)
         val quadExtraAttribUploadBuffer = Arr.malloc(pointCount * 24L)
 
@@ -125,8 +126,7 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
             )
             return quadPosDataIdxMap.computeIfAbsent(key) {
                 val idx = quadPosDataCounter.getAndIncrement()
-                val offset = idx * sizeof(QuadPos)
-                val pPosStruct = QuadPos(quadPosDataUploadBuffer.ptr + offset)
+                val pPosStruct = quadPosDataUploadBufferStructArray[idx]
                 pPosStruct.posX1 = v1.posX
                 pPosStruct.posX2 = v2.posX
                 pPosStruct.posX3 = v3.posX

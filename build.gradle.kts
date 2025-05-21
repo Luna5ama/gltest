@@ -2,7 +2,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
 
 plugins {
-    kotlin("jvm") version "2.1.0"
+    kotlin("jvm") version "2.2.0-Beta1"
 
     id("dev.luna5ama.jar-optimizer")
     id("dev.luna5ama.ktgen").version("1.0.0") apply false
@@ -105,14 +105,14 @@ allprojects {
 
     java {
         toolchain {
-            languageVersion.set(JavaLanguageVersion.of(21))
+            languageVersion.set(JavaLanguageVersion.of(23))
         }
     }
 
     kotlin {
         compilerOptions {
-            freeCompilerArgs = listOf("-Xdebug")
-            jvmTarget.set(JvmTarget.JVM_21)
+            jvmTarget.set(JvmTarget.JVM_23)
+            freeCompilerArgs = listOf("-Xir-inliner=true")
         }
     }
 }

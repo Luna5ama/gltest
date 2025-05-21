@@ -12,6 +12,15 @@
 
 layout(local_size_x = 1) in;
 
+#ifdef DEBUG_QUAD_COUNT
+layout(std430, binding = 4) buffer TempBuffer {
+    uint v1;
+    uint v2;
+    uint v3;
+    uint v4;
+} ssbo_tempBuffer;
+#endif
+
 struct BatchInfo {
     uint chunkIndex;
     uint quadStartIndex;
@@ -72,6 +81,10 @@ void main() {
     dataOut.chunkOffset = chunkOffset;
     dataOut.quadStartIndex = batchInfo.quadStartIndex;
     dataOut.quadCount = batchInfo.quadCount;
+
+    #ifdef DEBUG_QUAD_COUNT
+    atomicAdd(ssbo_tempBuffer.v1, batchInfo.quadCount);
+    #endif
 
     gl_TaskCountNV = (dataOut.quadCount + 15) / 16;
 }

@@ -30,9 +30,9 @@ vec3(-1.0, 17.0, 17.0), // 6
 vec3(17.0, 17.0, 17.0)  // 7
 };
 
-layout(location = 0) out PrimData {
+layout(location = 0) out VertData {
     flat uint chunkIndex;
-} primDataOut;
+} vertDataOut;
 
 void main() {
     uint batchIndex = gl_InstanceID;
@@ -40,7 +40,7 @@ void main() {
 
     vec3 chunkOffset = chunks_getChunkRenderPos(cullCommand.chunkIndex);
 
-    primDataOut.chunkIndex = cullCommand.chunkIndex;
+    vertDataOut.chunkIndex = cullCommand.chunkIndex;
 
     gl_Position = ubo_camera.combined * vec4(BOX_VERT_POS[gl_VertexID] + chunkOffset, 1.0);
 }
