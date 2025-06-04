@@ -87,7 +87,8 @@ void main() {
         outOfBound |= uint(any(greaterThan(p.position, vec2(NOISE_FIELD_SIZE))));
         if (bool(outOfBound)) {
             p.position = rand_uintToFloat(pcg2d(uvec2(randIdx, p.generation * 1135u))) * NOISE_FIELD_SIZE;
-            p.position = fract(p.position) * NOISE_FIELD_SIZE;
+            p.position = fract(p.position) * NOISE_FIELD_SIZE * vec2(1.0, 0.1);
+//            p.position = fract(p.position) * NOISE_FIELD_SIZE;
             p.velocity = vec2(0.0);
             p.velocity += sampleNoiseField(p.position) * 1.0;
 //            p.velocity += (rand_uintToFloat(pcg2d(uvec2(p.generation * 1324u, randIdx * 5566u))) - 0.5) * 8.0;
