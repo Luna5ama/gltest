@@ -16,27 +16,29 @@ layout(std430) buffer ParticleDataBuffer {
 
 layout(r32i) uniform iimage2D uimg_renderCount;
 
+shared int shared_minCount[32];
 shared int shared_maxCount[32];
 
 void main() {
     int count = imageLoad(uimg_renderCount, ivec2(gl_GlobalInvocationID.xy)).r;
-//    if (bool(ssbo_particleData.data.y)) {
-//        count = int(float(count) * 0.9);
-//    }
     imageStore(uimg_renderCount, ivec2(gl_GlobalInvocationID.xy), ivec4(count));
 
-    int count2 = subgroupMax(count);
+    int minCount1 = subgroupMin(count);
+    int maxCount1 = subgroupMax(count);
     if (subgroupElect()) {
-        shared_maxCount[gl_SubgroupID] = count2;
+        shared_minCount[gl_SubgroupID] = minCount1;
+        shared_maxCount[gl_SubgroupID] = maxCount1;
     }
     barrier();
 
     if (gl_SubgroupID == 0) {
-        int count3 = shared_maxCount[gl_SubgroupInvocationID];
-        int count4 = subgroupMax(count3);
+        int minCount2 = shared_minCount[gl_SubgroupInvocationID];
+        int maxCount2 = shared_maxCount[gl_SubgroupInvocationID];
+        int minCount3 = subgroupMin(minCount2);
+        int maxCount3 = subgroupMax(maxCount2);
         if (subgroupElect()) {
-//            atomicAdd(ssbo_particleData.data.x, count4);
-            atomicMax(ssbo_particleData.data.x, count4);
+            atomicMin(ssbo_particleData.data.x, minCount3);
+            atomicMax(ssbo_particleData.data.y, maxCount3);
         }
     }
 }

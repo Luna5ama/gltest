@@ -1,5 +1,7 @@
 #version 460 core
 
+#include "/util/Math.glsl"
+
 uniform isampler2D usam_renderCount;
 
 struct ParticleDataRaw {
@@ -16,6 +18,7 @@ out vec4 fragColor;
 
 void main() {
     vec2 screenPos = gl_FragCoord.xy / textureSize(usam_renderCount, 0);
-    fragColor.rgb = float(texture(usam_renderCount, screenPos).r).rrr / float(ssbo_particleData.data.x);
+    vec2 dataMinMax = vec2(ssbo_particleData.data.xy);
+    fragColor.rgb = linearStep(dataMinMax.x, dataMinMax.y, float(texture(usam_renderCount, screenPos).r)).rrr;
     fragColor.a = 1.0;
 }

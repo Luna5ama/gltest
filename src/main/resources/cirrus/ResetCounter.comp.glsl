@@ -13,5 +13,5 @@ layout(std430) buffer ParticleDataBuffer {
 } ssbo_particleData;
 
 void main() {
-    ssbo_particleData.data = uvec4(0u, ssbo_particleData.data.x >= 8192u, 0u, 0u);
+    ssbo_particleData.data = uvec4(0xFFFFFFFFu, 0u, 0u, 0u);
 }
