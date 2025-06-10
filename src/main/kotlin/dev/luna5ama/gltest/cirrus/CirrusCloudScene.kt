@@ -46,6 +46,16 @@ class CirrusCloudScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keybo
         }
     }
 
+    private val normalizedImage = register(TextureObject.Texture2D()).apply {
+        label = "normalizedImage"
+        allocate(1, ImageFormat.R16_UN, NOISE_FIELD_SIZE, NOISE_FIELD_SIZE)
+    }
+
+    private val tiledImage = register(TextureObject.Texture2D()).apply {
+        label = "tiledImage"
+        allocate(1, ImageFormat.R8_UN, NOISE_FIELD_SIZE, NOISE_FIELD_SIZE)
+    }
+
     private val binding = ShaderBindingSpecs.of {
         sampler("usam_noiseField", noiseField, samplerManager.get {
             filter(FilterMode.Linear, FilterMode.Linear)
@@ -55,8 +65,18 @@ class CirrusCloudScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keybo
             filter(FilterMode.Linear, FilterMode.Linear)
             wrap(WrapMode.ClampToEdge, WrapMode.ClampToEdge)
         })
+        sampler("usam_normalizedImage", normalizedImage, samplerManager.get {
+            filter(FilterMode.Linear, FilterMode.Linear)
+            wrap(WrapMode.MirroredRepeat, WrapMode.MirroredRepeat)
+        })
+        sampler("usam_tiledImage", tiledImage, samplerManager.get {
+            filter(FilterMode.Linear, FilterMode.Linear)
+            wrap(WrapMode.ClampToEdge, WrapMode.ClampToEdge)
+        })
         image("uimg_noiseField", noiseField)
         image("uimg_renderCount", renderCountImage)
+        image("uimg_normalizedImage", normalizedImage)
+        image("uimg_tiledImage", tiledImage)
 
         buffer("ParticleDataBuffer", particleDataBuffer, BufferTarget.ShaderStorage)
     }
@@ -76,7 +96,9 @@ class CirrusCloudScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keybo
         )
     )
     private val resetCounterShader = register(ShaderProgram(ShaderSource.Comp("cirrus/ResetCounter.comp.glsl")))
-    private val maxCounterShader = register(ShaderProgram(ShaderSource.Comp("cirrus/MaxCounter.comp.glsl")))
+    private val rangeCounterShader = register(ShaderProgram(ShaderSource.Comp("cirrus/RangeCounter.comp.glsl")))
+    private val normalizeShader = register(ShaderProgram(ShaderSource.Comp("cirrus/Normalize.comp.glsl")))
+    private val tilingShader = register(ShaderProgram(ShaderSource.Comp("cirrus/Tiling.comp.glsl")))
 
     private val basic = register(Basic())
 
@@ -95,36 +117,48 @@ class CirrusCloudScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keybo
         resetCounterShader.applyBinding(binding)
         glDispatchCompute(1, 1, 1)
 
-        if (counter < counterMax) {
-            initNoiseFieldShader.bind()
-            initNoiseFieldShader.applyBinding(binding)
-            val div = 1024.0 * 16.0
-            initNoiseFieldShader.uniform1f("uval_noiseZ", (counter.toDouble() / div).toFloat())
-            glDispatchCompute(NOISE_FIELD_SIZE / 16, NOISE_FIELD_SIZE / 16, 1)
-            glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
-            counter = (counter + 1) % 32768
+        repeat(2) {
+            if (counter < counterMax) {
+                initNoiseFieldShader.bind()
+                initNoiseFieldShader.applyBinding(binding)
+                val div = 1024.0 * 16.0
+                initNoiseFieldShader.uniform1f("uval_noiseZ", (counter.toDouble() / div).toFloat())
+                glDispatchCompute(NOISE_FIELD_SIZE / 16, NOISE_FIELD_SIZE / 16, 1)
+                glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
+                counter = (counter + 1) % 32768
 
-            updateParticleShader.bind()
-            updateParticleShader.applyBinding(binding)
-            glDispatchCompute(PARTICLE_COUNT / 128, 1, 1)
-            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT or GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
-        } else {
-            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
-            glfwSwapInterval(1)
+                updateParticleShader.bind()
+                updateParticleShader.applyBinding(binding)
+                glDispatchCompute(PARTICLE_COUNT / 128, 1, 1)
+                glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT or GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
+            } else {
+                glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
+                glfwSwapInterval(1)
 
-            if (!saved) {
-                saved = true
-                saveImage()
+                if (!saved) {
+                    saved = true
+                    saveImage()
+                }
             }
         }
         if (printTimer.tickAndReset(3000)) {
             println(counter)
         }
 
-        maxCounterShader.bind()
-        maxCounterShader.applyBinding(binding)
+        rangeCounterShader.bind()
+        rangeCounterShader.applyBinding(binding)
         glDispatchCompute(NOISE_FIELD_SIZE / 16, NOISE_FIELD_SIZE / 16, 1)
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
+
+        normalizeShader.bind()
+        normalizeShader.applyBinding(binding)
+        glDispatchCompute(NOISE_FIELD_SIZE / 16, NOISE_FIELD_SIZE / 16, 1)
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
+
+        tilingShader.bind()
+        tilingShader.applyBinding(binding)
+        glDispatchCompute(NOISE_FIELD_SIZE / 16, NOISE_FIELD_SIZE / 16, 1)
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
 
         glViewport(0, 0, NOISE_FIELD_SIZE, NOISE_FIELD_SIZE)
         glDisable(GL_DEPTH_TEST)
@@ -137,32 +171,19 @@ class CirrusCloudScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keybo
     private fun saveImage() {
         println("Saving image...")
         val buffer = BufferObject.Immutable()
-        buffer.allocate(NOISE_FIELD_SIZE * NOISE_FIELD_SIZE * 4L, GL_MAP_READ_BIT)
+        buffer.allocate(NOISE_FIELD_SIZE * NOISE_FIELD_SIZE * 1L, GL_MAP_READ_BIT)
         buffer.bind(GL_PIXEL_PACK_BUFFER)
-        glGetTextureImage(renderCountImage.id, 0, GL_RED_INTEGER, GL_INT, buffer.size.toInt(), 0)
+        glGetTextureImage(tiledImage.id, 0, GL_RED, GL_UNSIGNED_BYTE, buffer.size.toInt(), 0)
         glFinish()
         buffer.unbind(GL_PIXEL_PACK_BUFFER)
         val mapped = buffer.map(GL_MAP_READ_BIT)
         val ptr = mapped.ptr
-        var min = Int.MAX_VALUE
-        var max = Int.MIN_VALUE
-        for (y in 0..<NOISE_FIELD_SIZE) {
-            for (x in 0..<NOISE_FIELD_SIZE) {
-                val value = ptr.getInt((y * NOISE_FIELD_SIZE + x) * 4L)
-                min = minOf(min, value)
-                max = maxOf(max, value)
-            }
-        }
-        println("Min: $min, Max: $max")
         val outputImage = BufferedImage(NOISE_FIELD_SIZE, NOISE_FIELD_SIZE, BufferedImage.TYPE_BYTE_GRAY)
-        val minD = min.toDouble()
-        val maxD = max.toDouble()
         val tempArray = IntArray(1)
         for (y in 0..<NOISE_FIELD_SIZE) {
             for (x in 0..<NOISE_FIELD_SIZE) {
-                val value = ptr.getInt((y * NOISE_FIELD_SIZE + x) * 4L).toDouble()
-                val normalizedValue = (((value - minD) / (maxD - minD)) * 255.0).toInt().coerceIn(0, 255)
-                tempArray[0] = normalizedValue
+                val value = ptr.getByte((y * NOISE_FIELD_SIZE + x).toLong())
+                tempArray[0] = value.toUByte().toInt()
                 outputImage.raster.setPixel(x, NOISE_FIELD_SIZE - 1 - y, tempArray)
             }
         }
