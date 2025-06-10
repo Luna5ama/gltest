@@ -21,20 +21,20 @@ void main() {
     seed.xy += 113.0;
     seed.z += 111.0;
     seed.z = uval_noiseZ;
-    seed.xy *= 10.0;
+    seed.xy *= 20.0;
 //    float noiseV = ValueNoise_3D_value(seed);
     float angle = 0.0;
 
     float noiseV1 = GradientNoise_3D_value(seed * vec3(1.0, 1.0, 0.5));
     float curl1 = noiseV1 * PI * 8.0;
-    angle += curl1 * pow(1.0 - screenPos.y, 12.0) * 2.0;
+//    angle += curl1 * pow(1.0 - screenPos.y, 12.0) * 2.0;
 
     float noiseV2 = GradientNoise_3D_value(seed * vec3(1.0, 1.0, 2.0));
-    float curl2 = noiseV2 * PI * 8.0;
-    angle += curl2 * pow(screenPos.y, 2.0) * 0.5;
+    float curl2 = noiseV2 * PI;
+    angle += curl2 * 1.0;
 
     float noiseFlow1 = GradientNoise_3D_value(seed);
-    float flow = noiseFlow1 * PI + PI * 0.4;
+    float flow = noiseFlow1 * PI + PI * 0.5;
     angle += flow;
 
     vec2 noiseField = angleToVec2(angle);

@@ -81,7 +81,7 @@ class CirrusCloudScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keybo
     private val basic = register(Basic())
 
     private var counter = 0L
-    private val counterMax = 4096
+    private val counterMax = 2048
     private var saved = false
 
     private val printTimer = TickTimer()
@@ -98,7 +98,7 @@ class CirrusCloudScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keybo
         if (counter < counterMax) {
             initNoiseFieldShader.bind()
             initNoiseFieldShader.applyBinding(binding)
-            val div = 1024.0 * 8.0
+            val div = 1024.0 * 16.0
             initNoiseFieldShader.uniform1f("uval_noiseZ", (counter.toDouble() / div).toFloat())
             glDispatchCompute(NOISE_FIELD_SIZE / 16, NOISE_FIELD_SIZE / 16, 1)
             glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
