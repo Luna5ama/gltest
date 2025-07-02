@@ -1,4 +1,4 @@
-#include "/utils/BitPacking.glsl"
+#include "/util/BitPacking.glsl"
 
 void ndpacking_restorNormalZ(inout vec3 normal, uint signBitIn) {
     normal.z = sqrt(abs(1.0 - dot(normal.xy, normal.xy)));
