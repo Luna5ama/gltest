@@ -100,6 +100,13 @@ class CirrusCloudScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keybo
     private val normalizeShader = register(ShaderProgram(ShaderSource.Comp("cirrus/Normalize.comp.glsl")))
     private val tilingShader = register(ShaderProgram(ShaderSource.Comp("cirrus/Tiling.comp.glsl")))
 
+    private val fooShader = register(ShaderProgram(ShaderSource.Comp("cirrus/Foo.comp.glsl"))).apply {
+        label = "Foo"
+    }
+    private val barShader = register(ShaderProgram(ShaderSource.Comp("cirrus/Bar.comp.glsl"))).apply {
+        label = "Bar"
+    }
+
     private val basic = register(Basic())
 
     private var counter = 0L
@@ -195,6 +202,6 @@ class CirrusCloudScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keybo
     }
 
     override fun shaderAsmDumps(): List<ShaderProgram> {
-        return emptyList()
+        return listOf(fooShader, barShader)
     }
 }

@@ -59,7 +59,9 @@ abstract class AbstractScene(val gameInstance: GameInstance, val mouse: Mouse, v
         }
     }
 
-    protected abstract fun shaderAsmDumps() : List<ShaderProgram>
+    protected open fun shaderAsmDumps() : List<ShaderProgram> {
+        return emptyList()
+    }
 
     private fun dumpShaderAsm(program: ShaderProgram, name: String) {
         val binLen = glGetProgrami(program.id, GL_PROGRAM_BINARY_LENGTH)

@@ -164,9 +164,12 @@ class GameInstance(val window: Long) {
             scene.camera.zoom = max(scene.camera.zoom + yOffset * 0.5, 0.0)
         }
 
+        println(glfwRawMouseMotionSupported())
+
         mouse.register(GLFW_MOUSE_BUTTON_MIDDLE) {
             if (it == GLFW_RELEASE) {
-                glfwSetInputMode(window, GLFW_CURSOR, if (hideCursor) GLFW_CURSOR_NORMAL else GLFW_CURSOR_HIDDEN)
+                glfwSetInputMode(window, GLFW_CURSOR, if (hideCursor) GLFW_CURSOR_NORMAL else GLFW_CURSOR_DISABLED)
+                glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
                 hideCursor = !hideCursor
             }
         }
@@ -178,17 +181,13 @@ class GameInstance(val window: Long) {
 
             fun handleInput(timeDelta: Double) {
                 if (focus) {
+                    if (mouseDelta.floor(Vector2d()) != mouseDelta) {
+                        println(mouseDelta)
+                    }
                     if (hideCursor || mouse.isPressed(GLFW_MOUSE_BUTTON_LEFT) || mouse.isPressed(GLFW_MOUSE_BUTTON_RIGHT)) {
                         scene.camera.rotate(mouseDelta, timeDelta)
                     } else {
                         scene.camera.rotate(zeroDelta, timeDelta)
-                    }
-
-                    if (hideCursor) {
-                        mousePos.x = scene.camera.screenWidth / 2.0
-                        mousePos.y = scene.camera.screenHeight / 2.0
-                        prevMousePos.set(mousePos)
-                        glfwSetCursorPos(window, prevMousePos.x, prevMousePos.y)
                     }
                 }
             }
