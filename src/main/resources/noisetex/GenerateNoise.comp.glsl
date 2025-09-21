@@ -124,9 +124,10 @@ void main() {
             float mm = fj + 1.0;
             vec2 randOffset = hash12(k++) * 2.0 - 1.0;
             noisePos = (noisePos + randOffset);
-            v += amp * smoothWorley(noisePos * float(freq), freq * 2, m * mm);
+            float l = hash12(k++).x + 1.0;
+            v += amp * l * smoothWorley(noisePos * float(freq), freq * 2, m * mm);
         }
-        amp *= 0.5;
+        amp *= 0.8;
         m = m * 3.6;
         freq *= 2;
     }
