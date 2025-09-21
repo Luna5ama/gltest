@@ -23,7 +23,6 @@ void main() {
     vec2 screenPos = gl_FragCoord.xy / uval_screenSize;
     float noiseV = texture(usam_normalizedImage, screenPos * 1.0).r;
 //        noiseV = 1.0 - noiseV;
-//    noiseV = pow(noiseV, 2.0);
     noiseV = dither(noiseV, rand_IGN(ivec2(gl_FragCoord.xy), uval_frameCounter));
     fragColor.rgb = vec3(noiseV);
     fragColor.a = 1.0;

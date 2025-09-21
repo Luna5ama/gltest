@@ -68,7 +68,7 @@ float smoothWorley(vec2 x, int freq,/* mat2 rotMat,*/ float w) {
 
     float minDists = 16.0;
 
-    int r = 8;
+    int r = 12;
 
     for (int x = -r; x <= r; ++x) {
         for (int y = -r; y <= r; ++y) {
@@ -108,7 +108,7 @@ void main() {
     vec2 noisePos = (vec2(texelPos) + vec2(0.5)) / NOISE_TEX_SIZE;
     noisePos = noisePos * 2.0 - 1.0;
 
-    int freq = 2;
+    int freq = 1;
 
 
     float v = 0.0;
@@ -118,7 +118,7 @@ void main() {
     float m = 0.1;
 
     int k = 0;
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < 5; ++i) {
         for (int j = 0; j < 4; ++j) {
             float fj = float(j);
             float mm = fj + 1.0;
@@ -127,8 +127,8 @@ void main() {
             float l = hash12(k++).x + 1.0;
             v += amp * l * smoothWorley(noisePos * float(freq), freq * 2, m * mm);
         }
-        amp *= 0.8;
-        m = m * 3.6;
+        amp *= 0.5;
+        m = m * 2.7;
         freq *= 2;
     }
 
