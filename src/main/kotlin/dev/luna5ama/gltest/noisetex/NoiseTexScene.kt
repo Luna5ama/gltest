@@ -14,12 +14,19 @@ import dev.luna5ama.glwrapper.enums.ImageFormat
 import dev.luna5ama.glwrapper.enums.WrapMode
 import dev.luna5ama.glwrapper.objects.BufferObject
 import dev.luna5ama.glwrapper.objects.TextureObject
+import org.lwjgl.glfw.GLFW
 import org.lwjgl.glfw.GLFW.glfwSwapInterval
 import java.awt.image.BufferedImage
+import java.lang.foreign.Arena
+import java.lang.foreign.MemorySegment
+import java.nio.channels.FileChannel
+import java.nio.file.StandardOpenOption
 import java.util.concurrent.TimeUnit
 import javax.imageio.ImageIO
 import kotlin.io.path.Path
 import kotlin.io.path.absolute
+import kotlin.io.path.createDirectories
+import kotlin.math.min
 
 private const val NOISE_TEX_SIZE = 2048
 
@@ -77,6 +84,12 @@ class NoiseTexScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard
 
     init {
         glfwSwapInterval(2)
+
+        keyboard.register(GLFW.GLFW_KEY_S) {
+            if (it == GLFW.GLFW_PRESS) {
+                saveImage()
+            }
+        }
     }
 
     override suspend fun renderFrame() {
@@ -137,19 +150,21 @@ class NoiseTexScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard
         glFinish()
         buffer.unbind(GL_PIXEL_PACK_BUFFER)
         val mapped = buffer.map(GL_MAP_READ_BIT)
-        val ptr = mapped.ptr
-        val outputImage = BufferedImage(NOISE_TEX_SIZE, NOISE_TEX_SIZE, BufferedImage.TYPE_BYTE_GRAY)
-        val tempArray = IntArray(1)
-        for (y in 0..<NOISE_TEX_SIZE) {
-            for (x in 0..<NOISE_TEX_SIZE) {
-                val value = ptr.getByte((y * NOISE_TEX_SIZE + x).toLong())
-                tempArray[0] = value.toUByte().toInt()
-                outputImage.raster.setPixel(x, NOISE_TEX_SIZE - 1 - y, tempArray)
+
+
+        val outputDir = Path("noise").absolute()
+        outputDir.createDirectories()
+        val numFiles = outputDir.toFile().list().size
+        val outputPath = outputDir.resolve("noise_$numFiles.bin")
+
+        FileChannel.open(outputPath, StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.READ).use { fc ->
+            Arena.ofConfined().use { arena ->
+                val mappedFileBuffer = fc.map(FileChannel.MapMode.READ_WRITE, 0, buffer.size, arena)
+                val wrapped = MemorySegment.ofAddress(mapped.ptr.address).reinterpret(mapped.len)
+                mappedFileBuffer.copyFrom(wrapped)
             }
         }
-        val outputDir = Path("noise").absolute()
-        val numFiles = outputDir.toFile().list().size
-        ImageIO.write(outputImage, "png", outputDir.resolve("noise_$numFiles.png").toFile())
+
         buffer.unmap()
         buffer.destroy()
     }
