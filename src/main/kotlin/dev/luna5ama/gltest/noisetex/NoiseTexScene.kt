@@ -155,8 +155,9 @@ class NoiseTexScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard
         val outputDir = Path("noise").absolute()
         outputDir.createDirectories()
         val numFiles = outputDir.toFile().list().size
-        val outputPath = outputDir.resolve("noise_$numFiles.bin")
+//        val outputPath = outputDir.resolve("noise_$numFiles.bin")
 
+        val outputPath = Path("I:\\code\\mcshaders\\Alpha-Piscium\\shaders\\textures\\noise_4.bin")
         FileChannel.open(outputPath, StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.READ).use { fc ->
             Arena.ofConfined().use { arena ->
                 val mappedFileBuffer = fc.map(FileChannel.MapMode.READ_WRITE, 0, buffer.size, arena)
