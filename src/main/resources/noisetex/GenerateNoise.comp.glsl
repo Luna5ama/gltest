@@ -118,17 +118,17 @@ void main() {
     float m = 0.1;
 
     int k = 0;
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < 6; ++i) {
         for (int j = 0; j < 4; ++j) {
             float fj = float(j);
-            float mm = fj + 1.0;
+            float mm = fj * 2.0 + 1.0;
             vec2 randOffset = hash12(k++) * 2.0 - 1.0;
             noisePos = (noisePos + randOffset);
             float l = hash12(k++).x + 1.0;
             v += amp * l * smoothWorley(noisePos * float(freq), freq * 2, m * mm);
         }
         amp *= 0.45;
-        m = m * 2.7;
+        m = m * 1.8;
         freq *= 2;
     }
 

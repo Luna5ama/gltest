@@ -38,7 +38,7 @@ fun main() {
 //            val window = glfwCreateWindow(1920, 1080, "", 0, 0)
 //            val window = glfwCreateWindow(1280, 720, "", 0, 0)
 //            val window = glfwCreateWindow(800, 600, "", 0, 0)
-            val size = 2048
+            val size = 1024
             val window = glfwCreateWindow(size, size, "GLTest", 0, 0)
 
             try {

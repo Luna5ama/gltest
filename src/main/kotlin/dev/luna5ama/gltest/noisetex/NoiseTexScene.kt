@@ -6,8 +6,8 @@ import dev.luna5ama.gltest.terrain.register
 import dev.luna5ama.glwrapper.ShaderBindingSpecs
 import dev.luna5ama.glwrapper.ShaderProgram
 import dev.luna5ama.glwrapper.ShaderSource
+import dev.luna5ama.glwrapper.ShaderSource.Companion.invoke
 import dev.luna5ama.glwrapper.base.*
-import dev.luna5ama.glwrapper.base.glViewport
 import dev.luna5ama.glwrapper.enums.BufferTarget
 import dev.luna5ama.glwrapper.enums.FilterMode
 import dev.luna5ama.glwrapper.enums.ImageFormat
@@ -16,17 +16,14 @@ import dev.luna5ama.glwrapper.objects.BufferObject
 import dev.luna5ama.glwrapper.objects.TextureObject
 import org.lwjgl.glfw.GLFW
 import org.lwjgl.glfw.GLFW.glfwSwapInterval
-import java.awt.image.BufferedImage
 import java.lang.foreign.Arena
 import java.lang.foreign.MemorySegment
 import java.nio.channels.FileChannel
 import java.nio.file.StandardOpenOption
 import java.util.concurrent.TimeUnit
-import javax.imageio.ImageIO
 import kotlin.io.path.Path
 import kotlin.io.path.absolute
 import kotlin.io.path.createDirectories
-import kotlin.math.min
 
 private const val NOISE_TEX_SIZE = 2048
 
@@ -58,7 +55,7 @@ class NoiseTexScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard
         buffer("DataBuffer", dataBuffer, BufferTarget.ShaderStorage)
     }
 
-    private var generateNoiseShader = createShader()
+    private var generateNoiseShader: ShaderProgram? = null
     private val resetCounterShader = register(ShaderProgram(ShaderSource.Comp("noisetex/ResetCounter.comp.glsl")))
     private val rangeCounterShader = register(ShaderProgram(ShaderSource.Comp("noisetex/RangeCounter.comp.glsl")))
     private val normalizeShader = register(ShaderProgram(ShaderSource.Comp("noisetex/Normalize.comp.glsl")))
@@ -77,10 +74,27 @@ class NoiseTexScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard
     private val beginTime = System.nanoTime()
     private var frameCounter = 0
     private val timer = TickTimer()
+    private var lastSource = ""
 
-    private fun createShader() = ShaderProgram(ShaderSource.Comp("noisetex/GenerateNoise.comp.glsl") {
-        define("NOISE_TEX_SIZE", NOISE_TEX_SIZE)
-    })
+    private fun getUpdatedShaderProgram(): ShaderProgram? {
+        val src = ShaderSource.Comp("noisetex/GenerateNoise.comp.glsl")
+        val srcStr = src.resolveCodeSrc()
+        if (generateNoiseShader == null || lastSource != srcStr) {
+            lastSource = srcStr
+            val newProgram = try {
+                ShaderProgram(src {
+                    define("NOISE_TEX_SIZE", NOISE_TEX_SIZE)
+                })
+            } catch (_: IllegalStateException) {
+                return null
+            }
+            generateNoiseShader?.destroy()
+            generateNoiseShader = newProgram
+            return newProgram
+        }
+
+        return null
+    }
 
     init {
         glfwSwapInterval(2)
@@ -93,39 +107,34 @@ class NoiseTexScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard
     }
 
     override suspend fun renderFrame() {
-
         camera.updateScreenSize()
 
-        if (timer.tickAndReset(500)) {
-            try {
-                val newShader = createShader()
-                generateNoiseShader.destroy()
-                generateNoiseShader = newShader
-            } catch (_: IllegalStateException) {
-                // Ignore shader compile error
+        if (timer.tickAndReset(10)) {
+            val updated = getUpdatedShaderProgram()
+            if (updated != null) {
+                resetCounterShader.bind()
+                resetCounterShader.applyBinding(binding)
+                glDispatchCompute(1, 1, 1)
+
+                val currTime = System.nanoTime()
+                val time = (currTime - beginTime).toDouble() / TimeUnit.SECONDS.toNanos(1L).toDouble()
+                updated.bind()
+                updated.applyBinding(binding)
+                updated.uniform1f("uval_time", time.toFloat())
+                glDispatchCompute(NOISE_TEX_SIZE / 16, NOISE_TEX_SIZE / 16, 1)
+
+                glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
+
+                rangeCounterShader.bind()
+                rangeCounterShader.applyBinding(binding)
+                glDispatchCompute(NOISE_TEX_SIZE / 32, NOISE_TEX_SIZE / 32, 1)
+                glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
+
+                normalizeShader.bind()
+                normalizeShader.applyBinding(binding)
+                glDispatchCompute(NOISE_TEX_SIZE / 16, NOISE_TEX_SIZE / 16, 1)
+                glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
             }
-            resetCounterShader.bind()
-            resetCounterShader.applyBinding(binding)
-            glDispatchCompute(1, 1, 1)
-
-            val currTime = System.nanoTime()
-            val time = (currTime - beginTime).toDouble() / TimeUnit.SECONDS.toNanos(1L).toDouble()
-            generateNoiseShader.bind()
-            generateNoiseShader.applyBinding(binding)
-            generateNoiseShader.uniform1f("uval_timeSecs", time.toFloat())
-            glDispatchCompute(NOISE_TEX_SIZE / 16, NOISE_TEX_SIZE / 16, 1)
-
-            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
-
-            rangeCounterShader.bind()
-            rangeCounterShader.applyBinding(binding)
-            glDispatchCompute(NOISE_TEX_SIZE / 32, NOISE_TEX_SIZE / 32, 1)
-            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT)
-
-            normalizeShader.bind()
-            normalizeShader.applyBinding(binding)
-            glDispatchCompute(NOISE_TEX_SIZE / 16, NOISE_TEX_SIZE / 16, 1)
-            glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
         }
 
         val windowSize = minOf(camera.screenWidth, camera.screenHeight)
@@ -157,14 +166,15 @@ class NoiseTexScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard
         val numFiles = outputDir.toFile().list().size
 //        val outputPath = outputDir.resolve("noise_$numFiles.bin")
 
-        val outputPath = Path("I:\\code\\mcshaders\\Alpha-Piscium\\shaders\\textures\\noise_4.bin")
-        FileChannel.open(outputPath, StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.READ).use { fc ->
-            Arena.ofConfined().use { arena ->
-                val mappedFileBuffer = fc.map(FileChannel.MapMode.READ_WRITE, 0, buffer.size, arena)
-                val wrapped = MemorySegment.ofAddress(mapped.ptr.address).reinterpret(mapped.len)
-                mappedFileBuffer.copyFrom(wrapped)
+        val outputPath = Path("I:\\code\\mcshaders\\Alpha-Piscium\\shaders\\textures\\noise_5.bin")
+        FileChannel.open(outputPath, StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.READ)
+            .use { fc ->
+                Arena.ofConfined().use { arena ->
+                    val mappedFileBuffer = fc.map(FileChannel.MapMode.READ_WRITE, 0, buffer.size, arena)
+                    val wrapped = MemorySegment.ofAddress(mapped.ptr.address).reinterpret(mapped.len)
+                    mappedFileBuffer.copyFrom(wrapped)
+                }
             }
-        }
 
         buffer.unmap()
         buffer.destroy()
