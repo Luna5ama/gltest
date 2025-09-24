@@ -2,6 +2,7 @@ package dev.luna5ama.gltest
 
 import dev.luna5ama.glwrapper.ShaderProgram
 import dev.luna5ama.glwrapper.ShaderSource
+import dev.luna5ama.glwrapper.ShaderSource.Companion.invoke
 import dev.luna5ama.glwrapper.base.GL_PROGRAM_BINARY_LENGTH
 import dev.luna5ama.glwrapper.base.glGetProgramBinary
 import dev.luna5ama.glwrapper.base.glGetProgrami
@@ -14,11 +15,9 @@ import org.lwjgl.glfw.GLFWErrorCallback
 import org.lwjgl.opengl.GL
 import java.io.File
 import java.nio.channels.FileChannel
+import java.nio.file.Path
 import java.nio.file.StandardOpenOption
-import kotlin.io.path.Path
-import kotlin.io.path.listDirectoryEntries
-import kotlin.io.path.name
-import kotlin.io.path.pathString
+import kotlin.io.path.*
 
 private fun dumpShaderAsm(program: ShaderProgram, name: String) {
     val binLen = glGetProgrami(program.id, GL_PROGRAM_BINARY_LENGTH)
@@ -68,9 +67,33 @@ fun main() {
         val glCapabilities = GL.createCapabilities()
         try {
             val path = Path("""I:\MultiMC\instances\1.21.5-Iris\.minecraft\patched_shaders""")
-            path.listDirectoryEntries("*.csh").forEach {
-                val shader = ShaderProgram(ShaderSource.Comp(it.pathString))
-                dumpShaderAsm(shader, it.name)
+            val regex = "(\\d{3})_.*".toRegex()
+            val shaders = path.listDirectoryEntries()
+                .filter { it.name.matches(regex) }
+                .groupBy { regex.matchEntire(it.name)!!.groupValues[1] }
+                .mapValues { entry -> entry.value.associateBy { it.extension } }
+
+            shaders.values.forEach { shaders ->
+                shaders["csh"]?.let {
+                    val program = ShaderProgram(ShaderSource.Comp(it.pathString))
+                    dumpShaderAsm(program, it.name)
+                }
+                val rasterShaders = listOf(
+                    ShaderSource.Vert.Companion to shaders["vsh"],
+                    ShaderSource.Geom.Companion to shaders["gsh"],
+                    ShaderSource.Frag.Companion to shaders["fsh"]
+                )
+                    .mapNotNull {
+                        @Suppress("UNCHECKED_CAST")
+                        it.takeIf { it.second != null } as Pair<ShaderSource.Provider<*>, Path>?
+                    }
+                if (rasterShaders.isNotEmpty()) {
+                    val shaderSources = rasterShaders
+                        .map { it.first.invoke(it.second.pathString) }
+                        .toTypedArray()
+                    val program = ShaderProgram(*shaderSources)
+                    dumpShaderAsm(program, shaders["fsh"]!!.name)
+                }
             }
         } finally {
             GL.destroy()

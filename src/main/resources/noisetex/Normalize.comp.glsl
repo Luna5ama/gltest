@@ -16,6 +16,6 @@ void main() {
     vec2 dataMinMax = vec2(ssbo_data.data.xy);
     float value = imageLoad(uimg_noiseImage, texelPos).r;
     value = linearStep(dataMinMax.x, dataMinMax.y, value);
-//    value = linearStep(0.0, 1.6, value);
+//    value = sqrt(value);
     imageStore(uimg_normalizedImage, texelPos, vec4(value));
 }
