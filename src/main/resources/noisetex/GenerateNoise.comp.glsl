@@ -127,7 +127,7 @@ void main() {
             float l = hash12(k++).x + 1.0;
             v += amp * l * smoothWorley(noisePos * float(freq), freq * 2, m * mm);
         }
-        amp *= 0.45;
+        amp *= 0.5;
         m = m * 1.8;
         freq *= 2;
     }
