@@ -3,7 +3,7 @@ package dev.luna5ama.gltest
 import dev.fastmc.common.TickTimer
 import dev.fastmc.common.wrapDirectByteBuffer
 import dev.luna5ama.gltest.cirrus.CirrusCloudScene
-import dev.luna5ama.gltest.noisetex.NoiseTexScene
+import dev.luna5ama.gltest.noisetex.*
 import dev.luna5ama.gltest.pc.PointCloudScene
 import dev.luna5ama.gltest.structs.Vec2i32
 import dev.luna5ama.gltest.structs.sizeof
@@ -137,10 +137,11 @@ class GameInstance(val window: Long) {
 
 //    val scene = TestScene(this, mouse, keyboard)
 //        val scene = TerrainScene(this, mouse, keyboard)
-//        val scene = PointCloudScene(this, mouse, keyboard)
+        val scene = PointCloudScene(this, mouse, keyboard)
 //        val scene = AtmosphereScatteringScene(this, mouse, keyboard)
 //        val scene = CirrusCloudScene(this, mouse, keyboard)
-        val scene = NoiseTexScene(this, mouse, keyboard)
+//        val scene = NoiseTexScene(this, mouse, keyboard)
+//        val scene = Curl2DNoiseTexScene(this, mouse, keyboard)
 
         registerKeyCallbacks(scene, keyboard)
 

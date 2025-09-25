@@ -11,8 +11,8 @@ uniform sampler2D usam_normalizedImage;
 
 out vec4 fragColor;
 
-float dither(float x, float noiseV) {
-    float result = x;
+vec3 dither(vec3 x, float noiseV) {
+    vec3 result = x;
     result *= 255.0;
     result = round(result + (noiseV - 0.5));
     result /= 255.0;
@@ -21,9 +21,13 @@ float dither(float x, float noiseV) {
 
 void main() {
     vec2 screenPos = gl_FragCoord.xy / uval_screenSize;
-    float noiseV = texture(usam_normalizedImage, screenPos * 1.0).r;
-//        noiseV = 1.0 - noiseV;
+    vec3 noiseV = texture(usam_normalizedImage, screenPos * 1.0).rgb;
+    #ifdef SIGNED
+    noiseV = noiseV * 0.5 + 0.5;
+    #endif
+    //        noiseV = 1.0 - noiseV;
+
     noiseV = dither(noiseV, rand_IGN(ivec2(gl_FragCoord.xy), uval_frameCounter));
-    fragColor.rgb = vec3(noiseV);
+    fragColor.rgb = noiseV;
     fragColor.a = 1.0;
 }

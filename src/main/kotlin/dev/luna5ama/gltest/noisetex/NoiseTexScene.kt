@@ -38,6 +38,7 @@ class NoiseTexScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard
     private val normalizedImage = register(TextureObject.Texture2D()).apply {
         label = "normalizedImage"
         allocate(1, ImageFormat.R16_UN, NOISE_TEX_SIZE, NOISE_TEX_SIZE)
+        parameteriv(GL_TEXTURE_SWIZZLE_RGBA, GL_RED, GL_RED, GL_RED, GL_RED)
     }
 
     private val dataBuffer = register(BufferObject.Immutable()).apply {
