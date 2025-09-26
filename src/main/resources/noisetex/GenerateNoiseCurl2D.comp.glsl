@@ -3,6 +3,7 @@
 #include "/util/Math.glsl"
 #include "/util/Hash.glsl"
 #include "/util/Mat2.glsl"
+#include "/util/noise/psrdnoise2.glsl"
 
 layout(local_size_x = 16, local_size_y = 16) in;
 
@@ -51,6 +52,16 @@ vec2 GradientNoise_2D_grad(vec2 x, int freq, uvec2 hashOffset) {
     return grad;
 }
 
+vec2 noiseGradient(vec2 p, int freq, float alpha) {
+    vec2 grad;
+    psrdnoise(p * float(freq), vec2(freq * 2), alpha, grad);
+    return grad;
+}
+
+float hash11(uint p) {
+    return hash_uintToFloat(hash_11_q5(p));
+}
+
 void main() {
     ivec2 texelPos = ivec2(gl_GlobalInvocationID.xy);
 
@@ -63,8 +74,9 @@ void main() {
     vec2 v = vec2(0.0);
 
     for (uint i = 0; i < 16; ++i) {
-        v += amp * GradientNoise_2D_grad(noisePos * float(freq), freq * 2, uvec2(_HASH_XXHASH32_PRIME32_2, _HASH_XXHASH32_PRIME32_3));
-        v -= amp * GradientNoise_2D_grad(noisePos * float(freq), freq * 2, uvec2(_HASH_XXHASH32_PRIME32_4, _HASH_XXHASH32_PRIME32_5));
+//        v += amp * GradientNoise_2D_grad(noisePos * float(freq), freq * 2, uvec2(_HASH_XXHASH32_PRIME32_2, _HASH_XXHASH32_PRIME32_3));
+//        v -= amp * GradientNoise_2D_grad(noisePos * float(freq), freq * 2, uvec2(_HASH_XXHASH32_PRIME32_4, _HASH_XXHASH32_PRIME32_5));
+        v += amp * noiseGradient(noisePos, freq, hash11(i) * PI_2);
         amp *= 0.5;
         freq *= 2;
     }

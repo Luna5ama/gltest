@@ -21,7 +21,7 @@ vec3 dither(vec3 x, float noiseV) {
 
 void main() {
     vec2 screenPos = gl_FragCoord.xy / uval_screenSize;
-    vec3 noiseV = texture(usam_normalizedImage, screenPos * 1.0).rgb;
+    vec3 noiseV = texture(usam_normalizedImage, screenPos * 2.0).rgb;
     #ifdef SIGNED
     noiseV = noiseV * 0.5 + 0.5;
     #endif
