@@ -62,7 +62,7 @@ float worleyNoise(vec2 x, int freq, mat2 rotMat) {
 
 
 
-float smoothWorley(vec2 x, int freq,/* mat2 rotMat,*/ float w) {
+float smoothWorley(vec2 x, int freq, float w, uvec2 baseHashOffset) {
     ivec2 centerI = ivec2(floor(x));
     vec2 centerPos = fract(x);
 
@@ -77,7 +77,7 @@ float smoothWorley(vec2 x, int freq,/* mat2 rotMat,*/ float w) {
             //                ivec3 hashCoord = (centerI + offset);
             ivec2 hashCoord = (centerI + offset) & (freq - 1);
 
-            vec2 samplePos = hash22(uvec2(hashCoord));
+            vec2 samplePos = hash22(uvec2(hashCoord) + baseHashOffset);
 //            samplePos = samplePos * 2.0 - 1.0;
 //            samplePos = rotMat * samplePos;
 //            samplePos = samplePos * 0.5 + 0.5;
@@ -108,13 +108,14 @@ void main() {
     vec2 noisePos = (vec2(texelPos) + vec2(0.5)) / NOISE_TEX_SIZE;
     noisePos = noisePos * 2.0 - 1.0;
 
-    int freq = 1;
+    int freq = 2;
 
 
     float v = 0.0;
     float amp = 1.0;
 //    mat2 rotMat = mat2id;
 
+    uvec2 baseF = uvec2(_HASH_XXHASH32_PRIME32_4, _HASH_XXHASH32_PRIME32_5);
     float m = 0.1;
 
     int k = 0;
@@ -125,7 +126,8 @@ void main() {
             vec2 randOffset = hash12(k++) * 2.0 - 1.0;
             noisePos = (noisePos + randOffset);
             float l = hash12(k++).x + 1.0;
-            v += amp * l * smoothWorley(noisePos * float(freq), freq * 2, m * mm);
+            uvec2 hashOffset = hash_22_q3(uvec2(i, j) + baseF);
+            v += amp * l * smoothWorley(noisePos * float(freq), freq * 2, m * mm, hashOffset);
         }
         amp *= 0.5;
         m = m * 1.8;
