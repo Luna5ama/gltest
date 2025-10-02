@@ -72,12 +72,15 @@ void main() {
     float amp = 1.0;
 
     vec2 v = vec2(0.0);
+    uint k = 0;
 
-    for (uint i = 0; i < 16; ++i) {
-//        v += amp * GradientNoise_2D_grad(noisePos * float(freq), freq * 2, uvec2(_HASH_XXHASH32_PRIME32_2, _HASH_XXHASH32_PRIME32_3));
-//        v -= amp * GradientNoise_2D_grad(noisePos * float(freq), freq * 2, uvec2(_HASH_XXHASH32_PRIME32_4, _HASH_XXHASH32_PRIME32_5));
-        v += amp * noiseGradient(noisePos, freq, hash11(i) * PI_2);
-        amp *= 0.4;
+    for (uint i = 0; i < 8; ++i) {
+        for (uint j = 0; j < 4; ++j) {
+            //        v += amp * GradientNoise_2D_grad(noisePos * float(freq), freq * 2, uvec2(_HASH_XXHASH32_PRIME32_2, _HASH_XXHASH32_PRIME32_3));
+            //        v -= amp * GradientNoise_2D_grad(noisePos * float(freq), freq * 2, uvec2(_HASH_XXHASH32_PRIME32_4, _HASH_XXHASH32_PRIME32_5));
+            v += amp * noiseGradient(noisePos, freq, hash11(k++) * PI_2);
+            amp *= 0.5;
+        }
         freq *= 2;
     }
 
