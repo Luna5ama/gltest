@@ -60,6 +60,12 @@ class NoiseTexScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard
     private val resetCounterShader = register(ShaderProgram(ShaderSource.Comp("noisetex/ResetCounter.comp.glsl")))
     private val rangeCounterShader = register(ShaderProgram(ShaderSource.Comp("noisetex/RangeCounter.comp.glsl")))
     private val normalizeShader = register(ShaderProgram(ShaderSource.Comp("noisetex/Normalize.comp.glsl")))
+    private val fooShader = register(ShaderProgram(ShaderSource.Comp("noisetex/Ternary.comp.glsl"))).apply {
+        label = "Ternary"
+    }
+    private val barShader = register(ShaderProgram(ShaderSource.Comp("noisetex/Convert.comp.glsl"))).apply {
+        label = "Convert"
+    }
 
 
     private val finalBlitShader = register(
@@ -183,6 +189,6 @@ class NoiseTexScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard
 
     override fun shaderAsmDumps(): List<ShaderProgram> {
         timer.reset(-999999)
-        return super.shaderAsmDumps()
+        return listOf(fooShader, barShader)
     }
 }

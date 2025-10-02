@@ -27,7 +27,7 @@ import kotlin.io.path.Path
 import kotlin.io.path.absolute
 import kotlin.io.path.createDirectories
 
-private const val NOISE_TEX_SIZE = 256
+private const val NOISE_TEX_SIZE = 1024
 
 class Curl2DNoiseTexScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard) :
     AbstractScene(gameInstance, mouse, keyboard) {
