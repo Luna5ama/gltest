@@ -130,7 +130,7 @@ void main() {
             v += amp * l * smoothWorley(noisePos * float(freq), freq * 2, m * mm, hashOffset);
         }
         amp *= 0.5;
-        m = m * 1.8;
+        m = m * 2.0r;
         freq *= 2;
     }
 
