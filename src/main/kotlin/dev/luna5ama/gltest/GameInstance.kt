@@ -142,7 +142,7 @@ class GameInstance(val window: Long) {
 //        val scene = CirrusCloudScene(this, mouse, keyboard)
         val scene = NoiseTexScene(this, mouse, keyboard)
 //        val scene = Curl2DNoiseTexScene(this, mouse, keyboard)
-//
+
         registerKeyCallbacks(scene, keyboard)
 
         pollErrors("Post Setup")
