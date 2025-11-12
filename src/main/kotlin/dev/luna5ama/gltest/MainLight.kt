@@ -66,7 +66,7 @@ fun main() {
         runCatching { GL.create() }
         val glCapabilities = GL.createCapabilities()
         try {
-            val path = Path("""I:\MultiMC\instances\1.21.5-Iris\.minecraft\patched_shaders""")
+            val path = Path("""...""")
             val regex = "(\\d{3})_.*".toRegex()
             val shaders = path.listDirectoryEntries()
                 .filter { it.name.matches(regex) }

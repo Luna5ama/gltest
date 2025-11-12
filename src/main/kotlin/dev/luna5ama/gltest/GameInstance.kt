@@ -83,7 +83,6 @@ class GameInstance(val window: Long) {
 
         glEnable(GL_DEBUG_OUTPUT)
         glDebugMessageCallback(GLDebugMessageCallback.create { source, type, id, severity, length, message, userParam ->
-
             val wrappedBuffer = wrapDirectByteBuffer(message, length)
             val byteArray = ByteArray(length)
             wrappedBuffer.get(byteArray)
@@ -127,6 +126,11 @@ class GameInstance(val window: Long) {
         }, 0)
         glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS)
         glEnable(GL_DITHER)
+        glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DEBUG_SEVERITY_MEDIUM, 0, 0L, false)
+        glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DEBUG_SEVERITY_NOTIFICATION, 0, 0L, false)
+        glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DEBUG_SEVERITY_LOW, 0, 0L, false)
+        glDebugMessageControl(GL_DONT_CARE, GL_DEBUG_TYPE_PUSH_GROUP, GL_DONT_CARE, 0, 0L, false)
+        glDebugMessageControl(GL_DONT_CARE, GL_DEBUG_TYPE_POP_GROUP, GL_DONT_CARE, 0, 0L, false)
 
         pollErrors("Pre Setup")
 
@@ -203,6 +207,10 @@ class GameInstance(val window: Long) {
             val frameTimes = mutableListOf<Pair<Double, Double>>()
             val timer = TickTimer()
             while (!glfwWindowShouldClose(window)) {
+                glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DEBUG_SEVERITY_NOTIFICATION, 0, 0L, false)
+                glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DEBUG_SEVERITY_LOW, 0, 0L, false)
+                glDebugMessageControl(GL_DONT_CARE, GL_DEBUG_TYPE_PUSH_GROUP, GL_DONT_CARE, 0, 0L, false)
+                glDebugMessageControl(GL_DONT_CARE, GL_DEBUG_TYPE_POP_GROUP, GL_DONT_CARE, 0, 0L, false)
 //                Thread.sleep(1000)
                 MemoryStack.get().checkEmpty()
                 glfwPollEvents()

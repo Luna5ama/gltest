@@ -27,15 +27,15 @@ fun main() {
             glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6)
             glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE)
             glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, 1)
-            glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, 1)
+            glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, 0)
             glfwWindowHint(GLFW_DOUBLEBUFFER, GLFW_TRUE)
             glfwWindowHint(GLFW_SAMPLES, 0)
 
-            val window = glfwCreateWindow(1920, 1080, "", 0, 0)
+//            val window = glfwCreateWindow(1920, 1080, "", 0, 0)
 //            val window = glfwCreateWindow(1280, 720, "", 0, 0)
 //            val window = glfwCreateWindow(800, 600, "", 0, 0)
-//            val size = 1024
-//            val window = glfwCreateWindow(size, size, "GLTest", 0, 0)
+            val size = 1024
+            val window = glfwCreateWindow(size, size, "GLTest", 0, 0)
 
             try {
                 gameInstance = GameInstance(window)

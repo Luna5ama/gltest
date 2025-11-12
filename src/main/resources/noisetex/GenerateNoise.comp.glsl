@@ -68,7 +68,7 @@ float smoothWorley(vec2 x, int freq, float w, uvec2 baseHashOffset) {
 
     float minDists = 16.0;
 
-    int r = 12;
+    int r = 24;
 
     for (int x = -r; x <= r; ++x) {
         for (int y = -r; y <= r; ++y) {
@@ -130,7 +130,7 @@ void main() {
             v += amp * l * smoothWorley(noisePos * float(freq), freq * 2, m * mm, hashOffset);
         }
         amp *= 0.5;
-        m = m * 1.95;
+        m = m * 2.0;
         freq *= 2;
     }
 
