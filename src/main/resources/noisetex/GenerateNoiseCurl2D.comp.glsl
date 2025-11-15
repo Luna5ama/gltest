@@ -78,7 +78,7 @@ void main() {
         for (uint j = 0; j < 4; ++j) {
             //        v += amp * GradientNoise_2D_grad(noisePos * float(freq), freq * 2, uvec2(_HASH_XXHASH32_PRIME32_2, _HASH_XXHASH32_PRIME32_3));
             //        v -= amp * GradientNoise_2D_grad(noisePos * float(freq), freq * 2, uvec2(_HASH_XXHASH32_PRIME32_4, _HASH_XXHASH32_PRIME32_5));
-//            v += amp * noiseGradient(noisePos, freq, hash11(k++) * PI_2);
+            v += amp * noiseGradient(noisePos, freq, hash11(k++) * PI_2);
             amp *= 0.6;
         }
         freq *= 2;
