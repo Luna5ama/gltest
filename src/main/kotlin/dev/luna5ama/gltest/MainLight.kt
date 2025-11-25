@@ -66,7 +66,7 @@ fun main() {
         runCatching { GL.create() }
         val glCapabilities = GL.createCapabilities()
         try {
-            val path = Path("""...""")
+            val path = Path("""R:\patched_shaders""")
             val regex = "(\\d{3})_.*".toRegex()
             val shaders = path.listDirectoryEntries()
                 .filter { it.name.matches(regex) }
