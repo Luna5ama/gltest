@@ -23,7 +23,7 @@ class GLWrapperInitializerImpl : GLWrapperInitializer by GLWrapperInitializerLWJ
         private val root = Path("I:\\code\\gltest\\src\\main\\resources")
 
         override fun resolve0(path: String): Path {
-            return root.resolve("./$path")
+            return root.resolve(path)
         }
     }
 }
