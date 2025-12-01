@@ -3,10 +3,7 @@ package dev.luna5ama.gltest.pc
 import dev.fastmc.common.Direction
 import dev.fastmc.common.TickTimer
 import dev.fastmc.common.collection.CircularArray
-import dev.fastmc.common.collection.FastObjectArrayList
 import dev.fastmc.common.floorToInt
-import dev.fastmc.common.sort.IntInsertionSort
-import dev.fastmc.common.sort.IntIntrosort
 import dev.fastmc.common.toRadians
 import dev.luna5ama.gltest.GPUTimer
 import dev.luna5ama.gltest.concurrent.LWWSP
@@ -24,7 +21,6 @@ import dev.luna5ama.glwrapper.objects.BufferObject
 import dev.luna5ama.kmogus.MemoryStack
 import dev.luna5ama.kmogus.Ptr
 import it.unimi.dsi.fastutil.ints.IntArrayList
-import it.unimi.dsi.fastutil.objects.ObjectArrayList
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
@@ -394,9 +390,9 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
                             }
                             val chunkLayerInfo = filteredChunks[startingIndex]!!
                             updateData.add(
-                                    chunkLayerInfo.chunkIndex,
+                                chunkLayerInfo.chunkIndex,
                                 chunkLayerInfo.startIndex,
-                                    quadCount,
+                                quadCount,
                             )
                             startingIndex = -1
                         } else {
@@ -436,6 +432,7 @@ class TerrainGeometryRenderer(val scene: PointCloudScene) : IGLObjContainer by I
             val swQuad = lists[2]
 
             fun add(chunkIndex: Int, startIndex: Int, quadCount: Int) {
+//                        hwMs.add(chunkIndex, startIndex, quadCount)
                 if (sampleCountArray[chunkIndex] > 8.0f) {
                     if (!scene.gameInstance.toggles[1]) {
                         hwMs.add(chunkIndex, startIndex, quadCount)

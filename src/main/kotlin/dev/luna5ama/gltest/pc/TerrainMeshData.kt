@@ -28,6 +28,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.min
+import kotlin.system.measureNanoTime
 
 class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer by IGLObjContainer.Impl() {
     private val quadPosDataBuffer = register(BufferObject.Immutable())
@@ -99,8 +100,14 @@ class TerrainMeshData(val scene: PointCloudScene, dir: File) : IGLObjContainer b
 
         this.chunk2LayerMap = chunk2LayerMap
     }
-
     private suspend fun readData(dir: File) {
+        val time = measureNanoTime {
+            readData0(dir)
+        }
+        println("PC data built in %.2f ms".format(time / 1e6))
+    }
+
+    private suspend fun readData0(dir: File) {
         val layers = dir.listFiles()!!.count { it.name.startsWith("terrain_vbo_") }
         val pointCount = (0 until layers).sumOf { File(dir, "terrain_vbo_$it.bin").length() } / 4L / 20L
 
