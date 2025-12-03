@@ -100,7 +100,7 @@ void main() {
     prevColor.rgb = clamp(prevColor.rgb, nearMin, nearMax);
     vec4 color = currColor;
 
-    color.rgb = mix(currColor.rgb, prevColor.rgb, uval_mixFactor);
+    color.rgb = currColor.rgb;
     color.a = 1.0;
 
     imageStore(uimg_output, texel, color);

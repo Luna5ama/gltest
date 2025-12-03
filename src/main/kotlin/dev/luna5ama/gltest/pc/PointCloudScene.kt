@@ -301,7 +301,7 @@ class PointCloudScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboa
         val x = ((0.5 + a1 * n) % range - rangeHalf) / rangeHalf
         val y = ((0.5 + a2 * n) % range - rangeHalf) / rangeHalf
 
-        camera.update(x.toFloat() * 0.5f, y.toFloat() * 0.5f)
+        camera.update(0.0f, 0.0f)
 
         frameIndex++
     }

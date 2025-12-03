@@ -16,7 +16,7 @@ import java.util.*
 class FastClearScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboard) :
     AbstractScene(gameInstance, mouse, keyboard) {
 
-    val myTexSize = 8192
+    val myTexSize = 4096
 
     private val r32uiImage = register(TextureObject.Texture2D()).apply {
         label = "r32uiImage"
@@ -225,6 +225,42 @@ class FastClearScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboar
         }
     }
 
+    private fun glClearNamedFrameBuffer(format: ClearFormat, type: ClearType) {
+        val fbo = when (format) {
+            ClearFormat.R32UI -> r32uifbo
+            ClearFormat.RGBA8UN -> rgba8unfbo
+            ClearFormat.RGBA16F -> rgba16ffbo
+        }
+        MemoryStack {
+            val ptr = calloc(16L).ptr
+            when (format.dataType) {
+                DataType.FLOAT -> {
+                    val clearValue = when (type) {
+                        ClearType.ZERO -> 0f
+                        ClearType.ONE -> 1f
+                        ClearType.ONE_BITS -> Float.fromBits(-1)
+                    }
+                    ptr.setFloatInc(clearValue).setFloatInc(clearValue).setFloatInc(clearValue).setFloatInc(clearValue)
+                    glClearNamedFramebufferfv(fbo.id, GL_COLOR, 0, ptr)
+                }
+
+                DataType.UINT, DataType.INT -> {
+                    val clearValue = when (type) {
+                        ClearType.ZERO -> 0
+                        ClearType.ONE -> 1
+                        ClearType.ONE_BITS -> -1
+                    }
+                    ptr.setIntInc(clearValue).setIntInc(clearValue).setIntInc(clearValue).setIntInc(clearValue)
+                    if (format.dataType == DataType.UINT) {
+                        glClearNamedFramebufferuiv(fbo.id, GL_COLOR, 0, ptr)
+                    } else {
+                        glClearNamedFramebufferiv(fbo.id, GL_COLOR, 0, ptr)
+                    }
+                }
+            }
+        }
+    }
+
     private var timerIndex = 0
     private val gpuTimers = mutableListOf<GPUTimer>()
 
@@ -280,9 +316,10 @@ class FastClearScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboar
                     bench("glClearTexImage", format, clearType, this::glClearTexImage)
                     bench("glClear", format, clearType, this::glClear)
                     bench("glClearBuffer", format, clearType, this::glClearBuffer)
-                    bench("Manual Clear 1x1", format, clearType, 1)
-                    bench("Manual Clear 2x2", format, clearType, 2)
-                    bench("Manual Clear 4x4", format, clearType, 4)
+//                    bench("Manual Clear 1x1", format, clearType, 1)
+                    bench("glClearNamedFrameBuffer", format, clearType, this::glClearNamedFrameBuffer)
+//                    bench("Manual Clear 2x2", format, clearType, 2)
+//                    bench("Manual Clear 4x4", format, clearType, 4)
                 }
                 if (print) {
                     println()
