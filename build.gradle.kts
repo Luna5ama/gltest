@@ -103,12 +103,6 @@ allprojects {
         }
     }
 
-    java {
-        toolchain {
-            languageVersion.set(JavaLanguageVersion.of(23))
-        }
-    }
-
     kotlin {
         compilerOptions {
             jvmTarget.set(JvmTarget.JVM_23)

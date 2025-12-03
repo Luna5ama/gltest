@@ -25,8 +25,8 @@ includeBuild("../gl-wrapper") {
 
 includeBuild("../glc2vk") {
     dependencySubstitution {
-//        substitute(module("dev.luna5ama:glc2vk-common")).using(project(":common"))
-        substitute(module("dev.luna5ama:glc2vk-capture")).using(project(":capture"))
-        substitute(module("dev.luna5ama:glc2vk-replay")).using(project(":replay"))
+//        substitute(module("dev.luna5ama:glc2vk-common")).using(project(":glc2vk-common"))
+//        substitute(module("dev.luna5ama:glc2vk-capture")).using(project(":glc2vk-capture"))
+//        substitute(module("dev.luna5ama:glc2vk-replay")).using(project(":glc2vk-replay"))
     }
 }
