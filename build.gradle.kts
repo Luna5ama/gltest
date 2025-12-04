@@ -55,7 +55,7 @@ dependencies {
     implementation("dev.luna5ama:kmogus-joml:$kmogusVersion")
     implementation("org.lz4:lz4-java:1.8.0")
 
-//    implementation("com.tambapps.fft4j:fft4j:2.0")
+    implementation("dev.luna5ama:glc2vk-capture")
 }
 
 tasks {

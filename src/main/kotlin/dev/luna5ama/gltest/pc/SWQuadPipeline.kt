@@ -1,6 +1,9 @@
 package dev.luna5ama.gltest.pc
 
 import dev.fastmc.common.TickTimer
+import dev.luna5ama.glc2vk.capture.captureGlDispatchComputeIndirect
+import dev.luna5ama.glc2vk.common.ShaderSourceContext
+import dev.luna5ama.glc2vk.common.patchShaderForVulkan
 import dev.luna5ama.gltest.VisibilityState
 import dev.luna5ama.gltest.concurrent.LWWSP
 import dev.luna5ama.gltest.glDebugGroup
@@ -13,7 +16,10 @@ import dev.luna5ama.glwrapper.ShaderSource
 import dev.luna5ama.glwrapper.base.*
 import dev.luna5ama.glwrapper.enums.BufferTarget
 import dev.luna5ama.glwrapper.objects.BufferObject
-import dev.luna5ama.kmogus.*
+import dev.luna5ama.kmogus.Arr
+import dev.luna5ama.kmogus.MemoryStack
+import dev.luna5ama.kmogus.Ptr
+import dev.luna5ama.kmogus.ensureCapacity
 import it.unimi.dsi.fastutil.ints.IntArrayList
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -82,21 +88,26 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
         label = "SWQuad.BatchIndicesShader"
     }
 
+    val drawShaderSource = ShaderSource.Comp("pc/geometry/swquad/Draw.comp") {
+        define("WORKGROUP_SIZE", workGroupSize)
+        define("QUADS_PER_WORK_GROUP", quadsPerWorkGroup)
+        define("FLAG_TYPE", renderer.visibilityFlagType.glslTypeName)
+        if (scene.overdrawDebug) {
+            define("OVERDRAW_DEBUG")
+        }
+        if (renderer.debugQuadCount) {
+            define("DEBUG_QUAD_COUNT")
+        }
+    }
     val drawShader = register(
-        ShaderProgram(
-            ShaderSource.Comp("pc/geometry/swquad/Draw.comp") {
-                define("WORKGROUP_SIZE", workGroupSize)
-                define("QUADS_PER_WORK_GROUP", quadsPerWorkGroup)
-                define("FLAG_TYPE", renderer.visibilityFlagType.glslTypeName)
-                if (scene.overdrawDebug) {
-                    define("OVERDRAW_DEBUG")
-                }
-                if (renderer.debugQuadCount) {
-                    define("DEBUG_QUAD_COUNT")
-                }
-            }
-        )).apply {
+        ShaderProgram(drawShaderSource)
+    ).apply {
         label = "SWQuad.DrawShader"
+    }
+
+    val shaderInfo = ShaderSourceContext(drawShaderSource.resolveCodeSrc()).run {
+        patchShaderForVulkan()
+        toShaderInfo()
     }
 
     override suspend fun update(chunks: IntArrayList) {
@@ -217,6 +228,8 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
         }
     }
 
+    private var prevToggle = false
+
     private fun drawPass(state: VisibilityState) {
         glDebugGroup("DrawPass-$state-Setup") {
             val scanWorkGroupSize = scene.gpuScan.workGroupSize
@@ -270,7 +283,14 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
                 image("uimg_overdrawCounter", scene.overdrawCounterTex)
             }
             batchIndices.bind(GL_DISPATCH_INDIRECT_BUFFER)
-            glDispatchComputeIndirect(0L)
+            val newToggle = scene.gameInstance.toggles[9]
+            if (newToggle != prevToggle) {
+                prevToggle = newToggle
+                println("Capturing using glc2vk")
+                captureGlDispatchComputeIndirect(shaderInfo, 0L)
+            } else {
+                glDispatchComputeIndirect(0L)
+            }
         }
     }
 }
