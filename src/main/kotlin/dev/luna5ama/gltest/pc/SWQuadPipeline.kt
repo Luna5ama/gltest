@@ -23,6 +23,7 @@ import dev.luna5ama.kmogus.ensureCapacity
 import it.unimi.dsi.fastutil.ints.IntArrayList
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import kotlin.io.path.Path
 import kotlin.math.max
 import kotlin.math.min
 
@@ -287,7 +288,7 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
             if (newToggle != prevToggle) {
                 prevToggle = newToggle
                 println("Capturing using glc2vk")
-                captureGlDispatchComputeIndirect(shaderInfo, 0L)
+                captureGlDispatchComputeIndirect(shaderInfo, Path("glc2vk"), 0L)
             } else {
                 glDispatchComputeIndirect(0L)
             }
