@@ -6,7 +6,7 @@
 
 #extension GL_NV_gpu_shader5 : enable
 
-#define CUTOUT
+//#define CUTOUT
 
 #include "../../vbuffer/VBuffers.glsl"
 #include "../../GlobalCamera.glsl"

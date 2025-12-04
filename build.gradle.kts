@@ -33,11 +33,9 @@ dependencies {
     implementation("org.lwjgl", "lwjgl")
     implementation("org.lwjgl", "lwjgl-glfw")
     implementation("org.lwjgl", "lwjgl-opengl")
-    implementation("org.lwjgl", "lwjgl-stb")
     runtimeOnly("org.lwjgl", "lwjgl", classifier = "natives-windows")
     runtimeOnly("org.lwjgl", "lwjgl-glfw", classifier = "natives-windows")
     runtimeOnly("org.lwjgl", "lwjgl-opengl", classifier = "natives-windows")
-    runtimeOnly("org.lwjgl", "lwjgl-stb", classifier = "natives-windows")
 
     implementation(kotlin("reflect"))
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
