@@ -2,8 +2,7 @@ package dev.luna5ama.gltest.pc
 
 import dev.fastmc.common.TickTimer
 import dev.luna5ama.glc2vk.capture.captureGlDispatchComputeIndirect
-import dev.luna5ama.glc2vk.common.ShaderSourceContext
-import dev.luna5ama.glc2vk.common.patchShaderForVulkan
+import dev.luna5ama.glc2vk.capture.ShaderSourceContext
 import dev.luna5ama.gltest.VisibilityState
 import dev.luna5ama.gltest.concurrent.LWWSP
 import dev.luna5ama.gltest.glDebugGroup
@@ -288,7 +287,7 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
             if (newToggle != prevToggle) {
                 prevToggle = newToggle
                 println("Capturing using glc2vk")
-                captureGlDispatchComputeIndirect(shaderInfo, Path("glc2vk"), 0L)
+                captureGlDispatchComputeIndirect(shaderInfo, Path("swquad_capture"), 0L)
             } else {
                 glDispatchComputeIndirect(0L)
             }
