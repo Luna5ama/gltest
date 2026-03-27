@@ -2,17 +2,17 @@ package dev.luna5ama.gltest.concurrent
 
 import it.unimi.dsi.fastutil.objects.ObjectArrayFIFOQueue
 import it.unimi.dsi.fastutil.objects.ObjectArrayList
+import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.InternalCoroutinesApi
 import kotlinx.coroutines.Runnable
 import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlinx.coroutines.withTimeout
-import java.util.*
+import java.util.Random
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.*
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
-import kotlin.coroutines.Continuation
 import kotlin.coroutines.CoroutineContext
 
 class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) : CoroutineDispatcher() {
@@ -23,7 +23,6 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) : 
 
     private val isAccepting = AtomicBoolean(true)
     private val isRunning = AtomicBoolean(true)
-    private val random = Random()
 
     init {
         workers.forEach { it.start() }
@@ -36,15 +35,19 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) : 
 
     fun shutdown() {
         isAccepting.set(false)
-        while (activeWorkerCount.get() != 0) {
-            workers.forEach { it.interrupt() }
-        }
+        isRunning.set(false)
+        workers.forEach { it.taskQueue.wake() }
         workers.forEach { it.join() }
     }
 
     fun shutdownNow() {
+        isAccepting.set(false)
         isRunning.set(false)
-        shutdown()
+        workers.forEach { it.taskQueue.wake() }
+        workers.forEach {
+            it.interrupt()
+            it.join()
+        }
     }
 
     private fun checkState() {
@@ -131,14 +134,27 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) : 
                 }
             }
         }
+
+        fun wake() {
+            lock.withLock {
+                condition.signalAll()
+            }
+        }
+
+        fun signal() {
+            lock.withLock {
+                condition.signal()
+            }
+        }
     }
 
     private class Worker(val pool: LWWSP, val id: Int) : Thread("LWWSP-$id") {
         val taskQueue = TaskQueue()
         private val drainTemp = ObjectArrayList<AbstractTask<*>>()
-        private val random = Random()
+        val random = Random()
 
         fun randomOtherWorkerID(): Int {
+            if (pool.workerCountMinus1 <= 0) return -1
             val victimIDOffset = random.nextInt(pool.workerCountMinus1)
             val victimId = (id + 1 + victimIDOffset) % pool.workerCount
             assert(victimId != id)
@@ -146,6 +162,7 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) : 
         }
 
         private fun steal() {
+            if (pool.workerCountMinus1 <= 0) return
             yield()
             val victimIDBaseOffset = random.nextInt(pool.workerCountMinus1)
 
@@ -171,8 +188,9 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) : 
                 } catch (e: InterruptedException) {
                     null
                 }
-                if (taskQueue.sharedSize >= 1) {
-                    pool.workers[randomOtherWorkerID()].interrupt()
+                if (!pool.isRunning.get()) break
+                if (pool.workerCountMinus1 > 0 && taskQueue.sharedSize >= 1) {
+                    pool.workers[randomOtherWorkerID()].taskQueue.signal()
                 }
                 if (cTask == null) {
                     steal()
@@ -201,24 +219,16 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) : 
         suspend fun await(pollingTimeout: Long = 1L): Result<T>
     }
 
+    @OptIn(InternalCoroutinesApi::class)
     private sealed class AbstractTask<T> : Task<T> {
         private val completeResult = AtomicReference<Result<T>>(null)
-        private val lock = ReentrantLock()
-        private val condition = lock.newCondition()
-        private val continuations = ConcurrentLinkedQueue<Continuation<T>>()
+        private val continuations = ConcurrentLinkedQueue<CancellableContinuation<Result<T>>>()
 
         override val isCompleted get() = completeResult.get() != null
 
         protected fun complete(result: Result<T>) {
-            var success = false
-            while (completeResult.get() == null) {
-                success = completeResult.compareAndSet(null, result)
-            }
-            if (!success) return
-            lock.withLock {
-                condition.signalAll()
-            }
-            continuations.forEach { it.resumeWith(result) }
+            if (!completeResult.compareAndSet(null, result)) return
+            resumeAllContinuations(result)
         }
 
         protected fun completeFailure(result: Result<T>) {
@@ -227,27 +237,36 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) : 
                 oldResult.exceptionOrNull()?.printStackTrace()
                 return
             }
-            lock.withLock {
-                condition.signalAll()
+            resumeAllContinuations(result)
+        }
+
+        private fun resumeAllContinuations(result: Result<T>) {
+            while (true) {
+                val cont = continuations.poll() ?: break
+                val token = cont.tryResume(result)
+                if (token != null) {
+                    cont.completeResume(token)
+                }
             }
-            continuations.forEach { it.resumeWith(result) }
         }
 
         final override suspend fun await(pollingTimeout: Long): Result<T> {
-            var result = completeResult.get()
-            while (result == null) {
-                withTimeout(pollingTimeout) {
-                    suspendCancellableCoroutine {
-                        result = completeResult.get()
-                        if (result != null) {
-                            it.resumeWith(result)
-                        } else {
-                            continuations.add(it)
-                        }
+            // Fast path: already completed
+            completeResult.get()?.let { return it }
+
+            return suspendCancellableCoroutine { cont ->
+                continuations.add(cont)
+                cont.invokeOnCancellation { continuations.remove(cont) }
+
+                // Double-check after registration to close the race window
+                val result = completeResult.get()
+                if (result != null) {
+                    val token = cont.tryResume(result)
+                    if (token != null) {
+                        cont.completeResume(token)
                     }
                 }
             }
-            return result
         }
 
         abstract fun run(worker: Worker)
@@ -271,7 +290,7 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) : 
             val worker = if (currentThread is Worker) {
                 currentThread
             } else {
-                val workerID = random.nextInt(workerCount)
+                val workerID = Random().nextInt(workerCount)
                 workers[workerID]
             }
             worker.taskQueue.enqueueShared(this)
@@ -302,7 +321,7 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) : 
         }
 
         private fun encodeRange(start: Int, end: Int): Long {
-            return (end.toLong() shl 32) or start.toLong()
+            return (end.toLong() shl 32) or Integer.toUnsignedLong(start)
         }
 
         private fun decodeRangeStart(encoded: Long): Int {
@@ -314,12 +333,13 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) : 
         }
 
         private fun steal(worker: Worker) {
+            if (workerCountMinus1 <= 0) return
             Thread.yield()
-            val victimIDBaseOffset = random.nextInt(worker.pool.workerCountMinus1)
+            val victimIDBaseOffset = worker.random.nextInt(workerCountMinus1)
 
-            for (i in 0..<worker.pool.workerCountMinus1) {
-                val victimIDOffset = (victimIDBaseOffset + i) % (worker.pool.workerCountMinus1)
-                val victimID = (worker.id + 1 + victimIDOffset) % worker.pool.workerCount
+            for (i in 0..<workerCountMinus1) {
+                val victimIDOffset = (victimIDBaseOffset + i) % (workerCountMinus1)
+                val victimID = (worker.id + 1 + victimIDOffset) % workerCount
                 val encoded = threadRanges.get(victimID)
                 val start = decodeRangeStart(encoded)
                 val end = decodeRangeEnd(encoded)
