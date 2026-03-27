@@ -9,6 +9,7 @@ import kotlinx.coroutines.Runnable
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.util.Random
 import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.ThreadLocalRandom
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.*
 import java.util.concurrent.locks.ReentrantLock
@@ -36,14 +37,20 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) : 
     fun shutdown() {
         isAccepting.set(false)
         isRunning.set(false)
-        workers.forEach { it.taskQueue.wake() }
+        workers.forEach {
+            it.taskQueue.stopped = true
+            it.taskQueue.wake()
+        }
         workers.forEach { it.join() }
     }
 
     fun shutdownNow() {
         isAccepting.set(false)
         isRunning.set(false)
-        workers.forEach { it.taskQueue.wake() }
+        workers.forEach {
+            it.taskQueue.stopped = true
+            it.taskQueue.wake()
+        }
         workers.forEach {
             it.interrupt()
             it.join()
@@ -59,6 +66,7 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) : 
         private val queueShared = ObjectArrayFIFOQueue<AbstractTask<*>>()
         private val lock = ReentrantLock()
         private val condition = lock.newCondition()
+        @Volatile var stopped = false
 
         private fun ObjectArrayFIFOQueue<AbstractTask<*>>.tryDequeue(): AbstractTask<*>? {
             return if (isEmpty) null else dequeue()
@@ -88,40 +96,31 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) : 
             }
         }
 
-        fun dequeue(): AbstractTask<*> {
-            var task: AbstractTask<*>? = null
-            while (task == null) {
-                lock.lock()
-                try {
-                    task = queueExclusive.tryDequeue()
-                    if (task == null) {
-                        task = queueShared.tryDequeue()
-                    }
-                    if (task == null) {
-                        condition.await()
-                    }
-                } finally {
-                    lock.unlock()
-                }
-            }
-            return task
-        }
-
-        fun dequeue(time: Long, unit: TimeUnit): AbstractTask<*>? {
-            var task: AbstractTask<*>?
+        fun dequeue(): AbstractTask<*>? {
             lock.lock()
             try {
-                task = queueExclusive.tryDequeue()
-                if (task == null) {
-                    task = queueShared.tryDequeue()
-                }
-                if (task == null) {
-                    condition.await(time, unit)
+                while (true) {
+                    val task = queueExclusive.tryDequeue() ?: queueShared.tryDequeue()
+                    if (task != null) return task
+                    if (stopped) return null
+                    condition.await()
                 }
             } finally {
                 lock.unlock()
             }
-            return task
+        }
+
+        fun dequeue(time: Long, unit: TimeUnit): AbstractTask<*>? {
+            lock.lock()
+            try {
+                val task = queueExclusive.tryDequeue() ?: queueShared.tryDequeue()
+                if (task != null) return task
+                if (stopped) return null
+                condition.await(time, unit)
+                return queueExclusive.tryDequeue() ?: queueShared.tryDequeue()
+            } finally {
+                lock.unlock()
+            }
         }
 
         fun drainToShared(dst: MutableCollection<AbstractTask<*>>, limit: Int = Int.MAX_VALUE) {
@@ -232,9 +231,10 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) : 
         }
 
         protected fun completeFailure(result: Result<T>) {
-            val oldResult = completeResult.getAndSet(result)
-            if (oldResult != null) {
-                oldResult.exceptionOrNull()?.printStackTrace()
+            if (!completeResult.compareAndSet(null, result)) {
+                // Task was already completed (success or prior failure);
+                // log this late exception but don't corrupt the stored result
+                result.exceptionOrNull()?.printStackTrace()
                 return
             }
             resumeAllContinuations(result)
@@ -279,7 +279,7 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) : 
             try {
                 val result = action.run()
                 complete(Result.success(result))
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 completeFailure(Result.failure(e))
             }
         }
@@ -290,7 +290,7 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) : 
             val worker = if (currentThread is Worker) {
                 currentThread
             } else {
-                val workerID = Random().nextInt(workerCount)
+                val workerID = ThreadLocalRandom.current().nextInt(workerCount)
                 workers[workerID]
             }
             worker.taskQueue.enqueueShared(this)
@@ -312,7 +312,9 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) : 
             val step = maxOf(size / workerCount, batchSize)
             for (i in 0 until workerCount) {
                 var end = minOf(start + step, size)
-                if (size - end < batchSize) {
+                // Last worker always absorbs all remaining items, regardless of how many are left.
+                // Non-last workers also absorb the tail if it's smaller than one full batch.
+                if (i == workerCount - 1 || size - end < batchSize) {
                     end = size
                 }
                 threadRanges.set(i, encodeRange(start, end))
@@ -396,7 +398,7 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) : 
                 if (threadRanges.get(workerCount) == 0L) {
                     complete(Result.success(scopes))
                 }
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 completeFailure(Result.failure(e))
             }
         }
