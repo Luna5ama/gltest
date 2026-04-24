@@ -2,16 +2,13 @@ package dev.luna5ama.gltest.concurrent
 
 import it.unimi.dsi.fastutil.objects.ObjectArrayFIFOQueue
 import it.unimi.dsi.fastutil.objects.ObjectArrayList
-import kotlinx.coroutines.CancellableContinuation
-import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.InternalCoroutinesApi
-import kotlinx.coroutines.Runnable
-import kotlinx.coroutines.suspendCancellableCoroutine
-import java.util.Random
+import kotlinx.coroutines.*
+import java.util.*
 import java.util.concurrent.ConcurrentLinkedQueue
-import java.util.concurrent.ThreadLocalRandom
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.*
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLongArray
+import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 import kotlin.coroutines.CoroutineContext
@@ -66,7 +63,8 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) : 
         private val queueShared = ObjectArrayFIFOQueue<AbstractTask<*>>()
         private val lock = ReentrantLock()
         private val condition = lock.newCondition()
-        @Volatile var stopped = false
+        @Volatile
+        var stopped = false
 
         private fun ObjectArrayFIFOQueue<AbstractTask<*>>.tryDequeue(): AbstractTask<*>? {
             return if (isEmpty) null else dequeue()
@@ -99,28 +97,15 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) : 
         fun dequeue(): AbstractTask<*>? {
             lock.lock()
             try {
-                while (true) {
-                    val task = queueExclusive.tryDequeue() ?: queueShared.tryDequeue()
-                    if (task != null) return task
-                    if (stopped) return null
-                    condition.await()
-                }
-            } finally {
-                lock.unlock()
-            }
-        }
-
-        fun dequeue(time: Long, unit: TimeUnit): AbstractTask<*>? {
-            lock.lock()
-            try {
                 val task = queueExclusive.tryDequeue() ?: queueShared.tryDequeue()
                 if (task != null) return task
                 if (stopped) return null
-                condition.await(time, unit)
-                return queueExclusive.tryDequeue() ?: queueShared.tryDequeue()
+                condition.await()
             } finally {
                 lock.unlock()
             }
+
+            return null
         }
 
         fun drainToShared(dst: MutableCollection<AbstractTask<*>>, limit: Int = Int.MAX_VALUE) {
@@ -140,10 +125,8 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) : 
             }
         }
 
-        fun signal() {
-            lock.withLock {
-                condition.signal()
-            }
+        override fun toString(): String {
+            return "Exclusive: ${queueExclusive.size()}, Shared: ${queueShared.size()}"
         }
     }
 
@@ -182,18 +165,14 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) : 
         override fun run() {
             pool.activeWorkerCount.incrementAndGet()
             while (pool.isRunning.get()) {
-                val cTask = try {
-                    taskQueue.dequeue()
-                } catch (e: InterruptedException) {
-                    null
-                }
+                val cTask = taskQueue.dequeue()
                 if (!pool.isRunning.get()) break
-                if (pool.workerCountMinus1 > 0 && taskQueue.sharedSize >= 1) {
-                    pool.workers[randomOtherWorkerID()].taskQueue.signal()
-                }
                 if (cTask == null) {
                     steal()
                     continue
+                }
+                if (pool.workerCountMinus1 > 0 && taskQueue.sharedSize >= 1) {
+                    pool.workers[randomOtherWorkerID()].taskQueue.wake()
                 }
                 cTask.run(this)
             }
@@ -290,7 +269,7 @@ class LWWSP(val workerCount: Int, val threadConfigure: (Thread) -> Unit = {}) : 
             val worker = if (currentThread is Worker) {
                 currentThread
             } else {
-                val workerID = ThreadLocalRandom.current().nextInt(workerCount)
+                val workerID = kotlin.random.Random.nextInt(workerCount)
                 workers[workerID]
             }
             worker.taskQueue.enqueueShared(this)
