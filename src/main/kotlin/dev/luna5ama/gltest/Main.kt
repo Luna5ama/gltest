@@ -31,7 +31,7 @@ fun main() {
             glfwWindowHint(GLFW_DOUBLEBUFFER, GLFW_TRUE)
             glfwWindowHint(GLFW_SAMPLES, 0)
 
-            val window = glfwCreateWindow(1920, 1080, "", 0, 0)
+            val window = glfwCreateWindow(1920, 1080, "gltest", 0, 0)
 //            val window = glfwCreateWindow(1280, 720, "", 0, 0)
 //            val window = glfwCreateWindow(800, 600, "", 0, 0)
 //            val size = 1024
