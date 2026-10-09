@@ -23,4 +23,4 @@ includeBuild("../gl-wrapper") {
     }
 }
 
-includeBuild("../glc2vk")
+//includeBuild("../glc2vk")

@@ -1,8 +1,6 @@
 package dev.luna5ama.gltest.pc
 
 import dev.fastmc.common.TickTimer
-import dev.luna5ama.glc2vk.capture.captureGlDispatchComputeIndirect
-import dev.luna5ama.glc2vk.capture.ShaderSourceContext
 import dev.luna5ama.gltest.VisibilityState
 import dev.luna5ama.gltest.concurrent.LWWSP
 import dev.luna5ama.gltest.glDebugGroup
@@ -105,10 +103,10 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
         label = "SWQuad.DrawShader"
     }
 
-    val shaderInfo = ShaderSourceContext(drawShaderSource.resolveCodeSrc()).run {
-        patchShaderForVulkan()
-        toShaderInfo()
-    }
+//    val shaderInfo = ShaderSourceContext(drawShaderSource.resolveCodeSrc()).run {
+//        patchShaderForVulkan()
+//        toShaderInfo()
+//    }
 
     override suspend fun update(chunks: IntArrayList) {
         class Scope {
@@ -283,14 +281,15 @@ class SWQuadPipeline(scene: PointCloudScene, renderer: TerrainGeometryRenderer) 
                 image("uimg_overdrawCounter", scene.overdrawCounterTex)
             }
             batchIndices.bind(GL_DISPATCH_INDIRECT_BUFFER)
-            val newToggle = scene.gameInstance.toggles[9]
-            if (newToggle != prevToggle) {
-                prevToggle = newToggle
-                println("Capturing using glc2vk")
-                captureGlDispatchComputeIndirect(shaderInfo, Path("swquad_capture"), 0L)
-            } else {
-                glDispatchComputeIndirect(0L)
-            }
+            glDispatchComputeIndirect(0L)
+//            val newToggle = scene.gameInstance.toggles[9]
+//            if (newToggle != prevToggle) {
+//                prevToggle = newToggle
+//                println("Capturing using glc2vk")
+//                captureGlDispatchComputeIndirect(shaderInfo, Path("swquad_capture"), 0L)
+//            } else {
+//                glDispatchComputeIndirect(0L)
+//            }
         }
     }
 }
