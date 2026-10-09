@@ -316,10 +316,10 @@ class FastClearScene(gameInstance: GameInstance, mouse: Mouse, keyboard: Keyboar
                     bench("glClearTexImage", format, clearType, this::glClearTexImage)
                     bench("glClear", format, clearType, this::glClear)
                     bench("glClearBuffer", format, clearType, this::glClearBuffer)
-//                    bench("Manual Clear 1x1", format, clearType, 1)
                     bench("glClearNamedFrameBuffer", format, clearType, this::glClearNamedFrameBuffer)
-//                    bench("Manual Clear 2x2", format, clearType, 2)
-//                    bench("Manual Clear 4x4", format, clearType, 4)
+                    bench("Manual Clear 1x1", format, clearType, 1)
+                    bench("Manual Clear 2x2", format, clearType, 2)
+                    bench("Manual Clear 4x4", format, clearType, 4)
                 }
                 if (print) {
                     println()
